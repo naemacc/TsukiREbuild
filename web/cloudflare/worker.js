@@ -45,6 +45,7 @@ export default {
 
     const headers = new Headers();
     object.writeHttpMetadata(headers);
+    headers.set("Cache-Control", "public, max-age=300");
     headers.set("ETag", object.httpEtag);
     headers.set("Last-Modified", object.uploaded.toUTCString());
     headers.set("Accept-Ranges", "bytes");
