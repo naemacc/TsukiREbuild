@@ -2,9 +2,6 @@
 __pycache__/
 *.pyc
 
-# Keep new generated web assets untracked by default.
-web/assets/
-
 # Local research data generated from a game dump.
 web-dev/data/
 web-research/extracted/

@@ -16,6 +16,14 @@ Nothing else in the repository is read, nor the game's own files, so that folder
 
 **It does not work in Safari.** The movies are AV1 video, which Safari plays only on Apple's newest hardware (it has no decoder of its own), and the game has not been tried there.
 
+## Cloudflare deployment
+
+The live version is [tsukirebuild.pages.dev](https://tsukirebuild.pages.dev/). Pushes to `main` that change `web/`, `tools/cloudflare/`, or the deployment workflow publish automatically through GitHub Actions. The workflow can also be started manually from the Actions tab.
+
+The deployment compares file checksums and uploads new or modified game assets to the `tsukirebuild-assets` R2 bucket before publishing the frontend. Previous objects are retained for open browser sessions and deployment rollbacks. New asset files can be committed normally.
+
+GitHub stores the deployment credential in the encrypted repository secret `CLOUDFLARE_API_TOKEN` and its token ID in the repository variable `CLOUDFLARE_API_TOKEN_ID`. The credential needs account-level `Pages Write` and `Workers R2 Storage Bucket Item Write` scoped to `tsukirebuild-assets`. Update both values when rotating the credential.
+
 ## Making the assets again
 
 Only if `assets/` has to be rebuilt. From the repository root, with the dump in place, the patch in `mods/japan`, the packages in
