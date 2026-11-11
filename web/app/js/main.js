@@ -1198,8 +1198,7 @@ async function loadingScreen() {
   preload.startup({ firstLaunch, stage: firstLaunch ? 0 : titleNext(), scene: q.has("script") });
   window.preload = preload;
   // The opening page (home.js): About, GitHub, the Android app, and PLAY ONLINE, whose press is the click the browser wants before it will play sound.
-  // A first visit opens it on About.
-  if (homeDue(q)) await openHome(ui, { about: firstVisit, started: gameStarted });
+  if (homeDue(q)) await openHome(ui, { started: gameStarted });
   homeUp = false;
   touch.reorient?.();   // the game's own stage again, and in portrait the rotate screen
   fitStage();

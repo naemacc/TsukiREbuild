@@ -2,8 +2,9 @@
 // ANDROID APP (the offline app) and PLAY ONLINE, whose PRESS ANY BUTTON starts the game; that press is also the click a browser wants before it plays sound.
 // Built as the quick bar is (ui.js buildPanel), from the game's art: the mode panel's strip with four of its plates relettered, the title's picture under the
 // system menu's sky, Config's inner panel, the game's scroll bar and help band, and the title's own prompt.
-// It opens on every visit, for everyone: on ABOUT the first time, on PLAY ONLINE after that. Not inside the Android app (web-dev/android), which is the
-// game itself, nor where the address asks for a scene (?script, for tests and the scene links in ABOUT's Extras).
+// It opens on every visit, for everyone, with no tab chosen and no plate lit: the column holds only the game's logo and a line naming the plates, so
+// a stray tap starts nothing. Not inside the Android app (web-dev/android), which is the game itself, nor where the address asks for a scene (?script,
+// for tests and the scene links in ABOUT's Extras).
 import { sprite, quickBarArt, panelBack } from "./ui.js";
 import { TOUCH } from "./touch.js";
 import { ButtonState, pressPulse } from "./uifx.js";
@@ -58,13 +59,15 @@ export const TABS = [
     ["press"],
   ] }] },
 ];
-export const ABOUT = 0, PLAY = TABS.length - 1;
+export const ABOUT = 0, PLAY = TABS.length - 1, NONE = -1;
+// The line under the logo before a plate is chosen.
+export const NONE_LINE = "An unofficial fan rebuild of the Tsukihime remake. Choose a page above: ABOUT, GITHUB, ANDROID APP, or PLAY ONLINE to start the game.";
 
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
 
-// Resolves once the game has been started from PLAY ONLINE and the page has gone. about: open on ABOUT (a first visit) rather than PLAY ONLINE.
+// Resolves once the game has been started from PLAY ONLINE and the page has gone.
 // started: called within the click or key that starts the game, while the browser still counts it as the player's (main.js asks for full screen there).
-export async function openHome(ui, { about = false, started = null } = {}) {
+export async function openHome(ui, { started = null } = {}) {
   const page = ui.begin("home");
   const black = ui.blackout(page, 1);
   const T = ui.touch ? TOUCH : null, P = T ? { w: T.bar.w, h: T.bar.h } : PLATE;
@@ -121,10 +124,18 @@ export async function openHome(ui, { about = false, started = null } = {}) {
       if (b[0] === "rows" && tab !== ABOUT) e.classList.add("hm-rows");   // (names this short need no 500 px column; About keeps the first page's)
       return e;
     };
+    // k: a tab, or NONE: what the page opens on, the logo and a line naming the plates
     const show = (k) => {
       tab = k;
       prompt = null;
       pulse = { alpha: 0, up: true };
+      if (k === NONE) {
+        inner.replaceChildren(el("div", "wl-logo hm-logo"), el("p", "wl-note hm-lead", NONE_LINE));
+        inner.style.opacity = "0";
+        shownAt = 0;
+        list.scrollTop = 0;
+        return;
+      }
       inner.replaceChildren(...TABS[k].sections.map((s, n) => {
         const part = el("div", "hm-part");
         // (on a touch device the PLAY ONLINE page also says, under its prompt, how the game is played by touch: there are no hints to find by resting a
@@ -179,17 +190,20 @@ export async function openHome(ui, { about = false, started = null } = {}) {
       }, { sound: null });
       return b;
     });
-    show(about ? ABOUT : PLAY);
-    ui.select(tab);
+    show(NONE);
+    ui.sel = NONE;      // no plate lit: the keys' cursor comes in with the first arrow, Tab or pointer
 
     ui.keyFn = (e) => {
       const k = e.key;
       if (k === "F5" || k === "F11" || k === "F12") return false;
       if (leaving) return true;
-      if (k === "ArrowLeft" || k === "ArrowRight") ui.move(ui.sel + (k === "ArrowLeft" ? -1 : 1));
+      if (k === "ArrowLeft" || k === "ArrowRight") {
+        const step = k === "ArrowLeft" ? -1 : 1;
+        ui.move(ui.sel === NONE ? (step > 0 ? 0 : TABS.length - 1) : ui.sel + step);   // (from no plate: the first, or the last)
+      }
       else if (k === "Enter" || k === " ") { if (!e.repeat) ui.choose(ui.sel); }
       else if (k === "Tab") {
-        if (!e.repeat) { const next = (tab + (e.shiftKey ? -1 : 1) + TABS.length) % TABS.length; ui.audio.start(); ui.sound(1); show(next); ui.select(next); }
+        if (!e.repeat) { const next = tab === NONE ? (e.shiftKey ? TABS.length - 1 : 0) : (tab + (e.shiftKey ? -1 : 1) + TABS.length) % TABS.length; ui.audio.start(); ui.sound(1); show(next); ui.select(next); }
       }
       else if (k === "ArrowUp") list.scrollTop -= 120;
       else if (k === "ArrowDown") list.scrollTop += 120;

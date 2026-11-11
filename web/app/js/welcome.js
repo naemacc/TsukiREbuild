@@ -1,6 +1,6 @@
 // welcome.js - what the opening page's ABOUT tab says (home.js draws it): what this project is and how it was made, section by section. It was a page of
-// its own, shown on a first visit, until 2026-11-11, when it became that tab. A first visit is still told apart, so that the opening page starts on ABOUT
-// and the game's Loading window waits for the first screens' files once PLAY ONLINE is pressed.
+// its own, shown on a first visit, until 2026-11-11, when it became that tab. A first visit is still told apart, so that the game's Loading window waits
+// for the first screens' files once PLAY ONLINE is pressed.
 const KEY = "tsuki.welcomed";
 
 export function welcomeDue(query) {
@@ -83,7 +83,6 @@ export const SECTIONS = [
       ["/?script=04_00_ARC04_4_1&pc=500", "Runs through the scene to command 500, then plays on normally."],
       ["/?script=04_00_ARC04_3&label=LBL_008", "Starts at a label inside the script. Nothing before it has run, so the screen stays empty until the scene next draws a picture."],
       ["&mute", "Added to any of these: no sound at all."],
-      ["/?welcome", "The opening page on this tab, as on a first visit."],
     ]],
     "Script names are the game's own, and capitals matter. They start with the day, then 00 for Arcueid's route or 01 for Ciel's, as in 04_00_ARC04_4_1 and 05_01_CIEL05_2_2_2. 00_00 to 00_02 are the prologue, QA_01 to QA_24 the Teach Me, Ciel-sensei episodes. All 549 are listed in assets/scripts/index.json.",
     "A scene opened this way starts with the story's flags empty, so one that depends on earlier choices can take a different branch than it would in play. What you read still counts as read. It also skips the opening page, so sound begins at your first click.",

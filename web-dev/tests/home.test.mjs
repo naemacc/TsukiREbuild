@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const { homeDue, TABS, ABOUT, PLAY, GITHUB, APK } = await import("../../web/app/js/home.js");
+const { homeDue, TABS, ABOUT, PLAY, NONE, NONE_LINE, GITHUB, APK } = await import("../../web/app/js/home.js");
 const { SECTIONS } = await import("../../web/app/js/welcome.js");
 const source = (name) => readFileSync(new URL(`../../web/app/${name}`, import.meta.url), "utf8");
 const q = (s) => new URLSearchParams(s);
@@ -39,10 +39,13 @@ test("GitHub's page links the repository, the Android app's the download, PLAY O
   assert.ok(!blocks(1).some((b) => b[0] === "press") && !blocks(2).some((b) => b[0] === "press"), "only PLAY ONLINE starts the game");
 });
 
-test("a first visit opens on ABOUT, later ones on PLAY ONLINE; a choice or a click on PLAY ONLINE's page starts the game", () => {
+test("it opens with no tab chosen and no plate lit, so a stray tap starts nothing; on PLAY ONLINE's page a choice or a click starts the game", () => {
   const home = source("js/home.js"), main = source("js/main.js");
-  assert.match(main, /if \(homeDue\(q\)\) await openHome\(ui, \{ about: firstVisit, started: gameStarted \}\);/);
-  assert.match(home, /show\(about \? ABOUT : PLAY\);/);
+  assert.match(main, /if \(homeDue\(q\)\) await openHome\(ui, \{ started: gameStarted \}\);/);
+  assert.match(home, /show\(NONE\);\n    ui\.sel = NONE;/);
+  assert.equal(NONE, -1);
+  assert.match(NONE_LINE, /ABOUT, GITHUB, ANDROID APP, or PLAY ONLINE/);
+  assert.match(home, /if \(tab === PLAY && !e\.target\.closest\("a"\)\) start\(\);/, "taps start the game only on PLAY ONLINE's page");
   assert.match(home, /if \(i === PLAY && tab === PLAY\) \{ start\(\); return; \}/);
   assert.match(home, /list\.addEventListener\("click", \(e\) => \{ if \(tab === PLAY && !e\.target\.closest\("a"\)\) start\(\); \}\);/);
   assert.match(home, /if \(leaving \|\| tab !== PLAY\) return;/, "nothing else starts it");

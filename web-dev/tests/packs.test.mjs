@@ -111,6 +111,6 @@ test("after START the game's Loading window holds until the first screens' files
   assert.match(main, /const ready = \(t\) => preload\.settled\(RANK\.story\) && \(preload\.moviesReady\(\) \|\| t > LOADING\.movie\);\n  if \(ready\(0\)\) return;/);
   assert.match(main, /ui\.notify\(word, \{ held: true, live: \(\) => `\$\{word\}  \$\{Math\.floor\(preload\.progress\(RANK\.story\) \* 100\)\}%` \}\);/, "the game's own notice, with the count");
   assert.match(main, /if \(\(t >= LOADING\.least && ready\(t\)\) \|\| t >= LOADING\.most\) done\(\); else setTimeout\(look, 100\);/, "never longer than 20 s");
-  assert.match(main, /if \(homeDue\(q\)\) await openHome\(ui, \{ about: firstVisit, started: gameStarted \}\);\n(  [^\n]*\n){0,4}  if \(firstVisit\) \{ await loadingScreen\(\); markWelcomed\(\); \}/);
+  assert.match(main, /if \(homeDue\(q\)\) await openHome\(ui, \{ started: gameStarted \}\);\n(  [^\n]*\n){0,4}  if \(firstVisit\) \{ await loadingScreen\(\); markWelcomed\(\); \}/);
   assert.match(ui, /if \(live\) \{ const now = live\(\); if \(now !== q\.textContent\) q\.textContent = now; \}/);
 });

@@ -89,7 +89,7 @@ The game opens on the same page every time, for everyone (`app/js/home.js`). It 
 - **ANDROID APP**: what the offline app is, how to install it, and the download.
 - **PLAY ONLINE**: what the browser version needs, and the title's PRESS ANY BUTTON. A click or tap on that page, or Enter, starts the game. Browsers play no sound until the page has been clicked, so this press is that click, and the game opens with its sound on. On a touch device the page also says how to play by touch.
 
-A first visit opens on ABOUT, and the game's Loading window then waits for the first screens' files. Later visits open on PLAY ONLINE. The page is skipped only inside the Android app, which is the game itself, and for an address that opens a scene (`?script=...`).
+It opens with no tab chosen: the game's logo and a line naming the plates, so a stray tap starts nothing. On a first visit the game's Loading window waits for the first screens' files after PLAY ONLINE. The page is skipped only inside the Android app, which is the game itself, and for an address that opens a scene (`?script=...`).
 
 ## Loading
 
@@ -115,7 +115,6 @@ Add these to the address:
 | `/?script=04_00_ARC04_4_1&pc=500` | Runs through to command 500, then plays normally |
 | `/?script=04_00_ARC04_3&label=LBL_008` | Starts at a label inside the script. Nothing before it has run, so the screen stays empty until the scene next draws a picture |
 | `&mute` | No sound at all, with any of these |
-| `/?welcome` | The first page on its ABOUT tab, as on a first visit |
 
 Script names start with the day, then 00 for Arcueid's route or 01 for Ciel's. `00_00` to `00_02` are the prologue and `QA_01` to `QA_24` the Teach Me, Ciel-sensei episodes. All 549 are in `assets/scripts/index.json`. A scene opened this way starts with the story's flags empty, so one that depends on earlier choices can branch differently than in play. It also skips the first page, so sound begins at your first click.
 

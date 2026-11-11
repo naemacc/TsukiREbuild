@@ -114,6 +114,7 @@ html.touch.upright .hm-tall-strip { position: absolute; inset: 0; box-sizing: bo
 html.touch.upright .hm-scroll { left: 40px; top: 262px; width: 1000px; height: calc(100% - 262px); }
 html.touch.upright .hm-text { padding: 36px 56px 200px; font-size: 44px; line-height: 64px; }
 html.touch.upright .hm-text h2 { font-size: 60px; line-height: 74px; }
+html.touch.upright .hm-text > .hm-logo:first-child { margin-top: 260px; }
 html.touch.upright .hm-text h3 { font-size: 48px; line-height: 60px; }
 html.touch.upright .hm-text .wl-rows { grid-template-columns: 1fr; gap: 0; }
 html.touch.upright .hm-text .wl-name { margin-top: 18px; }
