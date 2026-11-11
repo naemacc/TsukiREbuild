@@ -120,21 +120,21 @@ Script names start with the day, then 00 for Arcueid's route or 01 for Ciel's. `
 
 ## Fonts
 
-Only SeuratPro and Inter are in this folder. The rest are looked for on the system, and the next in line is used where one is missing.
+SeuratPro and Inter are always used from this folder. Every other font is looked for on the system first, in the order given, as before. Where none of a row's fonts is installed, a free backup that ships in `app/fonts/` is used instead (the last column), so text never falls to a generic face. The backups have names of their own ("Gelasio Bundled" and so on), so they never take over from an installed font. They hold Latin, accents and punctuation only: Japanese and symbols come from the system, which always has them. Gelasio has Georgia's widths and Arimo has Arial's, so lines break where they would. Each backup's licence is beside it (SIL OFL, the Ubuntu Font Licence, the GUST Font License). Letters drawn on canvases (the plates, the config's words) wait at start for any backup they will need (`main.js` `CANVAS_FONTS`), and a system that has the fonts fetches nothing.
 
-| Font | Used for | Then |
-|---|---|---|
-| Georgia | The story, choices, the log, Yes / No questions | Times New Roman |
-| SeuratPro M | Speech balloons (`assets/fonts/`, the game's own) | Georgia |
-| Inter | Gallery lists, Music Player, the hints, Controls page (`app/fonts/`) | any sans-serif |
-| Helvetica | Flowchart cards | Arial |
-| Apple Chancery | Chapter names, the story's old-fashioned lettering | Lucida Calligraphy, Monotype Corsiva, URW Chancery L, TeX Gyre Chorus |
-| Hoefler Text | Day numbers beside chapter names | Palatino Linotype, Palatino, Book Antiqua, Georgia |
-| PT Sans Narrow | The words on the plates | Ubuntu Condensed, Arial Narrow, Segoe UI, Helvetica Neue, Arial |
-| Ubuntu Condensed | Chapters on save rows and the flowchart | PT Sans Narrow, Arial Narrow, Roboto Condensed, Helvetica |
-| Ubuntu | The day on a save row | Helvetica Neue, Segoe UI, the system font |
-| Eurostile | The Audio Track label | Microgramma, DIN Alternate, Bahnschrift, Inter |
-| System font | Scene names in the menus, short notices | |
+| Font | Used for | Then | Backup (included) |
+|---|---|---|---|
+| Georgia | The story, choices, the log, Yes / No questions | Times New Roman | Gelasio |
+| SeuratPro M | Speech balloons (`assets/fonts/`, the game's own) | Georgia | Gelasio |
+| Inter | Gallery lists, Music Player, the hints, Controls page (`app/fonts/`) | | (included itself) |
+| Helvetica | Flowchart cards, the config's words | Arial | Arimo |
+| Apple Chancery | Chapter names, the story's old-fashioned lettering | Lucida Calligraphy, Monotype Corsiva, URW Chancery L, TeX Gyre Chorus | TeX Gyre Chorus |
+| Hoefler Text | Day numbers beside chapter names | Palatino Linotype, Palatino, Book Antiqua | TeX Gyre Pagella |
+| PT Sans Narrow | The words on the plates | Ubuntu Condensed, Arial Narrow | PT Sans Narrow |
+| Ubuntu Condensed | Chapters on save rows and the flowchart | PT Sans Narrow, Arial Narrow, Roboto Condensed | Ubuntu Condensed |
+| Ubuntu | The day on a save row | Helvetica Neue, Segoe UI | Ubuntu Light |
+| Eurostile | The Audio Track label | Microgramma, DIN Alternate, Bahnschrift | Inter |
+| System font | Scene names in the menus, short notices | | (the system's own) |
 
 The game itself carries `ja/TT_TsukuMin-D.ttf`, `ja2/TT_TsukuGo-D.ttf`, `ja3/FOT-SeuratPro-M.otf`, `ja3/SeuratPro-M.otf` and `exfont_nx01.bffnt`.
 

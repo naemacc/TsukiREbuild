@@ -5,7 +5,7 @@
 // state's colour and glow. Everything else in the pictures (the bars, the marks before each choice, "ms") is as it was.
 // The samples take the same size in style.css (.confsample).
 
-export const CONF_TEXT = { size: 28, line: 36, font: 'Helvetica, Arial, "Liberation Sans", sans-serif', fill: "rgba(255, 255, 255, .96)" };
+export const CONF_TEXT = { size: 28, line: 36, font: 'Helvetica, Arial, "Liberation Sans", "Arimo Bundled", sans-serif', fill: "rgba(255, 255, 255, .96)" };
 // system_bg (1432 x 1336): each row's name, the rows its old words lay in ([first, last]) and its lines. The words start
 // at x 44; the first line keeps its old middle (14 px under the old words' top).
 export const SYSTEM_LABELS = [

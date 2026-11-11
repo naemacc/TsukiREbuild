@@ -1,4 +1,16 @@
-:root { color-scheme: dark; --story-font: Georgia, "Times New Roman", serif; --story-size: 42px; --flow-font: Helvetica, Arial, sans-serif; --gallery-font: Inter, sans-serif; }
+:root { color-scheme: dark; --story-font: Georgia, "Times New Roman", "Gelasio Bundled", serif; --story-size: 42px; --flow-font: Helvetica, Arial, "Arimo Bundled", sans-serif; --gallery-font: Inter, sans-serif; }
+/* Backups shipped with the page (fonts/, free licences beside them): each stack asks for the system's own fonts first, as it always did, and comes
+   to one of these only where none of those is installed, before the browser's generic face. Their names are their own, so they never stand in for an
+   installed font of the same design. Latin, accents and punctuation only: Japanese and symbols come from the system, which always has them.
+   Gelasio has Georgia's widths and Arimo Arial's, so lines break where they would. */
+@font-face { font-family: "Gelasio Bundled"; src: url("fonts/Gelasio-Latin-Variable.woff2") format("woff2"); font-weight: 400 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "Gelasio Bundled"; src: url("fonts/Gelasio-Latin-Italic-Variable.woff2") format("woff2"); font-weight: 400 700; font-style: italic; font-display: swap; }
+@font-face { font-family: "Arimo Bundled"; src: url("fonts/Arimo-Latin-Variable.woff2") format("woff2"); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: "PT Sans Narrow Bundled"; src: url("fonts/PTSansNarrow-Latin-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Ubuntu Condensed Bundled"; src: url("fonts/UbuntuCondensed-Latin-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Ubuntu Bundled"; src: url("fonts/Ubuntu-Latin-Light.woff2") format("woff2"); font-weight: 300; font-display: swap; }
+@font-face { font-family: "Chorus Bundled"; src: url("fonts/TeXGyreChorus-Latin-MediumItalic.woff2") format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: "Pagella Bundled"; src: url("fonts/TeXGyrePagella-Latin-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
 /* The translation's special letters (private-use U+E000-E2FF, the game font's) are turned into the story font's own
    letters, italic or flipped (textbox.js; #text .ch.mirror, .ch.flip). */
 html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
@@ -51,7 +63,7 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 /* Archaic speech (U+E180 letters): the game sets it in a serif italic apart from its ordinary italics; here a
    calligraphic face the system has, slightly larger as these run small, then the story font's italic (not the generic cursive, which is
    Comic Sans on Windows). */
-:is(#text, .logpage) .archaic { font-family: "Apple Chancery", "Lucida Calligraphy", "Monotype Corsiva", "URW Chancery L", "TeX Gyre Chorus", var(--story-font); font-style: italic; font-size: 1.08em; }
+:is(#text, .logpage) .archaic { font-family: "Apple Chancery", "Lucida Calligraphy", "Monotype Corsiva", "URW Chancery L", "TeX Gyre Chorus", "Chorus Bundled", var(--story-font); font-style: italic; font-size: 1.08em; }
 :is(#text, .logpage) .mirror-word { white-space: nowrap; }
 /* Letters fade in as they are typed, each over one letter interval (textbox.js type, native 0xc0684). */
 /* [ber00] / [zap00] runs: a strip of the game's noise-bar glyphs over full-width placeholders (cells are 1em). */
@@ -112,9 +124,9 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
    stroke, the name in a chancery italic, white, on one line. */
 .chapter { position: absolute; left: 20px; top: 0; height: 84px; display: flex; align-items: center; white-space: nowrap; color: #fff; pointer-events: none; }
 .menufg .chapter { opacity: var(--lv, 1); }
-.chapter-day { position: relative; top: 9px; font: 400 92px/84px "Hoefler Text", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif; letter-spacing: 6px; font-variant-numeric: lining-nums; }
+.chapter-day { position: relative; top: 9px; font: 400 92px/84px "Hoefler Text", "Palatino Linotype", Palatino, "Book Antiqua", "Pagella Bundled", Georgia, "Gelasio Bundled", serif; letter-spacing: 6px; font-variant-numeric: lining-nums; }
 .chapter-stroke { flex: none; position: relative; top: 2px; width: 68px; height: 70px; margin: 0 2px 0 6px; background: linear-gradient(to bottom right, transparent calc(50% - 1.6px), #fff calc(50% - 1px), #fff calc(50% + 1px), transparent calc(50% + 1.6px)); }
-.chapter-name { font-family: "Apple Chancery", "Lucida Calligraphy", "Monotype Corsiva", "URW Chancery L", "TeX Gyre Chorus", Georgia, serif; font-style: italic; line-height: 84px; padding-right: 12px; position: relative; top: 2px; }
+.chapter-name { font-family: "Apple Chancery", "Lucida Calligraphy", "Monotype Corsiva", "URW Chancery L", "TeX Gyre Chorus", "Chorus Bundled", Georgia, "Gelasio Bundled", serif; font-style: italic; line-height: 84px; padding-right: 12px; position: relative; top: 2px; }
 .chapter-name.struck { text-decoration: line-through; text-decoration-thickness: 2px; }
 /* The music playing (ui.js nowPlaying), in the header's band left of the scene name and set as it is: a turning disc, then the track's
    title, the two together ending where the box ends; a title too long for the box is cut with an ellipsis, so it never reaches the scene
@@ -159,22 +171,22 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 /* A row's name (ui.js savesScreen): the slot's number or "Quick save" at the right of its chapter title, where an automatic save shows the game's own label (saveauto);
    an empty slot says so. */
 .slotlabel { position: absolute; left: 656px; top: 127px; width: 228px; text-align: right; font: 600 24px/28px var(--gallery-font), system-ui, sans-serif; letter-spacing: 1px; color: #123; white-space: nowrap; pointer-events: none; }
-.slotempty { position: absolute; left: 359px; top: 92px; font: 500 34px/42px Georgia, serif; color: rgba(18, 34, 51, .4); pointer-events: none; }
+.slotempty { position: absolute; left: 359px; top: 92px; font: 500 34px/42px Georgia, "Gelasio Bundled", serif; color: rgba(18, 34, 51, .4); pointer-events: none; }
 .slot img { position: absolute; left: 52px; top: 56px; width: 248px; height: 140px; object-fit: cover; }
 .slotdigits { position: absolute; left: 345px; top: 33px; width: 560px; height: 64px; }
 .slottitle { position: absolute; left: 359px; top: 117px; height: 48px; display: flex; align-items: center; white-space: nowrap; color: #111; pointer-events: none; }
 /* (ui.js savesScreen: text after the game's picture of the chapter, savetitle: a large light figure, a thin stroke, the name in a narrow face) */
 /* (the figure a little larger than the name, not the picture's twice its size, now that the name is larger) */
-.slot-day { font: 300 31px/48px "Ubuntu", "Helvetica Neue", "Segoe UI", system-ui, sans-serif; letter-spacing: .5px; }
+.slot-day { font: 300 31px/48px "Ubuntu", "Helvetica Neue", "Segoe UI", "Ubuntu Bundled", system-ui, sans-serif; letter-spacing: .5px; }
 .slot-stroke { flex: none; width: 22px; height: 24px; margin: 2px 6px 0 3px; background: linear-gradient(to bottom right, transparent calc(50% - 1.2px), #111 calc(50% - .6px), #111 calc(50% + .6px), transparent calc(50% + 1.2px)); }
-.slot-chapter { font: 400 26px/48px "Ubuntu Condensed", "PT Sans Narrow", "Arial Narrow", "Roboto Condensed", var(--flow-font); }
+.slot-chapter { font: 400 26px/48px "Ubuntu Condensed", "PT Sans Narrow", "Arial Narrow", "Roboto Condensed", "Ubuntu Condensed Bundled", var(--flow-font); }
 .slot-chapter.alone { font-size: 31px; letter-spacing: .5px; }
 .slot-chapter.struck { text-decoration: line-through; text-decoration-thickness: 1.5px; }
 /* The scene name under the chapter (native 0x50b10: SYSMES 395 + F022 at 22 x 29.5 units right of and below the cell). */
 .slotscene { position: absolute; left: 425px; top: 174px; width: 520px; font: 600 22px system-ui, sans-serif; color: #123; white-space: nowrap; overflow: hidden; pointer-events: none; }
-.slotnone { padding: 380px 0 0 0; text-align: center; font: 500 40px Georgia, serif; color: #123; }
+.slotnone { padding: 380px 0 0 0; text-align: center; font: 500 40px Georgia, "Gelasio Bundled", serif; color: #123; }
 .saveinfo { position: absolute; left: 1360px; top: 95px; width: 472px; height: 892px; }
-.savenote { position: absolute; left: 34px; top: 560px; width: 404px; font: 24px/1.45 Georgia, serif; color: #123; }
+.savenote { position: absolute; left: 34px; top: 560px; width: 404px; font: 24px/1.45 Georgia, "Gelasio Bundled", serif; color: #123; }
 /* The system's windows have their own layer over every screen (the task table 0x47bf0: notices 110, dialogs 120; only the Back button and the touch ring are drawn after them), so a window that is fading out carries on over whatever the answer opened. */
 #sysui { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
 .dialog { position: absolute; inset: 0; pointer-events: auto; z-index: 1; }
@@ -182,7 +194,7 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 /* dialog_win centred at (320, 224) of 640 x 448 (native 0x4ae90), scaled about its centre as it opens and closes. */
 .dialog-win { position: absolute; left: 548px; top: 332px; width: 824px; height: 416px; transform-origin: 50% 50%; pointer-events: none; }
 /* The question: its first line where the game draws it (ink from row 452, 0x4ae90 at y 184 of 448), a second line 64 px below it (flags 0x120 give the text no vertical centring, N2-156), checked on a native frame. */
-.dialog-q { position: absolute; left: 548px; top: 437px; width: 824px; text-align: center; font: 500 40px/64px Georgia, serif; color: #fff; white-space: pre-line; }
+.dialog-q { position: absolute; left: 548px; top: 437px; width: 824px; text-align: center; font: 500 40px/64px Georgia, "Gelasio Bundled", serif; color: #fff; white-space: pre-line; }
 /* A notice's text sits at y 214 of 448, where the question's sits at 184 (0x48540 against 0x4ae90). */
 .dialog.notice .dialog-q { top: 509.3px; }
 /* SELS and SELA (0x85900 / 0x85e40): the window at x 321 of 640, its question drawn smaller (scale 0.37 x 0.46 of the font's size, against the system question's 0.6 x 0.7) at y 224 - 42.31 s, s the window's scale, centred on the screen. */
@@ -208,7 +220,7 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 .keyslot.none { color: rgba(232, 241, 251, .45); border-color: rgba(232, 241, 251, .3); }
 .keyslot.sel { background: rgba(70, 150, 240, .85); border-color: #bff; box-shadow: 0 0 10px rgba(120, 220, 255, .9); color: #fff; }
 .keyslot.wait { background: rgba(120, 235, 255, .95); border-color: #fff; color: #0b3a66; box-shadow: 0 0 14px rgba(150, 245, 255, 1); }
-.confnum { position: absolute; text-align: right; font: 32px Georgia, serif; letter-spacing: 3px; color: #fff; pointer-events: none; }
+.confnum { position: absolute; text-align: right; font: 32px Georgia, "Gelasio Bundled", serif; letter-spacing: 3px; color: #fff; pointer-events: none; }
 /* (the samples at the size of the page's other words: confart.js CONF_TEXT.size) */
 .confsample { position: absolute; left: 756px; font: 28px var(--story-font); color: #fff; pointer-events: none; line-height: 64px; }
 .confscroll::-webkit-scrollbar, .slotlist::-webkit-scrollbar { display: none; }
@@ -294,7 +306,7 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 .fc-titles { position: absolute; left: 0; top: 0; pointer-events: none; }
 /* A day's chapters (flowchart.js), after the game's pictures of them (flow_phasetitle: a narrow face, white, set right), written larger. */
 .fc-chapter { position: absolute; box-sizing: border-box; text-align: right; white-space: nowrap; color: #fff; pointer-events: none;
-  font: 400 25px/32px "Ubuntu Condensed", "PT Sans Narrow", "Arial Narrow", "Roboto Condensed", var(--flow-font); }
+  font: 400 25px/32px "Ubuntu Condensed", "PT Sans Narrow", "Arial Narrow", "Roboto Condensed", "Ubuntu Condensed Bundled", var(--flow-font); }
 .fc-chapter s { text-decoration-thickness: 1.5px; }
 div.fc-node { pointer-events: none; cursor: default; }
 .fc-band { position: absolute; pointer-events: none; background: url("/assets/ui/MENU_PARTS_JA/flow_sam_bg_middle_fullhd.webp") repeat-y; }
@@ -359,7 +371,7 @@ div.fc-node { pointer-events: none; cursor: default; }
 /* The completion banner (native 0x91350, 960 x 540 units doubled): a band edged in (0.19, 0.25, 0.58) at half the
    alpha over black at three quarters, the text from x 401. */
 .completion { position: absolute; left: 770px; top: 960px; width: 1108px; height: 73px; box-sizing: border-box; border: 1px solid rgba(49, 63, 148, .5);
-  background: rgba(0, 0, 0, .753); color: #fff; font: 500 27px Georgia, serif; line-height: 73px; padding-left: 32px; white-space: nowrap; pointer-events: none; }
+  background: rgba(0, 0, 0, .753); color: #fff; font: 500 27px Georgia, "Gelasio Bundled", serif; line-height: 73px; padding-left: 32px; white-space: nowrap; pointer-events: none; }
 /* Return to Title and a script's end: the story going to black (0.02 a frame), under the interface. */
 #story-black { position: absolute; inset: 0; width: 1920px; height: 1080px; background: #000; display: none; pointer-events: none; }
 /* Quick Load's picture (native 0x4ae90): framed in black, centred, from y 200 of 448 units. */
@@ -375,10 +387,10 @@ div.fc-node { pointer-events: none; cursor: default; }
 .wl-logo { width: 336px; height: 389px; margin: 0 auto 26px; background: url("/assets/ui/TITLE_PARTS_JA/title_titlelog.webp") 0 0 / 100% 100% no-repeat; }
 .wl-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px 34px; margin: 30px 0 34px; }
 .wl-fact { display: flex; flex-direction: column; gap: 2px; }
-.wl-num { font: 400 46px/52px "PT Sans Narrow", "Ubuntu Condensed", "Arial Narrow", "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: rgb(242 246 248); text-shadow: 0 0 9px rgba(110, 195, 255, .95); }
+.wl-num { font: 400 46px/52px "PT Sans Narrow", "Ubuntu Condensed", "Arial Narrow", "PT Sans Narrow Bundled", "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: rgb(242 246 248); text-shadow: 0 0 9px rgba(110, 195, 255, .95); }
 .wl-what { font: 400 24px/32px var(--story-font); color: #c9d8e6; }
 .wl-rows { display: grid; grid-template-columns: 500px 1fr; gap: 12px 30px; margin: 14px 0 28px; align-items: baseline; }
-.wl-name { font: 400 32px/40px "PT Sans Narrow", "Ubuntu Condensed", "Arial Narrow", "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: #f2f6f8; text-shadow: 0 0 9px rgba(110, 195, 255, .75); overflow-wrap: anywhere; }
+.wl-name { font: 400 32px/40px "PT Sans Narrow", "Ubuntu Condensed", "Arial Narrow", "PT Sans Narrow Bundled", "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: #f2f6f8; text-shadow: 0 0 9px rgba(110, 195, 255, .75); overflow-wrap: anywhere; }
 /* The opening page (home.js): a tab's page in the first-visit page's column; ABOUT's sections one after another; a link in the plates' lettering; the
    title's PRESS ANY BUTTON at its own size. */
 .hm-part + .hm-part h2 { margin-top: 76px; }
@@ -386,5 +398,5 @@ div.fc-node { pointer-events: none; cursor: default; }
 .hm-tall { display: none; }   /* (the opening page's parts for a phone held upright: touch.css html.upright) */
 .wl-text .wl-rows.hm-rows { grid-template-columns: max-content 1fr; gap: 14px 44px; }
 .hm-press { display: block; width: 472px; height: 88px; margin: 64px auto 24px; padding: 0; border: 0; cursor: pointer; background: url("/assets/ui/TITLE_PARTS_JA/press_start.webp") 0 0 / 100% 100% no-repeat; }
-.hm-link { display: inline-block; margin: 6px 0 20px; font: 400 34px/44px "PT Sans Narrow", "Ubuntu Condensed", "Arial Narrow", "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: #f2f6f8; text-decoration: underline 1px rgba(191, 238, 255, .55); text-underline-offset: 7px; text-shadow: 0 0 9px rgba(110, 195, 255, .75); }
+.hm-link { display: inline-block; margin: 6px 0 20px; font: 400 34px/44px "PT Sans Narrow", "Ubuntu Condensed", "Arial Narrow", "PT Sans Narrow Bundled", "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: #f2f6f8; text-decoration: underline 1px rgba(191, 238, 255, .55); text-underline-offset: 7px; text-shadow: 0 0 9px rgba(110, 195, 255, .75); }
 .hm-link:hover { color: #fff; text-decoration-color: #bfeeff; text-shadow: 0 0 9px rgba(112, 255, 255, .95), 0 0 18px rgba(64, 200, 255, .6); }

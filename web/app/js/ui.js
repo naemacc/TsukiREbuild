@@ -152,7 +152,7 @@ export const QUICK_BAR = { w: 117, h: 62, y: 29, pitch: 118, zone: 40 };
 // the buttons the game has no plate for.
 const PANEL_ART = { w: 220, h: 62, x: 10, dx: 232, y: 9, dy: 72, clean: 2, hole: [84, 136], edge: 12,
   ink: { icon: [74, 146, 14], word: [56, 167, 3] }, words: [5, 6],
-  text: { size: 32, base: 44, pare: 0.9, sample: "Q.SAVE", width: 88, font: '"PT Sans Narrow", "Ubuntu Condensed", "Arial Narrow", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+  text: { size: 32, base: 44, pare: 0.9, sample: "Q.SAVE", width: 88, font: '"PT Sans Narrow", "Ubuntu Condensed", "Arial Narrow", "PT Sans Narrow Bundled", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
     rows: [["rgba(30, 30, 30, .62)", "rgba(0, 0, 0, .5)", 7], ["rgba(242, 246, 248, .95)", "rgba(110, 195, 255, .95)", 9],
       ["rgba(231, 247, 255, .95)", "rgba(150, 228, 255, .95)", 9], ["rgba(237, 255, 255, .78)", "rgba(255, 255, 255, .9)", 6]] } };
 // The sheet of the bar's buttons, one column a button and the art's four rows, as a picture's address; null where it

@@ -25,8 +25,8 @@ html.touch.turn #stage { visibility: hidden; }
 .rt-box { position: absolute; left: 50%; top: 50%; width: 900px; height: 1300px; transform-origin: 50% 50%; }
 .rt-logo { position: absolute; left: 240px; top: 70px; width: 420px; height: 486px; background: url("/assets/ui/TITLE_PARTS_JA/title_titlelog.webp") 0 0 / 100% 100% no-repeat; }
 .rt-win { position: absolute; left: 38px; top: 640px; width: 824px; height: 416px; background: url("/assets/ui/DIALOG_PARTS_JA/dialog_win.webp") 0 0 no-repeat; }
-.rt-q { position: absolute; left: 0; top: 84px; width: 824px; text-align: center; font: 500 46px/64px Georgia, serif; color: #fff; }
-.rt-sub { position: absolute; left: 0; top: 156px; width: 824px; text-align: center; font: 400 30px/44px Georgia, serif; color: #bfeeff; }
+.rt-q { position: absolute; left: 0; top: 84px; width: 824px; text-align: center; font: 500 46px/64px Georgia, "Gelasio Bundled", serif; color: #fff; }
+.rt-sub { position: absolute; left: 0; top: 156px; width: 824px; text-align: center; font: 400 30px/44px Georgia, "Gelasio Bundled", serif; color: #bfeeff; }
 /* the auto mode's ring (mode_ring_1), turning as it does over the story */
 .rt-ring { position: absolute; left: 356px; top: 226px; width: 112px; height: 112px; background: url("/assets/ui/DISP_PARTS_JA/mode_ring_1.webp") 0 0 / 100% 100% no-repeat; animation: spin 2s linear infinite; }
 

@@ -9,7 +9,7 @@ import { GuideFx, REPLAY_MENU_BG, cgCursorLight, fadeMusicOut, scrollBar } from 
 
 const PACK = "MENU_PARTS_JA";
 
-const TITLE_FONT = "24px Helvetica, Arial, sans-serif";   // the size and --flow-font of .fc-preview-title
+const TITLE_FONT = '24px Helvetica, Arial, "Arimo Bundled", sans-serif';   // the size and --flow-font of .fc-preview-title
 let titleRuler = null;
 // Sets a preview title's size for its width.
 function fitTitle(el, text) {

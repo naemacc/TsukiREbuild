@@ -30,6 +30,25 @@ function fitStage() {
 addEventListener("resize", fitStage);
 fitStage();
 
+// The fonts of the letters drawn or measured on canvases: each stack's system fonts, and the backup it comes to where none of them is installed (style.css
+// "... Bundled"). Inter is the page's own and always fetched. (ui.js PANEL_ART.text, confart.js CONF_TEXT and flowchart.js TITLE_FONT name them.)
+const CANVAS_FONTS = [
+  { system: ["Georgia", "Times New Roman"], backup: '400 42px "Gelasio Bundled"' },   // (and the story's dashes, measured once: textbox.js setDashJoin)
+  { system: ["PT Sans Narrow", "Ubuntu Condensed", "Arial Narrow"], backup: '400 32px "PT Sans Narrow Bundled"' },
+  { system: ["Helvetica", "Arial", "Liberation Sans"], backup: '400 28px "Arimo Bundled"' },
+  { system: [], backup: "400 32px Inter" },
+];
+// Whether the system has a font: text in it measures otherwise than in a generic face that stands in for a missing one.
+function installedFont(family) {
+  const g = document.createElement("canvas").getContext("2d"), sample = "mmmmmmmmmmlli1WWQ@";
+  return ["monospace", "serif"].some((generic) => {
+    g.font = `72px ${generic}`;
+    const plain = g.measureText(sample).width;
+    g.font = `72px "${family}", ${generic}`;
+    return g.measureText(sample).width !== plain;
+  });
+}
+
 // A left press (or a touch) anywhere on the picture draws the game's touch ring there (touchfx.js). Captured before
 // any screen's own handler, which may stop the event.
 const touchFx = new TouchFx($("touchfx"));
@@ -1186,6 +1205,11 @@ async function loadingScreen() {
   window.ui = ui;
   window.keys = keys;
   requestAnimationFrame(frame);
+  // Letters drawn on a canvas (the plates, the config's words, the Audio Track label) take whatever face is ready when they are drawn and are not
+  // drawn again: where the system has none of a stack's fonts, its bundled backup (style.css) is fetched first. A system that has them asks for
+  // nothing; 3 s at most, then the canvases draw with what there is.
+  const wanted = CANVAS_FONTS.filter((f) => !f.system.some(installedFont)).map((f) => f.backup);
+  await Promise.race([Promise.all(wanted.map((f) => document.fonts?.load?.(f)?.catch(() => {}))), new Promise((r) => setTimeout(r, 3000))]);
   // The quick bar's art is made here, on the black before the first screen, so that its first opening looks like every other.
   ui.buildPanel();
   relettered().then((art) => { ui.confArt = art; });   // the System page's words at one size (confart.js), ready before the config is first opened
