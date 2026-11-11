@@ -88,7 +88,8 @@ export const TABS = [
   ] }] },
 ];
 // PLAY ONLINE's notice, first on its page: with the browser drawing on the processor instead of the graphics card the game stutters and its frame rate falls.
-// (On a phone or tablet the browser has no such setting, so the touch layer leaves it out.)
+// Shown only where hardware acceleration is off or can't be told to be on (glAccel); the line that it is off only where it is. (On a phone or tablet the
+// browser has no such setting, so the touch layer leaves it out.)
 export const GPU_NOTICE = {
   head: "Stutters or a low frame rate? Turn on hardware acceleration",
   off: "This browser is drawing without your graphics card right now.",
@@ -98,16 +99,22 @@ export const GPU_NOTICE = {
     ["Firefox", "Settings › General › Performance: untick Use recommended performance settings, tick Use hardware acceleration when available, then restart Firefox"],
   ],
 };
-// Whether WebGL is drawn in software (Chrome's SwiftShader, Mesa's llvmpipe, Windows' Basic Render Driver): the sign hardware acceleration is off.
-export function softwareGL() {
+// The software renderers (Chrome's SwiftShader, Mesa's llvmpipe and softpipe, Windows' Basic Render Driver), and the names a browser gives when it hides its
+// renderer's (Safari's and Firefox's when they resist fingerprinting), which tell nothing.
+export const SOFTWARE_GL = /swiftshader|llvmpipe|softpipe|software|basic render/i, HIDDEN_GL = /^\s*(webkit webgl|mozilla|generic renderer)?\s*$/i;
+// Whether this browser draws WebGL on the graphics card: "on", "off", or "unsure". Off: WebGL2 is refused when a context may not be slow
+// (failIfMajorPerformanceCaveat, which the browsers refuse for software drawing) or there is none at all, or the renderer named is a software one. On: a
+// renderer named that is none of those. Unsure: the renderer's name is hidden, or asking failed.
+export function glAccel() {
+  const lose = (gl) => gl?.getExtension("WEBGL_lose_context")?.loseContext();
   try {
-    const gl = document.createElement("canvas").getContext("webgl2") || document.createElement("canvas").getContext("webgl");
-    if (!gl) return true;
+    const gl = document.createElement("canvas").getContext("webgl2", { failIfMajorPerformanceCaveat: true });
+    if (!gl) { const any = document.createElement("canvas").getContext("webgl2"); lose(any); return "off"; }
     const info = gl.getExtension("WEBGL_debug_renderer_info");
-    const name = String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER));
-    gl.getExtension("WEBGL_lose_context")?.loseContext();
-    return /swiftshader|llvmpipe|softpipe|software|basic render/i.test(name);
-  } catch { return false; }
+    const name = String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER) ?? "");
+    lose(gl);
+    return SOFTWARE_GL.test(name) ? "off" : HIDDEN_GL.test(name) ? "unsure" : "on";
+  } catch { return "unsure"; }
 }
 export const ABOUT = 0, PLAY = TABS.length - 1, NONE = -1;
 // The line under the logo before a plate is chosen.
@@ -152,7 +159,7 @@ export async function openHome(ui, { started = null } = {}) {
     page.append(bar);
     page.append(black);   // over all but the bar, which has a level of its own and slides
 
-    const soft = !T && softwareGL();
+    const accel = T ? "on" : glAccel();   // ("on" by touch: the notice is not shown there)
     let tab = -1, shownAt = 0, leaving = false, prompt = null, pulse = { alpha: 0, up: true };
     const block = (b) => {
       if (b[0] === "press") {
@@ -165,7 +172,7 @@ export async function openHome(ui, { started = null } = {}) {
       if (b[0] === "gpu") {
         const box = el("div", "hm-notice");
         box.append(el("h3", "", GPU_NOTICE.head));
-        if (soft) box.append(el("p", "hm-notice-off", GPU_NOTICE.off));
+        if (accel === "off") box.append(el("p", "hm-notice-off", GPU_NOTICE.off));
         box.append(blockEl(["rows", GPU_NOTICE.rows]));
         return box;
       }
@@ -198,7 +205,8 @@ export async function openHome(ui, { started = null } = {}) {
         const part = el("div", "hm-part");
         // (on a touch device the PLAY ONLINE page also says, under its prompt, how the game is played by touch: there are no hints to find by resting a
         // pointer)
-        const blocks = T && k === PLAY ? [...s.blocks.filter((b) => b[0] !== "gpu"), ...TOUCH_INTRO] : s.blocks;
+        const kept = s.blocks.filter((b) => b[0] !== "gpu" || accel !== "on");
+        const blocks = T && k === PLAY ? [...kept, ...TOUCH_INTRO] : kept;
         part.append(el("h2", "", s.head), ...blocks.map(block));
         return part;
       }));

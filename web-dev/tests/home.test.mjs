@@ -90,10 +90,18 @@ test("on a phone held upright the opening page has a layout of its own and no ro
   assert.match(css, /border-image: url\("\/assets\/ui\/MODEPNL_PARTS_JA\/modepanel_window\.webp"\) 0 40 8 40 fill stretch;/, "the game's strip, its ends kept");
 });
 
-test("PLAY ONLINE opens on the hardware acceleration notice, with each browser's setting, and says so when WebGL is drawn in software", async () => {
-  const { TABS, PLAY, GPU_NOTICE } = await import("../../web/app/js/home.js");
+test("PLAY ONLINE opens on the hardware acceleration notice, with each browser's setting, only where acceleration is off or can't be told to be on", async () => {
+  const { TABS, PLAY, GPU_NOTICE, SOFTWARE_GL, HIDDEN_GL } = await import("../../web/app/js/home.js");
+  const h = source("js/home.js");
   assert.deepEqual(TABS[PLAY].sections[0].blocks[0], ["gpu"]);
   assert.match(GPU_NOTICE.head, /hardware acceleration/);
   assert.deepEqual(GPU_NOTICE.rows.map((r) => r[0]), ["Chrome", "Edge", "Firefox"]);
-  assert.match(readFileSync(new URL("../../web/app/js/home.js", import.meta.url), "utf8"), /swiftshader\|llvmpipe/);
+  for (const n of ["ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)", "llvmpipe (LLVM 15.0.7, 256 bits)",
+    "ANGLE (Microsoft, Microsoft Basic Render Driver Direct3D11 vs_5_0 ps_5_0, D3D11)"]) assert.ok(SOFTWARE_GL.test(n), n);
+  for (const n of ["", "WebKit WebGL", "Mozilla", "Generic Renderer"]) assert.ok(HIDDEN_GL.test(n) && !SOFTWARE_GL.test(n), n);
+  for (const n of ["ANGLE (Apple, ANGLE Metal Renderer: Apple M2, Unspecified Version)", "Apple GPU", "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)",
+    "Adreno (TM) 740"]) assert.ok(!SOFTWARE_GL.test(n) && !HIDDEN_GL.test(n), n);
+  assert.match(h, /getContext\("webgl2", \{ failIfMajorPerformanceCaveat: true \}\)/);
+  assert.match(h, /s\.blocks\.filter\(\(b\) => b\[0\] !== "gpu" \|\| accel !== "on"\)/, "left out where it is on");
+  assert.match(h, /if \(accel === "off"\) box\.append/, "says it is off only where it is");
 });

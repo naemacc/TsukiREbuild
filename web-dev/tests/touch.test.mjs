@@ -793,7 +793,8 @@ test("the opening page on a touch device: its four plates in one row in the stri
   const { TABS, PLAY } = await import("../../web/app/js/home.js");
   const h = source("js/home.js"), B = TOUCH.bar, H = TOUCH.home;
   assert.equal(TABS.length, 4);
-  assert.match(h, /const blocks = T && k === PLAY \? \[\.\.\.s\.blocks\.filter\(\(b\) => b\[0\] !== "gpu"\), \.\.\.TOUCH_INTRO\] : s\.blocks;/, "no hardware acceleration notice by touch");
+  assert.match(h, /const blocks = T && k === PLAY \? \[\.\.\.kept, \.\.\.TOUCH_INTRO\] : kept;/);
+  assert.match(h, /const accel = T \? "on" : glAccel\(\);/, "no hardware acceleration notice by touch");
   assert.deepEqual(TABS[PLAY].sections.at(-1).blocks.at(-1), ["press"], "the prompt before the notes");
   assert.equal(TOUCH_INTRO[0][0], "h");
   assert.match(TOUCH_INTRO[1], /Swipe down .* up for the log.* fast forward.* two fingers.* Back button/);
