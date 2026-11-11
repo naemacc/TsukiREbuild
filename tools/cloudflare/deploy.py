@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Sync tracked game assets to R2 and publish the frontend to Cloudflare Pages."""
+"""Sync the tracked game assets and the app to R2, and publish the frontend to Cloudflare Pages.
+
+Two ways in serve the same files:
+  https://arcueid.date            the R2 bucket itself, attached to the domain and behind Cloudflare's cache: the app's files at the
+                                  bucket's root, the game's under assets/. No Worker runs, so nothing counts against the Workers
+                                  request allowance. A zone rule turns "/" into "/index.html"; cache rules set how long things are kept.
+  https://tsukirebuild.pages.dev  Pages: the app as static files, and web/cloudflare/worker.js reading assets/ from the bucket.
+"""
 
 import base64
 import hashlib
@@ -7,6 +14,7 @@ import json
 import mimetypes
 import os
 from pathlib import Path
+import re
 import subprocess
 import time
 import urllib.error
@@ -22,13 +30,25 @@ ROOT = Path(__file__).resolve().parents[2]
 API = "https://api.cloudflare.com/client/v4"
 CONTENT_TYPES = {
     ".avif": "image/avif",
-    ".js": "text/javascript",
+    ".css": "text/css; charset=utf-8",
+    ".html": "text/html; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
     ".mp4": "video/mp4",
     ".ogg": "audio/ogg",
     ".otf": "font/otf",
     ".webp": "image/webp",
     ".woff2": "font/woff2",
 }
+
+
+# What a browser may keep for 30 days: the game's converted media, which do not change with the code, and the sound packs and their
+# index, which are named by their content (web/cloudflare/worker.js has the same rule for the Pages way in). Everything else, the app
+# included, is kept 5 minutes so that a deployment reaches players by itself.
+MEDIA = re.compile(r"^assets/((voice|img|se|bgm|movie|sys|fonts)/|pack/[a-z]+-[0-9a-f]{10}\.)")
+
+
+def cache_control(key):
+    return "public, max-age=2592000, immutable" if MEDIA.match(key) else "public, max-age=300"
 
 
 def content_type(path):
@@ -77,9 +97,13 @@ def cloudflare(method, path, token, body=None, content_type="application/json", 
 
 def sync_assets(client, bucket):
     remote = {}
-    for page in client.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix="assets/"):
+    for page in client.get_paginator("list_objects_v2").paginate(Bucket=bucket):
         for item in page.get("Contents", []):
             remote[item["Key"]] = item["ETag"].strip('"')
+
+    # web/assets/x is the object assets/x; web/app/x is the object x, at the bucket's root, where the domain serves the app from.
+    def key_of(path):
+        return path.relative_to("web/app").as_posix() if path.is_relative_to("web/app") else path.relative_to("web").as_posix()
 
     def upload(path):
         md5 = hashlib.md5()
@@ -88,7 +112,7 @@ def sync_assets(client, bucket):
             for chunk in iter(lambda: source.read(1024 * 1024), b""):
                 md5.update(chunk)
                 sha256.update(chunk)
-        key = path.relative_to("web").as_posix()
+        key = key_of(path)
         if remote.get(key) == md5.hexdigest():
             return 0
         with (ROOT / path).open("rb") as source:
@@ -98,7 +122,7 @@ def sync_assets(client, bucket):
                 Body=source,
                 ContentLength=(ROOT / path).stat().st_size,
                 ContentType=content_type(path),
-                CacheControl="public, max-age=300",
+                CacheControl=cache_control(key),
                 ChecksumSHA256=base64.b64encode(sha256.digest()).decode(),
                 Metadata={"sha256": sha256.hexdigest()},
                 StorageClass="STANDARD",
@@ -109,7 +133,10 @@ def sync_assets(client, bucket):
         return 1
 
     # Retain previous objects for open browser sessions and deployment rollbacks.
-    files = tracked_files("web/assets")
+    files = tracked_files("web/assets") + tracked_files("web/app")
+    clash = [str(p) for p in files if p.is_relative_to("web/app") and key_of(p).startswith("assets/")]
+    if clash:
+        raise RuntimeError(f"App files that would be stored among the game's assets: {clash}")
     with ThreadPoolExecutor(max_workers=8) as pool:
         uploaded = sum(pool.map(upload, files))
     print(f"R2: uploaded {uploaded} new or modified files, skipped {len(files) - uploaded} unchanged files", flush=True)
