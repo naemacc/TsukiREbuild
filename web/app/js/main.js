@@ -68,21 +68,20 @@ function popup(kind) {
   const el = $("popup");
   el.style.backgroundPosition = `${-cell[0]}px ${-cell[1]}px`;
   el.style.display = "block";
-  let t = 0, closing = false, last = null;
+  let t = 0, closing = false, first = true;
   const run = { hurry() { if (!closing && t >= 1) t = 3; } };
   popupRun = run;
-  const step = (now) => {
-    if (popupRun !== run) return;
-    const dt = last === null ? 0 : Math.min(10, ((now - last) * 60) / 1000);
-    last = now;
+  // a step each game frame (vm.everyFrame), the first standing still
+  vm.everyFrame(() => {
+    if (popupRun !== run) return false;
+    const dt = first ? 0 : 1;
+    first = false;
     t += (closing ? -0.04 : 0.04) * dt;
     if (!closing && t > 3) { closing = true; t = 1; }
-    if (closing && t < 0) { el.style.display = "none"; popupRun = null; return; }
+    if (closing && t < 0) { el.style.display = "none"; popupRun = null; return false; }
     const x = Math.max(0, Math.min(9, t * 9)), i = Math.floor(x), f = x - i, a = POPUP_KEYS[i], b = POPUP_KEYS[Math.min(9, i + 1)];
     el.style.transform = `scale(${a[0] + (b[0] - a[0]) * f}, ${a[1] + (b[1] - a[1]) * f})`;
-    requestAnimationFrame(step);
-  };
-  requestAnimationFrame(step);
+  });
 }
 
 // ---- settings -------------------------------------------------------------------------------------------------
@@ -338,6 +337,7 @@ const vm = new VM({
   onLock: (on) => lockControls(on),
 });
 vm.externalTicks = true;   // the frame loop below steps the game's frames (vm.tick)
+vm.useFrameTime();         // and the story's clocks with them, a whole frame at a time (TODO items 123, 146)
 // What is read before it is asked for (preload.js): the start-up list from the first page on, and what the script is coming to.
 const preload = new Preloader({ vm, gfx, audio });
 vm.ahead = (script, pc) => preload.ahead(script, pc);
@@ -364,7 +364,7 @@ function lockControls(on) {
 }
 
 // ---- frame loop -----------------------------------------------------------------------------------------------
-let lastFrame = null;
+let lastFrame = null, lastDrawn = false;
 // The black over the picture during a scene skip's countdown (native 0x3f110 sets its level, 0x3ef20 draws it after
 // the scene, under the popups and the skip indicator, 0x3c510): each countdown frame sets the level to 1.5 + v / -30
 // (v the frames left after it) and shows the indicator's ">>|" (0x3b5b0(4)); it is drawn at min(level, 1) and falls
@@ -376,7 +376,7 @@ function countdownFrame(v) {
   if (!m.classList.contains("countdown")) m.dataset.before = m.className;
   m.classList.add("on", "countdown");
 }
-function drawSkipBlack(dt) {
+function drawSkipBlack() {
   let el = $("skip-black");
   if (!el) {
     if (!(skipBlack > 0)) return;
@@ -385,25 +385,25 @@ function drawSkipBlack(dt) {
     stage.insertBefore(el, $("popup"));
   }
   el.style.opacity = String(Math.max(0, Math.min(1, skipBlack)));
-  if (skipBlack > 0) skipBlack = Math.max(0, skipBlack - 0.04 * dt);
+  if (skipBlack > 0) skipBlack = Math.max(0, skipBlack - 0.04);
   // the indicator goes back to what the skip toggle shows once the countdown's black starts to lift
   const m = $("mode-skip");
   if (m.classList.contains("countdown") && !(skipBlack > 1)) m.className = m.dataset.before || "";
 }
-// A countdown of n frames (the scene skips' 4 or 20, 0x40ed0 states 3 and 6), one step a drawn frame.
+// A countdown of n frames (the scene skips' 4 or 20, 0x40ed0 states 3 and 6), one step a game frame.
 async function countdown(n, back = false) {
   for (let v = n - 1; v >= 0; v--) {
     if (back) backIcon(1); else countdownFrame(v);
-    await new Promise((r) => requestAnimationFrame(r));
+    await vm.nextFrame();
   }
   if (back) backIcon(0);
 }
 // The rewind indicator (N2-9): 2 is << while the rewind runs, 1 is |<< during Return to Previous Scene's countdown, 0 hides
-// it. Its level moves 0.25 a frame (0x3b5f0: 0.05 x 5 while 0xae05b8 is set), up on a frame that rewinds and down on the
+// it. Its level moves 0.25 a game frame (0x3b5f0: 0.05 x 5 while 0xae05b8 is set), up on a frame that rewinds and down on the
 // others: on native frames one tap of the rewind button shows << for a single frame at a quarter (57 of 223), and a held
 // button, which rewinds a page a frame, brings it to full in four frames and takes it out in four.
 let backLit = 0, backLevel = 0;   // frames it stays lit (Infinity: until it is hidden); its level, 0-1
-// frames: how many drawn frames it stays lit before it goes out by itself (0: until it is hidden).
+// frames: how many game frames it stays lit before it goes out by itself (0: until it is hidden).
 function backIcon(state, frames = 0) {
   const m = $("mode-back");
   if (!state) { backLit = 0; return; }
@@ -411,11 +411,11 @@ function backIcon(state, frames = 0) {
   backLit = frames || Infinity;
 }
 // One frame of the rewind indicator (0x3b5f0): up 0.25 on a frame it is lit, down 0.25 on the others.
-function backIconFrame(dt) {
+function backIconFrame() {
   const lit = backLit > 0;
   if (lit && backLit !== Infinity) backLit--;
   if (!lit && backLevel <= 0) return;
-  backLevel = Math.max(0, Math.min(1, backLevel + (lit ? 0.25 : -0.25) * Math.max(1, dt)));
+  backLevel = Math.max(0, Math.min(1, backLevel + (lit ? 0.25 : -0.25)));
   $("mode-back").style.opacity = String(backLevel);
 }
 
@@ -428,33 +428,46 @@ function windowPictures(tx, ty) {
   return text.pictures().map((p, i) => ({ ...p, alpha: p.alpha * k, dx: i === 0 ? tx : 0, dy: i === 0 ? ty : 0 }));
 }
 
-// The game's frames in a display frame of dt: one on a 60 Hz display, one on every second frame of a 120 Hz one, and so on. A display
-// frame within a quarter of a whole one counts as it; a long stall gives a few and drops the rest.
+// The game's frames in a display frame of dt: one on a 60 Hz display, one on every second frame of a 120 Hz one, two on a 30 Hz one, and
+// so on. A display frame within a quarter of a whole one counts as it. A stall gives as many as it lasted (the game's own clock takes up to
+// half a second from a frame, 0xef08c), but a gap of over a quarter of a second is the page not drawing at all (the touch layer's rotate
+// screen holds the frames), not a slow frame, and counts as one.
 let frameDebt = 0;
 function gameFrames(dt) {
+  if (dt > 15) { dt = 1; frameDebt = 0; }
   frameDebt += dt;
-  let n = Math.floor(frameDebt + 0.25);
-  if (n > 4) { n = 4; frameDebt = 0; } else frameDebt -= n;
+  const n = Math.floor(frameDebt + 0.25);
+  frameDebt -= n;
   return n;
 }
 
-function frame(real) {
+async function frame(real) {
   const dt = lastFrame === null ? 0 : Math.min(30, ((real - lastFrame) * 60) / 1000);
   lastFrame = real;
-  drawSkipBlack(dt);
   syncFastForward();
   $("mode-skip").classList.toggle("paused", !!vm.skipPaused);   // state 5: skipping stopped at unread text (0x41944)
-  backIconFrame(dt);
   vm.voiceHeldCut();   // the fast-forward key held cuts the line's voice each frame (0x802c0, N2-81)
   // The game's frame (0x48ac0): the script's step and its timers (0x40ed0), the layers, then the window (0x38d40), then the draw. Under fast
-  // forward each is worth 33 to the layers and the window (vm.tick, TextBox.tick's step; TODO item 110).
-  for (let n = gameFrames(dt); n > 0; n--) {
+  // forward each is worth 33 to the layers and the window (vm.tick, TextBox.tick's step; TODO item 110). The story's clocks move a whole frame at
+  // the start of each (vm.frameStep), and the script takes its step before the frame goes on, so a display frame that carries two game frames
+  // (30 Hz, or a stall) runs them as two (TODO item 123). Only a display frame with a game frame in it is drawn: the game draws 60 a second
+  // whatever the display, and between two of its frames a 120 or 144 Hz display shows the last one again.
+  const n = gameFrames(dt);
+  for (let i = 0; i < n; i++) {
+    if (i) await vm.settleScript();   // what the last frame's tick let go on: its step begins this frame
+    vm.frameStep();
+    await vm.settleScript();
     vm.tick();
     text.tick(1, vm.stepFrames);
+    advanceRandom(vm.allLayers().values(), gfx.lines, gfx.focusLines, vm.now());   // the sways' and speed lines' numbers, in the game's order (item 143)
+    drawSkipBlack();
+    backIconFrame();
+    vm.endFrame();
   }
   pollGamepads(real);
-  const now = vm.now(real);
-  advanceRandom(vm.allLayers().values(), gfx.lines, gfx.focusLines, now);   // the sways' and speed lines' numbers, in the game's order
+  if (!n && lastDrawn) { ui.panelTick(); requestAnimationFrame(frame); return; }
+  lastDrawn = true;
+  const now = vm.now();
   gfx.drawLayers([...vm.layers.values()], now, vm.layers);
   gfx.setMenuBlur(stage.classList.contains("menu-blur"), real);
   const [tx, ty] = textShakePixels(gfx.textShake, now);
@@ -469,6 +482,7 @@ function frame(real) {
 // No sound from a page nobody is looking at.
 document.addEventListener("visibilitychange", () => {
   vm.holdClocks("hidden", document.hidden);
+  lastFrame = null;   // no catching up on the time the page was hidden
   if (!audio.ctx) return;
   if (document.hidden) audio.ctx.suspend();
   else if (!touch.held) audio.ctx.resume();   // not under the rotate screen (touch.js)
@@ -663,17 +677,16 @@ function fadeToBlack(rate) {
   return new Promise((res) => {
     let el = $("story-black");
     if (!el) { el = document.createElement("div"); el.id = "story-black"; $("popup").before(el); }
-    let a = 0, last = null;
+    let a = 0, first = true;
     el.style.opacity = "0";
     el.style.display = "block";
-    const step = (now) => {
-      const dt = last === null ? 0 : Math.min(10, ((now - last) * 60) / 1000);
-      last = now;
-      a = Math.min(1, a + rate * dt);
+    // a step each game frame (vm.everyFrame), the first standing still
+    vm.everyFrame(() => {
+      a = Math.min(1, a + (first ? 0 : rate));
+      first = false;
       el.style.opacity = String(a);
-      if (a >= 1) res(); else requestAnimationFrame(step);
-    };
-    requestAnimationFrame(step);
+      if (a >= 1) { res(); return false; }
+    });
   });
 }
 

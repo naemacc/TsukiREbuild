@@ -1196,3 +1196,88 @@ Then the same day `web/` was cut down to what the game runs from, `app/`, `asset
 At the user's request a first visit now opens on a page before anything else (`app/js/welcome.js`): a browser plays no sound until the page has been clicked, so START is that click, and the prologue opens with its sound on where it used to fall back to muted. It says what the project is and how it was built, in seven sections, and shows once (`tsuki.welcomed`; `/?welcome` opens it again; `?script=` passes it by). It is built as the quick bar is, from the game's art: the mode panel's strip with eight plates at the panel's own width and spacing (`quickBarArt`), the title's picture under the system menu's sky, the question window's backdrop, Config's inner panel, the game's scroll bar and help band. Checked under each browser's real autoplay rules: Chrome with `document-user-activation-required` and a clean Firefox.
 
 Later the same day: the page says "Tsukihime remake" (and so do its tab title and the README), and an eighth section, EXTRAS, lists the address options (`?script=`, `&pc=`, `&label=`, `&mute`, `?welcome`), every font with its fallbacks, the game's own font files and the developer tools. Nine plates now stand on the strip, cut from 220 to 200 px as the quick bar's are.
+
+## TODO item 123: story timing away from 60 Hz (with 143 and 146), 2026-11-10
+
+The game draws 60 frames a second whatever the screen, and every wait, tween, typing step and countdown counts those frames. The port
+counted the game's frames from the display's (`main.js` `gameFrames`: one on every display frame at 60 Hz, one on every second at
+120 Hz), but the story's clocks read the real time, the script's timed waits ran on timers, and several things on the story's screen
+moved once a display frame. At 60 Hz the two agree; elsewhere they did not.
+
+**How it was measured.** The port in an isolated headless Chrome on a virtual clock (timers, animation frames and `performance.now`
+move only when the harness steps them), at 30, 60, 120 and 144 display frames a second, on twelve test scenes from items 51 and 110 and
+two new ones: wait chains and FADS levels (`ff2n`, `ff1n`), typing with and without clicks (`ty1`, `ty2`), fast forward (`ff2`, `ff3`),
+delayed sounds (`dl1`), the RGB split (`sp1`), speed lines and sways with their random numbers (`rn1`), auto mode and its notice
+(`au1`), rewinds and the << icon (`rw1`) and a choice (`ch1`). Each drawn frame was read at the moment `main.js` draws it (and the
+page's own elements once the frame's callbacks had run), tagged with its game frame (`vm.ticks`), and compared with the 60 Hz run's
+frame of the same number. At 60 Hz the 60 Hz run is the reference the earlier items matched to native frames.
+
+**What was wrong** (the code before, the same scenes):
+
+- At 120 and 144 Hz a game frame ran up to a quarter of a frame early (the tolerance that absorbs a 60 Hz display's jitter), ahead of
+  the timers due on that frame, and every level was read from the real time between frames. 290 of 679 frames of the wait chains and
+  93 of 679 of the tween scene showed a level between two of the game's; the speed lines' and sways' random numbers came in another
+  order on 81 of 655 frames (item 143's "batch made or not depending on whether the timer fires first"); auto mode's page turn came a
+  frame late on 20 of 1156.
+- At 30 Hz the script's step after a line was typed ran only after both game frames of a display frame, so each line started a frame
+  later than the last: the fourth line of `ty1` was three frames late, and 111 of its 128 letters.
+- Counted per display frame: the << icon (0.25 a display frame, so 2.4 times too fast at 144 Hz), the scene skip's countdown (20 display
+  frames: a third of a second at 60 Hz, a seventh at 144), the notices (Auto, Auto Save, Quick Save), the choice screen, the end of a
+  script's fade to black, and the read-scene skip's wait for a notice to go.
+- Item 146: a tween's level, a FADS's level and a wait's end fell on the real time, not on whole frames, so a step due exactly on a frame
+  could come a frame early or late.
+
+**What changed.**
+
+- `vm.useFrameTime` (called by `main.js`): the story's three clocks (the story's, the split's and the sound clock) read the game's time,
+  which `vm.frameStep` moves one whole frame at the start of each game frame (a frame count, so no rounding piles up). A timed wait, a
+  delayed sound's countdown and auto mode's wait are looked at in that step instead of on timers (`sleepers`, `framePolls`), so each ends
+  on its frame. Without `main.js` (the tests, the smoke test) everything reads the real time as before.
+- `main.js` `frame`: for each game frame in the display frame, the clocks' step, the script's step (`vm.settleScript`: the micro-task
+  queue's turns until no command has run for a while), the tick, the text window's frame, the random numbers' draws, the skip black and
+  the << icon, then `vm.endFrame`; the frame is drawn once after them, and a display frame with no game frame in it is not drawn (a 120
+  or 144 Hz display shows the last frame again, as the game would). A stall gives as many game frames as it lasted (the game takes up to
+  half a second from a frame); a gap of over a quarter of a second, the page not drawing at all, counts as one, and a hidden page
+  catches up nothing.
+- `vm.everyFrame` steps the notices, the choice screen and the fade to black once a game frame; `vm.nextFrame` (the scene skip's
+  countdown and its wait for a notice) waits for the end of a game frame.
+- A delayed sound's countdown takes the waits' half-millisecond allowance, so that 60 frame steps make its 1000 ms (on frame time the
+  sum of 60 steps falls a hair short). The notice now shows for 100 frames, the listing's 75 up and 25 down; the old one ran 102 in the stepped runs, from
+  the rounding of its per-frame time step, and hides after t = 0.04 as the native frames of item N2-10 show.
+- Item 146's MSAD case: the game's typing front is one single-precision number for the whole line, so an MSAD's added part goes on from
+  the old count + 1 and its steps are rounded at that size. The port started the part's front at 1; it now rounds as the line's would
+  (`advanceFront` with the line's letter count, `units`). At 50 ms a letter the third added letter comes on the third frame, not the
+  fourth; across the speeds 15-250 and lines of 1-59 letters 176 of 1062 cases differed.
+
+**After** (differing game frames / frames compared; the shift is the alignment that fits, -1 at 30 Hz being a state first seen on a
+drawn frame that began the frame before):
+
+| Scene | 60 Hz, old code = new | 30 Hz | 120 Hz | 144 Hz |
+|---|---|---|---|---|
+| `ff2n` | 0/672 | 0/327 (-1) | 0/675 (0) | 0/679 (0) |
+| `ty1` | 0/673 | 0/339 (-1) | 0/684 (0) | 0/684 (0) |
+| `ff1n` | 0/666 | 0/334 (-1) | 0/676 (0) | 0/676 (0) |
+| `ff2` | 1/2315 | 0/1160 (-1) | 0/2325 (0) | 0/2325 (0) |
+| `ff3` | 1/2327 | 0/1166 (-1) | 0/2330 (0) | 0/2329 (0) |
+| `dl1` | 7/316 | 0/155 (-1) | 0/316 (1) | 0/316 (1) |
+| `sp1` | 0/618 | 0/309 (0) | 0/618 (0) | 0/618 (0) |
+| `rn1` | 0/651 | 0/319 (-1) | 0/665 (0) | 0/665 (0) |
+| `au1` | 24/1158 | 0/575 (0) | 0/1158 (0) | 0/1158 (0) |
+| `ty2` | 0/1160 | 10/577 (0) | 0/1159 (0) | 0/1160 (0) |
+| `rw1` | 0/797 | 8/397 (0) | 0/797 (0) | 0/797 (0) |
+| `ch1` | 0/796 | 7/397 (0) | 0/796 (0) | 0/796 (0) |
+
+At 60 Hz the new code draws what the old drew on every frame but at a script's end (`ff2`, `ff3`: the fade to black under which the
+picture clears, now on game frames), the notice's hold and fall a frame sooner (`au1`, above), and `dl1`, where a picture's load
+moved the whole run by a frame (its delayed sounds take 60 frames in both). At 120 and 144 Hz every game frame is the 60 Hz one.
+At 30 Hz every drawn frame is, apart from what a 30 Hz display cannot do: a state that lasts one game frame is never drawn (the rewind's
+<< at a quarter, a one-frame step box), a key lands on a drawn frame and so can be a frame later (`ty2`, `rw1`, `ch1`), and a picture's
+load can end between the two game frames of a display frame. A shift of 1 in `dl1` at 120 and 144 Hz is the same load.
+
+Item 143's native half, the game's own uneven frames swapping two renewals (one sandbox run of two), is the game's timing, not
+something to copy: the port's order is now the same at every rate and matches the even run.
+
+**Not done:** item 160 (on a display frame that carries two game frames, a FADS on the second takes the frame drawn before the first as
+its old picture). A real 120 or 144 Hz screen has not been watched (now part of item 136). The menus, dialogs, gallery, flowchart and
+title still animate on the display's time, as interface: item 70 (the title's dust made once a display frame) is the same kind of
+fault there. Tests: `tests/item123.test.mjs` (9).

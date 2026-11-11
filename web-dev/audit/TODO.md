@@ -7,12 +7,12 @@ Regenerated on 2026-11-10: every item still open, in the order to do them. Finis
 | Group | Open |
 |---|---:|
 | 1. Story: differences a player can meet | 5 |
-| 2. Story: checks that could find more | 8 |
+| 2. Story: checks that could find more | 7 |
 | 3. The web app | 2 |
-| 4. Story: exactness while skipping, in the stored files, or in rare cases | 10 |
+| 4. Story: exactness while skipping, in the stored files, or in rare cases | 9 |
 | 5. Mouse and keyboard: leftovers | 6 |
 | 6. The game's look, screen by screen | 45 |
-| **Total** | **76** |
+| **Total** | **74** |
 
 **How it's ranked.** The story comes first, as it has since the redesign: what is drawn and heard on the story screen,
 which scene plays, what a save resumes and what unlocks. Inside a group, what a player meets most often comes first,
@@ -59,9 +59,6 @@ checked in the code (marked *code*); the others can lag it, so re-read the code 
   this kind.
 - [ ] **121. Run every branch.** The smoke test takes the first row at all 84 choices. Run each row and both sides of the
   route-flag branches, and list any command or script stretch never reached.
-- [ ] **123. Check story timing away from 60 Hz.** The game's frames are stepped by the clock since item 110 (`main.js`
-  `gameFrames`), and timed waits and tweens were already by the clock, but nothing has been run at 30, 120 or 144 Hz.
-  Do 143 and 146 with it.
 - [ ] **52a. Look again at the story functions already marked different.** The re-check confirmed each reported
   difference in rendering, text, sound and the script machine, but did not trace those functions again for others.
 - [ ] **122. Sweep whole scenes against the game.** Every comparison so far was aimed at one fix. Compare sampled frames
@@ -76,7 +73,8 @@ checked in the code (marked *code*); the others can lag it, so re-read the code 
 
 ## 3. The web app
 
-- [ ] **136. Try Safari and Firefox, and a real controller and mouse.** Firefox 159 has now run the title (two faults there, fixed 2026-11-10: a flash of its still over the movie, and white flashes from Firefox's own drawing of video, cured by painting movies on a canvas, every movie since then); the rest of the game has not been played in it. The notes otherwise record Chrome; the port leans on
+- [ ] **136. Try Safari and Firefox, a real controller and mouse, and a 120 or 144 Hz display.** Item 123 ran the display rates on a
+  virtual clock in headless Chrome; a real high-refresh screen (a ProMotion Mac at 120 Hz) has not been watched. Firefox 159 has now run the title (two faults there, fixed 2026-11-10: a flash of its still over the movie, and white flashes from Firefox's own drawing of video, cured by painting movies on a canvas, every movie since then); the rest of the game has not been played in it. The notes otherwise record Chrome; the port leans on
   WebGL2, AVIF and Ogg Opus. Also pointer events and the keyboard lock in full screen, a real controller since the change
   to actions (was 154), and a real mouse wheel in the log: the fix of 2026-11-10 relies on the browser's scroll anchoring
   and was tried with simulated wheel events (a browser without anchoring takes the older code path).
@@ -87,12 +85,10 @@ checked in the code (marked *code*); the others can lag it, so re-read the code 
 
 ## 4. Story: exactness while skipping, in the stored files, or in rare cases
 
-- [ ] **146. Whole frames.** The game counts frames; the port steps by the display's time. A step that falls exactly on a
-  frame (the 18-frame window fade, a letter every 15 frames) can land a frame early or late, and did in the stepped runs.
-  An MSAD's third letter can still be a frame off. Goes with 123.
-- [ ] **143. Uneven frames and the order of the random numbers.** Two renewals a frame apart can come in the other order
-  when the game's frames are uneven, and a batch of speed lines due on the frame a wait ends is made or not depending on
-  whether the port's timer fires before that frame (3 browser runs of 3 matched the game). Goes with 123.
+- [ ] **160. A transition's old picture when a display frame carries two game frames.** Since item 123 the story is drawn once a
+  display frame, after all the game frames it carries, so on a 30 Hz display, or after a stall, a FADS that comes on the second of two
+  takes the frame drawn before the first as its old picture, where the game's is one frame newer: a moving picture is a frame behind on
+  the transition's first frame. Drawing every game frame would cure it at twice the cost on such displays.
 - [ ] **151. Frames that end with no wait.** JUMP and NOP_ end the game's frame; in the port they take none (1,741 JUMPs, one
   NOP_ in the scripts; a JUMP also loads the next script). A FADS that brings a picture not yet loaded holds the old frame
   two or three frames more in the game, where the port holds for as long as its own loading takes.
@@ -228,6 +224,10 @@ These describe the pad's cursor, which the redesign left as a second way to play
   drawn any more), 114 (holding rewind), and the Back button half of 77. 154 is merged into 136.
 - **The touch rule, dropped on 2026-11-09:** 18, 25, 36, 49, 56.
 - **137 (finish converting the assets), done 2026-11-10:** everything the game asks for is in `web/assets` (`tools/needed.py` is the list), and `web/` runs by itself.
+- **123, 143 and 146 (story timing away from 60 Hz, the order of the random numbers, whole frames), done 2026-11-10:** the story's
+  clocks move a whole game frame at a time with the frame loop, the script takes its step between two game frames in one display frame,
+  and what moved once a display frame on the story's screen moves once a game frame. At 120 and 144 Hz every game frame of 12 test scenes
+  is the 60 Hz one; at 30 Hz every drawn frame is. FIXES.md, "TODO item 123". New: 160.
 - **Records, all done on 2026-11-10:** 53 (ANIMATIONS.md), 106 (`N2-44`), 107 (62 old rows of function-map.csv), 108 (S38, S39), 109
   (the reference saves' README).
 

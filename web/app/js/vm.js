@@ -147,14 +147,12 @@ function panelArgs(l, link, cx, cy, cw, ch, border, frame, rot) {
   if (num(rot) !== undefined) l.clipRot = wrapRotation(num(rot));
 }
 
-// The next drawn frame (a timer where there is no window, as in the tests).
 // A manual or automatic save marks its record with F1118 (0x50fc0 at 0x51554, 0x52aa0 at 0x52b30: 0x53f00(record + 8, 0x45e, 1)), which a
 // load gives back, so "Save Progress?" is not asked again; the quick save (0x52860) copies the checkpoint as it is. Saves made
 // before this just load with F1118 as they were (N2-37).
 export const markSaved = (vars) => ({ ...vars, F1118: 1 });
 
 const FRAME_MS = 1000 / 60;
-const nextFrame = () => new Promise((r) => (typeof requestAnimationFrame === "function" ? requestAnimationFrame(() => r()) : setTimeout(r, 16)));
 
 export class VM {
   constructor({ gfx, audio, text, onChoice, onConfirm, onChoiceCancel, onSkipEnd, onWait, playMovie, toast, onAskSave, onSceneSkip, onLock, onCountdown, popup }) {
@@ -202,6 +200,13 @@ export class VM {
     this.sleepers = new Set();   // the timed waits running (sleep), poked when fast forward starts or stops
     this.ticks = 0;
     this.externalTicks = false;  // main.js steps the frames (tick); without it a timer does
+    this.frameTimed = false;     // the clocks move a whole frame at a time, when main.js steps them (useFrameTime); without it they read the real time
+    this.gameBase = 0;           // the time they read then: gameBase + gameFrames frames (a count, so no rounding piles up)
+    this.gameFrames = 0;
+    this.framePolls = new Set(); // the delay slots' countdowns, looked at once a frame step (frameStep)
+    this.frameWaiters = [];      // waits for the end of the next game frame (nextFrame)
+    this.frameHooks = new Set(); // what moves a step each game frame on the story's screen (everyFrame)
+    this.opCount = 0;            // commands run (settleScript)
     this.loadHold = 0;        // pictures loading: the game's time stands still (waitImages)
     // The delay slots' clock (0x65e50, run by the mixer 0x9b7f0 from the app's loop every frame in any state): it goes on while a menu or
     // another page is open, where the story's clock stands still; only the port's own holds stop it (pictures loading, a hidden tab).
@@ -430,6 +435,58 @@ export class VM {
   }
 
   now(real) { return this.clock.now(real); }
+  // The game's time in whole frames (TODO items 123 and 146). The game draws what its frame made and nothing between, 60 frames a second
+  // whatever the display, and each wait, tween and countdown counts those frames. With the clocks on the real time, as the port had them,
+  // a display at 120 or 144 Hz ran a game frame up to a quarter early (main.js gameFrames), ahead of a timed wait due on that frame, and a
+  // tween's level fell between two frames' levels; main.js now moves the story's three clocks a frame at a time (frameStep) and the timed
+  // waits end at that step, so every display rate sees the same frames as a 60 Hz one. Without main.js (the tests) the clocks read the real time.
+  useFrameTime() {
+    if (this.frameTimed) return;
+    this.frameTimed = true;
+    this.gameBase = performance.now();
+    this.gameFrames = 0;
+    for (const c of [this.clock, this.frameClock, this.soundClock]) c.read = () => this.gameTime;
+  }
+  // One game frame on the clocks: the timed waits and the delay slots due by then end, in the order they began (main.js, before the script's
+  // step and the frame's tick, as the game's frame looks at its waits first: 0x40ed0 -> 0x802c0).
+  get gameTime() { return this.gameBase + this.gameFrames * FRAME_MS; }
+  frameStep() {
+    this.gameFrames++;
+    for (const p of [...this.sleepers]) p();
+    for (const p of [...this.framePolls]) p();
+  }
+  // The end of a game frame (main.js, after the tick and the window's frame): what waited for it goes on at the next frame's start.
+  endFrame() {
+    for (const h of [...this.frameHooks]) {
+      let more;
+      try { more = h.fn(); } catch (e) { console.error(e); more = false; }
+      if (more === false) this.frameHooks.delete(h);
+    }
+    const list = this.frameWaiters;
+    this.frameWaiters = [];
+    for (const r of list) r();
+  }
+  // Something on the story's screen that moves a step each game frame (the engine's notices, a choice): fn() at the end of each, until it
+  // returns false or the stop() returned here is called. Only where main.js steps the frames (frameTimed).
+  everyFrame(fn) {
+    const h = { fn };
+    this.frameHooks.add(h);
+    return () => { this.frameHooks.delete(h); };
+  }
+  // The end of the next game frame: main.js's frames where it steps them, a timer where nothing does (the tests).
+  nextFrame() {
+    if (this.frameTimed) return new Promise((r) => this.frameWaiters.push(r));
+    return new Promise((r) => (typeof requestAnimationFrame === "function" ? requestAnimationFrame(() => r()) : setTimeout(r, 16)));
+  }
+  // The script's step within a frame: what a wait that just ended lets run, until the script waits again. The commands run on
+  // promises, so main.js gives it the micro-task queue's turns between the game's frames, until no command has run for a while.
+  async settleScript() {
+    for (let i = 0, quiet = 0; i < 4000 && quiet < 48; i++) {
+      const before = this.opCount;
+      await null;
+      quiet = this.opCount === before ? quiet + 1 : 0;
+    }
+  }
   frameNow(real) { return this.frameClock.now(real); }
   // A hold of the port's own (not the game's): the story's clock and the delay slots' stop together.
   holdClocks(reason, on) { this.clock.pause(reason, on); this.frameClock.pause(reason, on); this.soundClock.pause(reason, on); }
@@ -443,8 +500,8 @@ export class VM {
     // what was left; a native run says otherwise (TODO item 51): a page's line had waited 148 of its 180 frames when the menu opened,
     // and the game went on 183 frames after the window was whole again (218 after the menu began to close), not 32. The page is set
     // again on the way back (0x813e0) and counts as typed two frames later, which starts the countdown anew (0x81b30).
-    if (on && !was) { clearTimeout(this.autoTimer); this.autoUntil = 0; }
-    else if (!on && was && this.waitResolve) { this.autoSince = performance.now() + 2 * FRAME_MS; this.armAuto(); }
+    if (on && !was) this.cancelAuto();
+    else if (!on && was && this.waitResolve) { this.autoSince = this.autoNow() + 2 * FRAME_MS; this.armAuto(); }
   }
   get skip() { return !!this._skip; }
   set skip(on) {
@@ -560,7 +617,7 @@ export class VM {
         if (left <= 0.5) { done(); return; }
         clearTimeout(timer);
         if (speeding) { if (!queued) { queued = true; self.onTick(() => { queued = false; poll(); }); } }
-        else timer = setTimeout(poll, Math.min(50, Math.max(1, left)));
+        else if (!self.frameTimed) timer = setTimeout(poll, Math.min(50, Math.max(1, left)));   // frame-timed, frameStep looks at it
       }
       this.sleepers.add(poll);
       poll();
@@ -759,7 +816,7 @@ export class VM {
     this.msgPending = false;
     this.choosing = null;
     this.typeResolve = null;
-    clearTimeout(this.autoTimer);
+    this.cancelAuto();
     if (this.onChoiceCancel) this.onChoiceCancel();
     if (this.onWait) this.onWait(false);
     this.resume();
@@ -806,6 +863,7 @@ export class VM {
       this.zFrom = null;
       this.zSkip = -1;
       const op = ops[this.pc++];
+      this.opCount++;
       const fn = this[`op_${op[0]}`];
       try {
         if (WAITS.has(op[0])) await this.settle();
@@ -898,7 +956,7 @@ export class VM {
       for (;;) {
         this.popup.hurry();
         if (!this.popup.busy() || gen !== this.generation) break;
-        await nextFrame();
+        await this.nextFrame();
       }
     }
     if (this.instant || this.restoring || !this.skipRead || !this.flow.completed.has(Number(n))) return;
@@ -910,18 +968,18 @@ export class VM {
   // waits for it; No ends here). State 3 counts the frames, each with the black and the indicator (0x3f110, 0x3b5b0(4); main.js countdownFrame),
   // and the frame after, the run starts (0x53950(1), not while a choice is up -> 0x802c0).
   async readSceneSkip(gen) {
-    await nextFrame();
+    await this.nextFrame();
     if (gen !== this.generation) return;
     if (this.skipConfirm) {
       const go = this.onSceneSkip ? await this.onSceneSkip(true) : true;
       if (!go || gen !== this.generation) return;
     }
     for (let v = (this.skipConfirm ? 20 : 4) - 1; v >= 0; v--) {
-      await nextFrame();
+      await this.nextFrame();
       if (gen !== this.generation) return;
       this.onCountdown?.(v);
     }
-    await nextFrame();
+    await this.nextFrame();
     if (gen === this.generation && !this.choosing) this.beginInstant();
   }
   // The skip toggle waiting at unread text (see message): skip is off for the VM, on for the player.
@@ -1363,11 +1421,11 @@ export class VM {
     this.onWait && this.onWait(true, this.pageEnd);
     await new Promise((res) => {
       this.waitResolve = res;
-      this.autoSince = performance.now();
+      this.autoSince = this.autoNow();
       this.armAuto();
     });
     if (gen !== this.generation) return;   // stopped or restored: what is on screen now is no longer this wait's
-    clearTimeout(this.autoTimer);
+    this.cancelAuto();
     this.onWait && this.onWait(false);
     // The skip that ends the wait cuts this line's own voice (flag 4, 0x804a4-0x804b8); other than that a wait passed by skipping alone stops
     // nothing (0x80734). A press stops it under the setting (0x80670-0x80680).
@@ -1395,20 +1453,31 @@ export class VM {
   // through a wait leaves what is left of it, and on a line that has waited longer the game goes on at once (TODO item 51, native
   // run: L pressed 4.5 s into a page's wait turned the page on that frame). Also called when auto is switched.
   armAuto(left) {
-    clearTimeout(this.autoTimer);
-    this.autoUntil = 0;
+    this.cancelAuto();
     const res = this.waitResolve;
     if (!this.auto || !res || this.paused) return;
     const whole = this.pageEnd ? this.autoPage || 3000 : this.autoClick || 2200;
-    const ms = left ?? Math.max(0, whole - Math.max(0, performance.now() - (this.autoSince ?? performance.now())));
-    this.autoUntil = performance.now() + ms;
-    this.autoTimer = setTimeout(async () => {
-      this.autoUntil = 0;
+    const now = this.autoNow();
+    const ms = left ?? Math.max(0, whole - Math.max(0, now - (this.autoSince ?? now)));
+    this.autoUntil = now + ms;
+    const fire = async () => {
+      this.cancelAuto();
       await this.audio.voiceDone();
       if (!this.auto || this.waitResolve !== res || this.paused) return;
       this.waitResolve = null;
       res();
-    }, ms);
+    };
+    // frame-timed, the wait ends at the frame step it is due by (frameStep), as the game counts it in frames (0x81b30)
+    if (this.frameTimed && ms > 0) { const poll = () => { if (this.autoNow() >= this.autoUntil - 0.5) fire(); }; this.autoPoll = poll; this.framePolls.add(poll); }
+    else this.autoTimer = setTimeout(fire, ms);
+  }
+  // Auto mode's clock: the game's time in whole frames where main.js steps it, otherwise the real time. Either goes on while the story's clock
+  // is held, as the wait did on the real time before.
+  autoNow() { return this.frameTimed ? this.gameTime : performance.now(); }
+  cancelAuto() {
+    clearTimeout(this.autoTimer);
+    if (this.autoPoll) { this.framePolls.delete(this.autoPoll); this.autoPoll = null; }
+    this.autoUntil = 0;
   }
 
   // Resolves on a click while text is typing (or, with `any`, on any click), without consuming it for the next wait.
@@ -1998,19 +2067,20 @@ export class VM {
   queueDelayed(k, { kind, opts, name, loop, left, counting }) {
     const gen = this.generation, act = this.soundAct(kind, name, loop);
     let timer = null, last = this.soundClock.now();
-    const entry = { kind, opts: { ...opts }, name, loop, counting, until: last + left, cancel: () => clearTimeout(timer) };
+    const entry = { kind, opts: { ...opts }, name, loop, counting, until: last + left, cancel: () => { clearTimeout(timer); this.framePolls.delete(tick); } };
     entry.run = () => act(k, entry.opts, true);
     const tick = () => {
-      if (gen !== this.generation || this.delayed.get(k) !== entry || !entry.counting) return;
+      if (gen !== this.generation || this.delayed.get(k) !== entry || !entry.counting) { this.framePolls.delete(tick); return; }
       const now = this.soundClock.now(), dt = now - last;
       last = now;
       if (this.instant) entry.until += dt;
       else if (this.skip) entry.until -= dt * SKIP_SPEED;
       const rest = entry.until - now;
-      if (rest <= 0) { this.delayed.delete(k); entry.run(); return; }
-      timer = setTimeout(tick, Math.min(this.skip ? 16 : 50, Math.max(1, rest)));
+      if (rest <= 0.5) { this.framePolls.delete(tick); this.delayed.delete(k); entry.run(); return; }   // due (to rounding: 60 frame steps are 1000 ms)
+      if (!this.frameTimed) timer = setTimeout(tick, Math.min(this.skip ? 16 : 50, Math.max(1, rest)));
     };
     this.delayed.set(k, entry);
+    if (this.frameTimed) this.framePolls.add(tick);   // looked at each frame step (frameStep)
     tick();
   }
   cancelDelayed() { for (const e of this.delayed.values()) e.cancel(); this.delayed.clear(); }

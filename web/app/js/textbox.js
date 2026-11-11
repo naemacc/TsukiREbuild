@@ -280,15 +280,19 @@ export const lettersPerFrame = (speed) => (speed > 0 ? (1000 / 60) / speed : 768
 // The front after dt frames. The game keeps it in single precision and adds 16.666668 / speed once a frame (0x81b30, 0x3b2d0), so
 // whole frames are added the same way here: at 250 ms a letter fifteen steps come to exactly 1, which is not yet past letter 1, and
 // the second letter shows on the sixteenth frame (native frames, TODO item 51). A fraction of a frame is added as it is.
+// `base`: the letters the line had before this part. The game's front is one number for the whole line, so an MSAD's part goes on from
+// the old count + 1 and its steps are rounded at that size: the port keeps the part's own front, rounded as the line's would be (item
+// 146: at 50 ms a letter the third added letter comes on the third frame; a front counted from 1 brought it on the fourth).
 const FRAME_MS = Math.fround(16.666668);
-export function advanceFront(front, dt, speed) {
+export function advanceFront(front, dt, speed, base = 0) {
   if (!(speed > 0)) return 768;
   if (front >= 768) return front;
   const n = Math.round(dt);
   if (n >= 1 && Math.abs(dt - n) < 1e-6) {
     const step = Math.fround(FRAME_MS / speed);
-    for (let i = 0; i < n && front < 768; i++) front = Math.fround(front + step);
-    return front;
+    let x = Math.fround(base + front);
+    for (let i = 0; i < n && x - base < 768; i++) x = Math.fround(x + step);
+    return x - base;
   }
   return front + dt * lettersPerFrame(speed);
 }
@@ -874,7 +878,7 @@ export class TextBox {
       this.open = true;
       this.fastClose = false;
       // fast forward runs the typing 64 times a frame at 60 letters' worth each (0x81b30): the line is whole on its first typing frame
-      r.front = r.rush ? 768 : advanceFront(r.front, dt, this.speed);
+      r.front = r.rush ? 768 : advanceFront(r.front, dt, this.speed, r.base || 0);
     }
     if (r.fresh) return;
     if (r.front >= typingEnd(r.n, r.t)) { r.ended = true; this.showAll(r); return; }
@@ -973,6 +977,7 @@ export class TextBox {
     if (!inline && !glue && this.pageParts.length) root.appendChild(document.createTextNode("\n"));
     // an MSAD goes on a line that has letters already (not a blank MSG's row)
     const before = inline && this.lines.length > 0 && this.lines.at(-1).segs.some((sg) => (sg.querySelector ? sg.querySelector(".ch") : null));
+    const base = before ? this.lines.at(-1).units || 0 : 0;   // the letters the typing front has counted on this line (advanceFront)
     if (inline && this.lines.length) this.lines.at(-1).segs.push(seg);
     else {
       // the line before becomes an earlier line, dimming over the new line's speed x 1.2 frames
@@ -983,6 +988,7 @@ export class TextBox {
     this.setKeep(k);
     setDashJoin(root);
     const { chars, t, ruby } = fillSegment(seg, markup);
+    this.lines.at(-1).units = (before ? base : 0) + chars.length;
     if (t) seg.dataset.t = String(t);
     root.appendChild(seg);
     if (this.second || root.querySelector?.(".second")) this.placeCurrent();
@@ -1000,7 +1006,7 @@ export class TextBox {
     // joins the line's (0x6e950): the front, which stood a letter past the old end, goes on from there, so the added part's first
     // two letters come at once (native frames: "IJKL" after "EFGH@k" has I and J on the frame of the click, K 15 frames on).
     return new Promise((done) => {
-      this.run = { chars, n: chars.length, t, front: inline && before ? 1 : 0, insta: !this.charFade, lo: 0, ruby, fresh: !inline, ended: false, done, rush };
+      this.run = { chars, n: chars.length, t, front: inline && before ? 1 : 0, base, insta: !this.charFade, lo: 0, ruby, fresh: !inline, ended: false, done, rush };
     });
   }
 

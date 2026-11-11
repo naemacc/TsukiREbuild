@@ -3124,7 +3124,14 @@ export class UI {
       };
       // The wheel moves the cursor too, wrapping round (0x83e50 reads the wheel with the Up / Down keys).
       this.choiceWheel = (dy) => fx.key(dy < 0 ? "up" : "down", true, true);
-      const stop = frameLoop((dt) => {
+      // A step each game frame where main.js steps them (vm.everyFrame: the choice is part of the story's frame, 0x84e50), the first standing
+      // still; the display's own frames otherwise.
+      const frames = (fn) => {
+        if (!this.vm?.frameTimed) return frameLoop(fn);
+        let first = true;
+        return this.vm.everyFrame(() => { fn(first ? 0 : 1); first = false; });
+      };
+      const stop = frames((dt) => {
         fx.step(dt, lengths);
         bg.style.opacity = String(fx.alpha);
         rows.forEach((r, i) => {

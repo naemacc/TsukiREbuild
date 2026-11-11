@@ -252,7 +252,7 @@ export function installTouch({ win = window, doc = document } = {}) {
       if (vm) {
         vm.holdClocks("rotate", true);
         // the auto mode's wait is a timer of its own: it stops here and goes on with what was left
-        if (vm.autoUntil) { autoLeft = Math.max(0, vm.autoUntil - now()); win.clearTimeout(vm.autoTimer); vm.autoUntil = 0; }
+        if (vm.autoUntil) { autoLeft = Math.max(0, vm.autoUntil - (vm.autoNow ? vm.autoNow() : now())); if (vm.cancelAuto) vm.cancelAuto(); else { win.clearTimeout(vm.autoTimer); vm.autoUntil = 0; } }
       }
     } else {
       if (vm) { vm.holdClocks("rotate", false); if (autoLeft !== null) vm.armAuto(autoLeft); }
