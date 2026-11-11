@@ -51,7 +51,7 @@ export const GL_ART = {
 const FONTS = ['40px "SeuratPro"', "16px Inter"];
 const SYS_SOUNDS = 9;
 
-const movieUrl = (name) => `/assets/movie/${name}.mp4`;
+export const movieUrl = (name) => `/assets/movie/${name}.mp4`;   // (main.js reads the movies' addresses from here too)
 const ruleName = (n) => `RULE_${String(n).padStart(2, "0")}`;
 function unload(v) {
   try { v.removeAttribute("src"); v.load(); } catch { /* gone already */ }

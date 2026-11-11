@@ -13,7 +13,7 @@ import { openFlowchart } from "./flowchart.js";
 import { openGallery, preloadGallery } from "./gallery.js";
 import { welcomeDue, markWelcomed } from "./welcome.js";
 import { openHome, homeDue } from "./home.js";
-import { Preloader, RANK } from "./preload.js";
+import { Preloader, RANK, movieUrl } from "./preload.js";
 import { REWIND_FIXED, ROUTE_FLAGS, fvar } from "./flowchart-model.js";
 import { CLICK_MARK, STORY_MOVIES, TITLE_MOVIE_LOOP, movieLook, movieQuestion, nextTitleStage, titleMusic as titleTrack, titleVariant } from "./uifx.js";
 
@@ -199,7 +199,7 @@ function paintMovie(v) {
 // styled with, so the movie starts from what has been read; else the page's own starts on the file.
 function movieElement(name) {
   const old = $("movie"), made = preload.takeMovie(name);
-  if (!made) { old.src = `/assets/movie/${name}.mp4`; return old; }
+  if (!made) { old.src = movieUrl(name); return old; }
   stopPaintingMovie(old);
   old.onended = old.onerror = null;
   old.pause();
@@ -625,7 +625,7 @@ function titleVideo(on) {
   let v = $("movie");
   if (on) {
     const name = titleMovie();
-    if (v.titleLoop && v.style.display === "block" && v.getAttribute("src") === `/assets/movie/${name}.mp4`) return;
+    if (v.titleLoop && v.style.display === "block" && v.getAttribute("src") === movieUrl(name)) return;
     v = movieElement(name);
     v.titleLoop = true;
     v.muted = true;

@@ -1,6 +1,6 @@
 # Android app
 
-The web port as one APK that plays with no connection: `web/app`, and `web/assets` without the loose voices and sound effects (the packs in `assets/pack` carry all 17,753 of them). The APK is 2.8 GB (2,800,247,921 bytes). It has no permissions at all, internet included.
+The web port as one APK that plays with no connection: `web/app`, and `web/assets` without the loose voices and sound effects (the packs in `assets/pack` carry all 17,753 of them). The APK is 2.8 GB (2,800,601,406 bytes on 2026-11-11, with the bundled backup fonts). It has no permissions at all, internet included.
 
 ```bash
 web-dev/android/build_apk.sh            # out/tsukihime.apk
