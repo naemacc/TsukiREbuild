@@ -22,6 +22,8 @@ The live version is [tsukirebuild.pages.dev](https://tsukirebuild.pages.dev/). P
 
 The deployment compares file checksums and uploads new or modified game assets to the `tsukirebuild-assets` R2 bucket before publishing the frontend. Previous objects are retained for open browser sessions and deployment rollbacks. New asset files can be committed normally.
 
+Browsers keep the game's media (`assets/voice`, `img`, `se`, `bgm`, `movie`, `sys`, `fonts`) for 30 days without asking again (`web/cloudflare/worker.js`), so a returning player makes no Worker requests or R2 reads for files they already have; the Workers free plan allows 100,000 requests a day, and every asset is one. The scripts, tables and interface art are kept for 5 minutes, so they follow a deployment by themselves. A media file converted again reaches players who already have it only when their copy expires: give it a new name if it must arrive at once.
+
 GitHub stores the deployment credential in the encrypted repository secret `CLOUDFLARE_API_TOKEN` and its token ID in the repository variable `CLOUDFLARE_API_TOKEN_ID`. The credential needs account-level `Pages Write` and `Workers R2 Storage Bucket Item Write` scoped to `tsukirebuild-assets`. Update both values when rotating the credential.
 
 ## Making the assets again

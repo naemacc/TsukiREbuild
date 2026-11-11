@@ -8,6 +8,14 @@ function getRange(value, size) {
   return { offset, length: end - offset + 1 };
 }
 
+// The game's converted media (voices, pictures, sounds, music, movies, the game's font) are made once from the dump and
+// do not change with the code, and they are nearly every request a player makes: a browser keeps them for 30 days without
+// asking again, so a returning player costs no Worker requests or R2 reads for what they already have. The scripts, the
+// tables and the interface art, which do change with the code, keep the short lifetime and so update by themselves.
+// A media file that is ever converted again reaches players who have it within those 30 days, or at once under a new name.
+const MEDIA = /^assets\/(voice|img|se|bgm|movie|sys|fonts)\//;
+const MEDIA_CACHE = "public, max-age=2592000, immutable";
+
 export default {
   async fetch(request, { GAME, ASSETS }) {
     if (request.method !== "GET" && request.method !== "HEAD") {
@@ -45,7 +53,7 @@ export default {
 
     const headers = new Headers();
     object.writeHttpMetadata(headers);
-    headers.set("Cache-Control", "public, max-age=300");
+    headers.set("Cache-Control", MEDIA.test(key) ? MEDIA_CACHE : "public, max-age=300");
     headers.set("ETag", object.httpEtag);
     headers.set("Last-Modified", object.uploaded.toUTCString());
     headers.set("Accept-Ranges", "bytes");
