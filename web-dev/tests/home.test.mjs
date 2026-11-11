@@ -56,3 +56,19 @@ test("built from the game's art: the panel's strip and plates, Config's panel, t
   assert.match(home, /pulse = pressPulse\(pulse, dt\);/);
   assert.match(source("style.css"), /\.hm-press \{[^}]*TITLE_PARTS_JA\/press_start\.webp/);
 });
+
+test("on a phone held upright the opening page has a layout of its own and no rotate screen; that comes only once PLAY ONLINE has started the game", () => {
+  const touch = source("js/touch.js"), main = source("js/main.js"), home = source("js/home.js"), css = source("touch.css");
+  assert.match(touch, /hold\(h > w && !touch\.upright\?\.\(\)\);/, "no rotate screen while the opening page is up");
+  assert.match(touch, /touch\.uprightNow = \(\) => !!touch\.upright\?\.\(\) && win\.innerHeight > win\.innerWidth;/);
+  assert.match(touch, /root\.classList\.toggle\("upright", up\);/);
+  assert.match(touch, /stage\.style\.width = `\$\{T\.homeUpright\.w\}px`;/, "the stage 1080 wide and as tall as the window");
+  assert.match(touch, /stage\.style\.width = stage\.style\.height = "";/, "and the game's own again after");
+  assert.match(main, /let homeUp = fullHeld;/);
+  assert.match(main, /touch\.upright = \(\) => homeUp;/);
+  assert.match(main, /homeUp = false;\n  touch\.reorient\?\.\(\);[^\n]*\n  fitStage\(\);/, "the rotate screen once the page has gone");
+  assert.match(home, /T && upright\(\) \? \[ux0 \+ \(i % U\.cols\) \* pitch, y \+ Math\.floor\(i \/ U\.cols\) \* U\.rowPitch\]/, "two rows of two plates");
+  assert.match(home, /addEventListener\("resize", place\);/, "laid out again when the phone is turned");
+  assert.match(css, /html\.touch\.upright \.hm-scroll \{ left: 40px; top: 262px; width: 1000px; height: calc\(100% - 262px\); \}/);
+  assert.match(css, /border-image: url\("\/assets\/ui\/MODEPNL_PARTS_JA\/modepanel_window\.webp"\) 0 40 8 40 fill stretch;/, "the game's strip, its ends kept");
+});

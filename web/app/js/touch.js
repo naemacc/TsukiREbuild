@@ -52,6 +52,9 @@ export const TOUCH = {
   // The opening page's four plates (home.js): the panel's, at its size, in one row `pitch` apart, centred; the reading
   // column starts under the strip, `height` high.
   home: { pitch: 465, y: 28, height: 150 },
+  // ... and held upright (the stage `w` wide and as tall as the window, touch.place): the plates in `cols` columns, rows
+  // `rowPitch` apart, in a strip `height` high; the reading column `inset` from the sides.
+  homeUpright: { w: 1080, cols: 2, rowPitch: 116, height: 262, inset: 40 },
   // The hint over a story's first screen: stays this many frames; kept in the browser once the panel has been pulled down.
   hint: { frames: 420, rate: 0.05, key: "tsuki.touch.hint" },
 };
@@ -220,7 +223,21 @@ export function installTouch({ win = window, doc = document } = {}) {
     return { top: n(s.paddingTop), right: n(s.paddingRight), bottom: n(s.paddingBottom), left: n(s.paddingLeft) };
   };
   touch.fit = () => stageFit(win.innerWidth, win.innerHeight, insets());
+  // While the opening page is up (main.js touch.upright) a window held upright gets a stage of its own shape: TOUCH.homeUpright.w
+  // wide, as tall as the window, inside the safe area; the opening page lays itself out for it (home.js, html.upright). Else the
+  // game's 1920 x 1080, fitted.
+  touch.uprightNow = () => !!touch.upright?.() && win.innerHeight > win.innerWidth;
   touch.place = (stage) => {
+    const up = touch.uprightNow();
+    root.classList.toggle("upright", up);
+    if (up) {
+      const i = insets(), k = (win.innerWidth - i.left - i.right) / T.homeUpright.w;
+      stage.style.width = `${T.homeUpright.w}px`;
+      stage.style.height = `${Math.ceil((win.innerHeight - i.top - i.bottom) / k)}px`;
+      stage.style.transform = `translate(${i.left}px, ${i.top}px) scale(${k})`;
+      return;
+    }
+    stage.style.width = stage.style.height = "";
     const f = touch.fit();
     stage.style.transform = `translate(${f.x}px, ${f.y}px) scale(${f.k})`;
   };
@@ -266,9 +283,10 @@ export function installTouch({ win = window, doc = document } = {}) {
   const turned = () => {
     const w = win.innerWidth, h = win.innerHeight, k = Math.min(w / 900, h / 1300);
     box.style.transform = `translate(-50%, -50%) scale(${k})`;
-    hold(h > w);
+    hold(h > w && !touch.upright?.());   // (not while the opening page is up: it has a layout for an upright window)
     touch.act?.refit();
   };
+  touch.reorient = turned;   // main.js, once the opening page has gone
   win.addEventListener("resize", turned);
   win.addEventListener("orientationchange", turned);
   win.visualViewport?.addEventListener?.("resize", turned);

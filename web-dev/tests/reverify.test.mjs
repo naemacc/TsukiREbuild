@@ -1469,7 +1469,7 @@ test("Redesign 126 (in place of N2-159): the game's tap windows (0xad4e0) stay a
   for (const file of ["js/ui.js", "js/gallery.js", "js/flowchart.js", "style.css"]) assert.doesNotMatch(readFileSync(new URL(`../../web/app/${file}`, import.meta.url), "utf8"), /setBack|backBtn|backbtn|back_btn/, file);
   // and a left press of the mouse draws the game's touch ring again, as a touch does
   const main = readFileSync(new URL("../../web/app/js/main.js", import.meta.url), "utf8");
-  assert.match(main, /const touchFx = new TouchFx\(\$\("touchfx"\)\);\naddEventListener\("pointerdown", \(e\) => \{\n  if \(e\.button !== 0\) return;/);
+  assert.match(main, /const touchFx = new TouchFx\(\$\("touchfx"\)\);\naddEventListener\("pointerdown", \(e\) => \{\n  if \(e\.button !== 0 \|\| document\.documentElement\.classList\.contains\("upright"\)\) return;/);
 });
 
 test("Redesign 126: the system's Yes / No under the pointer: the cursor goes to the button pointed at, and one click on either answers (0x49f00's two taps are gone)", () => {

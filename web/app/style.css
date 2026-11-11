@@ -382,6 +382,7 @@ div.fc-node { pointer-events: none; cursor: default; }
 /* The opening page (home.js): a tab's page in the first-visit page's column; ABOUT's sections one after another; a link in the plates' lettering; the
    title's PRESS ANY BUTTON at its own size. */
 .hm-part + .hm-part h2 { margin-top: 76px; }
+.hm-tall { display: none; }   /* (the opening page's parts for a phone held upright: touch.css html.upright) */
 .wl-text .wl-rows.hm-rows { grid-template-columns: max-content 1fr; gap: 14px 44px; }
 .hm-press { display: block; width: 472px; height: 88px; margin: 64px auto 24px; padding: 0; border: 0; cursor: pointer; background: url("/assets/ui/TITLE_PARTS_JA/press_start.webp") 0 0 / 100% 100% no-repeat; }
 .hm-link { display: inline-block; margin: 6px 0 20px; font: 400 34px/44px "PT Sans Narrow", "Ubuntu Condensed", "Arial Narrow", "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: #f2f6f8; text-decoration: underline 1px rgba(191, 238, 255, .55); text-underline-offset: 7px; text-shadow: 0 0 9px rgba(110, 195, 255, .75); }

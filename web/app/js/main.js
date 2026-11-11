@@ -34,7 +34,7 @@ fitStage();
 // any screen's own handler, which may stop the event.
 const touchFx = new TouchFx($("touchfx"));
 addEventListener("pointerdown", (e) => {
-  if (e.button !== 0) return;
+  if (e.button !== 0 || document.documentElement.classList.contains("upright")) return;   // (not on the opening page's upright stage)
   const r = stage.getBoundingClientRect(), k = r.width / 1920;
   const x = (e.clientX - r.left) / k, y = (e.clientY - r.top) / k;
   if (x >= 0 && y >= 0 && x < 1920 && y < 1080) touchFx.touch(x, y);
@@ -966,7 +966,15 @@ document.addEventListener("fullscreenchange", () => { if (!document.fullscreenEl
 // While the opening page is up (home.js) nothing asks for it: choosing a tab, following a link or scrolling is not playing. Starting the game
 // from PLAY ONLINE asks, within that click or key (gameStarted, below), and from then on any click does, as above.
 let fullHeld = homeDue(new URLSearchParams(location.search));
-if (touch.on) touch.fullHeld = () => fullHeld;   // (the rotate screen's tap asks too, touch.js)
+// ... and on a phone held upright it has a layout of its own, with no rotate screen: that asks for landscape only once the game has
+// started (touch.js place and turned).
+let homeUp = fullHeld;
+if (touch.on) {
+  touch.fullHeld = () => fullHeld;   // (the rotate screen's tap asks too, touch.js)
+  touch.upright = () => homeUp;
+  touch.reorient();
+  fitStage();
+}
 function enterFullscreen() {
   if (!wantFull || document.fullscreenElement) return;
   try { document.documentElement.requestFullscreen?.()?.then(() => navigator.keyboard?.lock?.(["Escape"])?.catch?.(() => {}))?.catch(() => {}); } catch { /* not here */ }
@@ -1192,6 +1200,9 @@ async function loadingScreen() {
   // The opening page (home.js): About, GitHub, the Android app, and PLAY ONLINE, whose press is the click the browser wants before it will play sound.
   // A first visit opens it on About.
   if (homeDue(q)) await openHome(ui, { about: firstVisit, started: gameStarted });
+  homeUp = false;
+  touch.reorient?.();   // the game's own stage again, and in portrait the rotate screen
+  fitStage();
   if (firstVisit) { await loadingScreen(); markWelcomed(); }   // ... and what the first screens use is waited for, under the game's "Loading"
   if (q.has("script")) {
     const name = q.get("script");

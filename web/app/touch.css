@@ -100,6 +100,26 @@ html.touch .hm-bar { position: absolute; inset: 0; pointer-events: none; transfo
 html.touch .hm-bar > .scrollstrip { pointer-events: auto; }
 html.touch .hm-link { font-size: 44px; line-height: 56px; }
 html.touch .hm-press { width: 708px; height: 132px; }
+/* held upright (touch.js place: html.upright, the stage 1080 wide and as tall as the window): the title's picture covering it, Config's
+   panel down its length 40 from the sides, the panel's strip with its rounded ends kept over two rows of two plates, the column
+   scrolled by the finger, its letters larger */
+html.touch.upright .hm-land, html.touch.upright .hm-page .menubg, html.touch.upright .hm-bar, html.touch.upright .modepanel.hm .tp-a, html.touch.upright .modepanel.hm .tp-b { display: none; }
+html.touch.upright .hm-tall { display: block; }
+html.touch.upright .hm-tall-bg { position: absolute; inset: 0; background: #000 url("/assets/ui/TITLE_PARTS_JA/title_bg1.webp") 50% 30% / cover no-repeat; }
+html.touch.upright .hm-tall-dim { position: absolute; inset: 0; opacity: .5; background: url("/assets/ui/DIALOG_PARTS_JA/dialog_BG.webp") 0 0 / 100% 100% no-repeat; }
+html.touch.upright .hm-tall-panel { position: absolute; left: 40px; right: 40px; top: 0; bottom: 0; background: url("/assets/ui/CONF_PARTS_JA/config_innerbg.webp") 0 0 / 100% 100% no-repeat; }
+html.touch.upright .modepanel.hm { width: 1080px; height: 262px; transform: translateY(-270px); }
+html.touch.upright .modepanel.hm.on { transform: none; }
+html.touch.upright .hm-tall-strip { position: absolute; inset: 0; box-sizing: border-box; border-style: solid; border-width: 0 40px 8px; border-image: url("/assets/ui/MODEPNL_PARTS_JA/modepanel_window.webp") 0 40 8 40 fill stretch; }
+html.touch.upright .hm-scroll { left: 40px; top: 262px; width: 1000px; height: calc(100% - 262px); }
+html.touch.upright .hm-text { padding: 36px 56px 200px; font-size: 44px; line-height: 64px; }
+html.touch.upright .hm-text h2 { font-size: 60px; line-height: 74px; }
+html.touch.upright .hm-text h3 { font-size: 48px; line-height: 60px; }
+html.touch.upright .hm-text .wl-rows { grid-template-columns: 1fr; gap: 0; }
+html.touch.upright .hm-text .wl-name { margin-top: 18px; }
+html.touch.upright .hm-text .wl-facts { grid-template-columns: repeat(2, 1fr); }
+html.touch.upright .hm-text .wl-facts.hm-three { grid-template-columns: repeat(3, 1fr); }
+html.touch.upright .hm-text .wl-what { font-size: 34px; line-height: 46px; }
 html.touch .wl-text { padding: 30px 110px 150px; font-size: 40px; line-height: 60px; }
 html.touch .wl-text p { margin-bottom: 30px; }
 html.touch .wl-text h2 { font-size: 64px; line-height: 78px; }

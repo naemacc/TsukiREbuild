@@ -70,15 +70,23 @@ export async function openHome(ui, { about = false, started = null } = {}) {
   const T = ui.touch ? TOUCH : null, P = T ? { w: T.bar.w, h: T.bar.h } : PLATE;
   const pitch = T ? TOUCH.home.pitch : PLATE.pitch, shown = T ? P.w * T.bar.scale : P.w;
   const x0 = Math.round((1920 - (pitch * (TABS.length - 1) + shown)) / 2), y = T ? TOUCH.home.y : PLATE.y;
+  // a phone held upright (touch.js place sets html.upright): the plates in two rows of two in the middle of the narrower stage
+  const U = TOUCH.homeUpright, ux0 = Math.round((U.w - (pitch * (U.cols - 1) + shown)) / 2);
+  const upright = () => document.documentElement.classList.contains("upright");
+  const spot = (i) => (T && upright() ? [ux0 + (i % U.cols) * pitch, y + Math.floor(i / U.cols) * U.rowPitch] : [x0 + i * pitch, y]);
   const sheet = await Promise.all([quickBarArt(TABS.map((t) => ({ label: t.plate })), P),
     ...ART.map((a) => { const i = new Image(); i.src = `/assets/ui/${a}.webp`; return i.decode().catch(() => {}); })]).then(([s]) => s);
   return new Promise((done) => {
     black.remove();
-    page.append(sprite("TITLE_PARTS_JA", "title_bg1", 0, 0, 1920, 1080));
+    page.classList.add("hm-page");
+    const land = (e) => { e.classList.add("hm-land"); return e; };   // drawn on the game's stage only, not on the upright one
+    page.append(land(sprite("TITLE_PARTS_JA", "title_bg1", 0, 0, 1920, 1080)));
     ui.menuBackground(page, { settled: true });
     const dim = sprite("DIALOG_PARTS_JA", "dialog_BG", 0, 0, 1920, 1080);   // the question window's backdrop, to quieten the moon behind the text
     dim.style.opacity = "0.5";
-    page.append(dim, sprite("CONF_PARTS_JA", "config_innerbg", 180, 0, 1560, 1080));
+    page.append(land(dim), land(sprite("CONF_PARTS_JA", "config_innerbg", 180, 0, 1560, 1080)));
+    // held upright: the same pictures, the title's covering the stage, Config's panel down its length (touch.css html.upright)
+    page.append(el("div", "hm-tall hm-tall-bg"), el("div", "hm-tall hm-tall-dim"), el("div", "hm-tall hm-tall-panel"));
     const list = el("div", "logscroll wl-scroll hm-scroll"), inner = el("div", "wl-text hm-text");
     list.append(inner);
     page.append(list);
@@ -87,7 +95,7 @@ export async function openHome(ui, { about = false, started = null } = {}) {
     ui.helpBar(page, ["Choose", "Change page", "Scroll"]);
 
     const bar = el("div", T ? "modepanel hm" : "modepanel");
-    if (T) bar.append(...panelBack(TOUCH.home.height)); else bar.append(sprite("MODEPNL_PARTS_JA", "modepanel_window", 0, 0, 1920, 96));
+    if (T) bar.append(...panelBack(TOUCH.home.height), el("div", "hm-tall hm-tall-strip")); else bar.append(sprite("MODEPNL_PARTS_JA", "modepanel_window", 0, 0, 1920, 96));
     page.append(bar);
     page.append(black);   // over all but the bar, which has a level of its own and slides
 
@@ -109,6 +117,7 @@ export async function openHome(ui, { about = false, started = null } = {}) {
         return a;
       }
       const e = blockEl(b);
+      if (b[0] === "facts" && b[1].length === 3) e.classList.add("hm-three");   // (three figures stay in one row, even upright)
       if (b[0] === "rows" && tab !== ABOUT) e.classList.add("hm-rows");   // (names this short need no 500 px column; About keeps the first page's)
       return e;
     };
@@ -128,9 +137,12 @@ export async function openHome(ui, { about = false, started = null } = {}) {
       shownAt = 0;
       list.scrollTop = 0;
     };
+    // the plates' places, again whenever the window is turned
+    const place = () => plates.forEach((b, i) => { const [x, top] = spot(i); b.style.left = `${x}px`; b.style.top = `${top}px`; });
+    addEventListener("resize", place);
     const leave = () => {
       bar.classList.remove("on");
-      ui.fadeBlack(black, FADE.to, FADE.out, () => { ui.close(); done(); });
+      ui.fadeBlack(black, FADE.to, FADE.out, () => { removeEventListener("resize", place); ui.close(); done(); });
     };
     // PRESS ANY BUTTON: as the title's, sound 6 and the black, here into the game's title or its opening.
     function start() {
@@ -146,7 +158,7 @@ export async function openHome(ui, { about = false, started = null } = {}) {
     list.addEventListener("click", (e) => { if (tab === PLAY && !e.target.closest("a")) start(); });
     const plates = TABS.map((t, i) => {
       const b = el("button", "qbtn r1", t.plate);   // the word, where the art cannot be made
-      b.style.cssText = `left:${x0 + i * pitch}px;top:${y}px;width:${P.w}px;height:${P.h}px;`;
+      b.style.cssText = `left:${spot(i)[0]}px;top:${spot(i)[1]}px;width:${P.w}px;height:${P.h}px;`;
       const lit = el("div", "sp fx-add");
       lit.style.cssText = `left:0;top:0;width:${P.w}px;height:${P.h}px;opacity:0;`;
       b.append(lit);
