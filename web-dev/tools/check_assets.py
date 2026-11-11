@@ -13,6 +13,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import needed
+import build_packs
 
 WEB = os.path.join(HERE, "../../web")
 A = os.path.join(WEB, "assets")
@@ -54,7 +55,14 @@ def main():
         missing["fixed addresses in the code"] = gone
     if outside:
         missing["code asking the server for the game's own files"] = sorted(outside)
-    print(", ".join(f"{k} {v}" for k, v in counts.items()) + f", interface art {sum(len(v) for v in manifest.values())}")
+    # The sound packs (build_packs.py), where there are any: they must be the ones the loose files make, or the game would play an old copy of a sound.
+    packs = ""
+    if os.path.isdir(os.path.join(A, "pack")):
+        ok, made, gone = build_packs.check(A)
+        packs = f", sound packs {made['packs']}"
+        if not ok:
+            missing["sound packs (run build_packs.py)"] = gone or ["index.json names another index"]
+    print(", ".join(f"{k} {v}" for k, v in counts.items()) + f", interface art {sum(len(v) for v in manifest.values())}" + packs)
     for what, names in missing.items():
         print(f"MISSING {what}: {len(names)}, for example {names[:8]}")
     for what, names in extra.items():

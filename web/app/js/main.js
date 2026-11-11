@@ -12,7 +12,7 @@ import { advanceRandom, textShakePixels } from "./effects.js";
 import { openFlowchart } from "./flowchart.js";
 import { openGallery, preloadGallery } from "./gallery.js";
 import { openWelcome, welcomeDue } from "./welcome.js";
-import { Preloader } from "./preload.js";
+import { Preloader, RANK } from "./preload.js";
 import { REWIND_FIXED, ROUTE_FLAGS, fvar } from "./flowchart-model.js";
 import { CLICK_MARK, STORY_MOVIES, TITLE_MOVIE_LOOP, movieLook, movieQuestion, nextTitleStage, titleMusic as titleTrack, titleVariant } from "./uifx.js";
 
@@ -1122,6 +1122,27 @@ function pollGamepads(now) {
 // What a finger does on the story's screen goes through the same actions (touch.js).
 touch.bind({ ui, vm, audio, act: { fast: fastForwardKey, log: () => ui.backlog(), hide: hideText, choosing, movie: () => !!moviesDone, refit: fitStage } });
 
+// After START on the first page: the game's own "Loading" window, with how far along it is, until what the next screen and the story's first
+// screen use has been read (preload.js: the start-up list's first two ranks, which have the first voices, sounds and pictures) and the movie
+// that comes first can start. It is not shown at all when that is so already (the page was read for a while), stays at least `least` ms so
+// that it does not flash, gives the movie `movie` ms, and goes on regardless after `most`: what has not come is read when it is wanted.
+const LOADING = { least: 700, movie: 6000, most: 20000, out: 300 };
+async function loadingScreen() {
+  const ready = (t) => preload.settled(RANK.story) && (preload.moviesReady() || t > LOADING.movie);
+  if (ready(0)) return;
+  const word = vm.system?.messages?.["184"] || "Loading", since = performance.now();
+  const note = ui.notify(word, { held: true, live: () => `${word}  ${Math.floor(preload.progress(RANK.story) * 100)}%` });
+  await new Promise((done) => {
+    const look = () => {
+      const t = performance.now() - since;
+      if ((t >= LOADING.least && ready(t)) || t >= LOADING.most) done(); else setTimeout(look, 100);
+    };
+    look();
+  });
+  note.close();
+  await new Promise((done) => setTimeout(done, LOADING.out));   // the window's own way out (0.07 a frame)
+}
+
 // ---- start ----------------------------------------------------------------------------------------------------
 (async () => {
   await vm.init();
@@ -1139,12 +1160,14 @@ touch.bind({ ui, vm, audio, act: { fast: fastForwardKey, log: () => ui.backlog()
   relettered().then((art) => { ui.confArt = art; });   // the System page's words at one size (confart.js), ready before the config is first opened
   await ui.panel.ready;
   const q = new URLSearchParams(location.search);
+  const firstVisit = welcomeDue(q);   // (asked now: pressing START marks the visit as made)
   if (q.has("mute")) audio.muted = true;   // for testing: no sound at all
   // From here on, while the first page is read (or the logo plays), what comes after it is fetched, the most pressing first: the opening or the title, the
   // story's screen, the menus, the gallery.
   preload.startup({ firstLaunch, stage: firstLaunch ? 0 : titleNext(), scene: q.has("script") });
   window.preload = preload;
   if (welcomeDue(q)) await openWelcome(ui);   // a first visit: its START is the click the browser wants before it will play sound
+  if (firstVisit) await loadingScreen();      // ... and what the first screens use is waited for, under the game's "Loading"
   if (q.has("script")) {
     const name = q.get("script");
     const i = Number.isNaN(Number(name)) ? vm.index.names.indexOf(name) : Number(name);

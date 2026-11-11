@@ -1551,7 +1551,8 @@ export class UI {
   // keeps it up until the caller closes it (the returned promise's close(), 0x4acd0). The screen's keys wait while it is up
   // and come back the moment it starts to close (0xb34b44 goes to 0 with state 3, N2-176). Resolves at that moment too:
   // the callers (0x50fc0 cases 7-9 and 0x13) go on while it fades out.
-  notify(text, { hold = NOTICE.hold, held = false } = {}) {
+  // live: a function giving the text afresh each frame (the loading screen's count, main.js).
+  notify(text, { hold = NOTICE.hold, held = false, live = null } = {}) {
     const fx = new NoticeFx(hold, held);
     // A notice still up goes as this one comes (0x4abe0: the other slot's state is set to 3, the lock cleared)
     this.noticeFx?.close();
@@ -1587,6 +1588,7 @@ export class UI {
         win.style.opacity = String(fx.t);
         win.style.transform = `scale(${fx.scale})`;
         q.style.visibility = fx.t === 1 ? "visible" : "hidden";
+        if (live) { const now = live(); if (now !== q.textContent) q.textContent = now; }
       };
       set();
       // (0x49750 also runs in the frame that opened it: frameLoop's first dt of 0 counts as that frame)

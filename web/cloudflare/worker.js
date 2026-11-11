@@ -13,7 +13,9 @@ function getRange(value, size) {
 // asking again, so a returning player costs no Worker requests or R2 reads for what they already have. The scripts, the
 // tables and the interface art, which do change with the code, keep the short lifetime and so update by themselves.
 // A media file that is ever converted again reaches players who have it within those 30 days, or at once under a new name.
-const MEDIA = /^assets\/(voice|img|se|bgm|movie|sys|fonts)\//;
+// The sound packs and their index are named by their content (assets/pack/<kind>-<hash>.pack, index-<hash>.json): kept as long. The one
+// file that names the index in use, assets/pack/index.json, is not.
+const MEDIA = /^assets\/((voice|img|se|bgm|movie|sys|fonts)\/|pack\/[a-z]+-[0-9a-f]{10}\.)/;
 const MEDIA_CACHE = "public, max-age=2592000, immutable";
 
 export default {

@@ -22,7 +22,7 @@ The live version is [tsukirebuild.pages.dev](https://tsukirebuild.pages.dev/). P
 
 The deployment compares file checksums and uploads new or modified game assets to the `tsukirebuild-assets` R2 bucket before publishing the frontend. Previous objects are retained for open browser sessions and deployment rollbacks. New asset files can be committed normally.
 
-Browsers keep the game's media (`assets/voice`, `img`, `se`, `bgm`, `movie`, `sys`, `fonts`) for 30 days without asking again (`web/cloudflare/worker.js`), so a returning player makes no Worker requests or R2 reads for files they already have; the Workers free plan allows 100,000 requests a day, and every asset is one. The scripts, tables and interface art are kept for 5 minutes, so they follow a deployment by themselves. A media file converted again reaches players who already have it only when their copy expires: give it a new name if it must arrive at once.
+Browsers keep the game's media (`assets/voice`, `img`, `se`, `bgm`, `movie`, `sys`, `fonts`, and the sound packs and their index in `assets/pack`) for 30 days without asking again (`web/cloudflare/worker.js`), so a returning player makes no Worker requests or R2 reads for files they already have; the Workers free plan allows 100,000 requests a day, and every asset is one. The scripts, tables and interface art are kept for 5 minutes, so they follow a deployment by themselves. A media file converted again reaches players who already have it only when their copy expires: give it a new name if it must arrive at once.
 
 GitHub stores the deployment credential in the encrypted repository secret `CLOUDFLARE_API_TOKEN` and its token ID in the repository variable `CLOUDFLARE_API_TOKEN_ID`. The credential needs account-level `Pages Write` and `Workers R2 Storage Bucket Item Write` scoped to `tsukirebuild-assets`. Update both values when rotating the credential.
 
@@ -40,6 +40,7 @@ web-research/.venv/bin/python -I web-dev/tools/build_gallery.py "$PWD"
 web-research/.venv/bin/python -I web-dev/tools/build_system.py "$PWD"
 web-research/.venv/bin/python -I web-dev/tools/build_sounds.py "$PWD"
 web-research/.venv/bin/python -I web-dev/tools/convert_all.py "$PWD" --jobs 6
+python3 -I web-dev/tools/build_packs.py
 python3 web-dev/tools/check_assets.py
 ```
 
@@ -73,6 +74,9 @@ Nothing waits for the whole game: each file is fetched when it is first used, an
 - **From the first page on.** While the first page is being read (on later visits, while the logo plays) the game fetches, in this order: what the next screen needs (on a first visit the opening's script, picture and movie; later the logo, the title's art and its movie; the interface sounds and the title's music), then the story's own screen (the text window and its marks, the choices, the questions, the quick bar, the fonts, the first scene's pictures and sounds), then the menus (system menu, log, Save, Load, Config, the speech balloons), then the gallery and flowchart art. At most four of these are read at once, so a file the game asks for itself never queues behind them.
 - **As the story runs.** At every message the script is read ahead: the pictures, sound effects, music and voices of the next 300 commands (about a dozen messages), and from 2,500 commands away the movies and the scripts it can jump to, which are read on from where they start. Voices are left out while skipping or switched off.
 - **Movies.** A movie that is coming is given a player of its own, which starts reading the file as a browser reads any movie. When the movie plays, that player takes the place of the page's, so it starts at once from what has been read. Two are kept ready at most. The title's movie is made ready again whenever the title is about to come back (a story's end, Return to Title, the gallery).
+
+- **Sounds in packs.** The 16,460 voices, 1,284 sound effects and 9 interface sounds are also kept in 658 packs of about 1.5 MB (`assets/pack`, made by `tools/build_packs.py`): the files end to end as they are, in the order the story first uses them, so the pack with a line's voice has the next lines' too. The game asks for the pack and cuts each sound from it, which is about 27 times fewer requests than a file a sound. A pack is named by a hash of its content, so a browser can keep it for good; `assets/pack/index.json` names the index in use. Music and movies are not packed. Where there are no packs, or a pack cannot be read, each sound is read from its own file as before.
+- **After START.** On a first visit, pressing START brings the game's "Loading" window with a count, until what the next screen and the story's first screen use has been read (the first pictures, voices and sounds among them) and the first movie can start. It is not shown when that is so already, and it never holds longer than 20 seconds.
 
 What has not arrived when it is wanted is fetched then, as before.
 
@@ -251,6 +255,7 @@ notice, and New Game goes straight to the story.
 - `tools/build_images.py`: how large each image needs storing
 - `tools/convert.py`, `tools/convert_all.py`: images to AVIF, voices and music to Ogg Opus without re-encoding, sound effects to Opus, the movies' pictures to AV1 with their sound copied, the balloon font copied
 - `tools/needed.py`, `tools/check_assets.py`: what the game can ask for, and whether it is all there
+- `tools/build_packs.py`: the voices and sounds in packs (see Loading); `check_assets.py` says when they are out of date
 - `server.py`: static files with byte ranges, standard library only
 - `app/js/vm.js`: script commands
 - `tools/build_animations.py`, `app/js/animation.js`: the game's motion tracks, interpolation and animation clock

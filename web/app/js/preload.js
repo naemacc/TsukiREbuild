@@ -67,6 +67,9 @@ export class Preloader {
     this.kept = new Map();     // interface pictures read, held so that the browser keeps them
     this.movies = new Map();   // name -> a <video> reading its file, oldest first
     this.last = null;          // where the look-ahead last read from
+    this.asked = [0, 0, 0, 0]; // jobs taken on so far, by the rank they came with
+    this.read = [0, 0, 0, 0];  // ... and of them, those that have ended
+    this.scans = 0;            // scripts being fetched to be read ahead: their jobs are still to come
   }
 
   // ---- the queue ----------------------------------------------------------------------------------------------
@@ -74,7 +77,8 @@ export class Preloader {
   add(rank, key, start) {
     const hit = this.jobs.get(key);
     if (hit) { if (rank < hit.rank) hit.rank = rank; return false; }
-    this.jobs.set(key, { rank, key, start, n: this.count++, running: false });
+    this.jobs.set(key, { rank, key, start, n: this.count++, running: false, as: rank });
+    this.asked[rank]++;
     // started after the caller has listed all it wants, so that the order is by rank and not by who asked first
     if (!this.pumping) { this.pumping = true; queueMicrotask(() => { this.pumping = false; this.pump(); }); }
     return true;
@@ -90,10 +94,32 @@ export class Preloader {
       let read;
       try { read = Promise.resolve(next.start()); } catch (e) { read = Promise.reject(e); }
       let timer = null;
-      const done = () => { clearTimeout(timer); if (!next.running) return; next.running = false; this.active--; this.jobs.delete(next.key); this.pump(); };
+      const done = () => { clearTimeout(timer); if (!next.running) return; next.running = false; this.active--; this.jobs.delete(next.key); this.read[next.as]++; this.pump(); };
       timer = setTimeout(done, LANE_TIME);
       read.then(done, done);   // a file that is not there is not this module's to report: its user does
     }
+  }
+
+  // For the loading screen (main.js): whether everything of rank `upTo` or more pressing has been read, and how far along it is (0 - 1).
+  settled(upTo) {
+    if (this.pumping || this.scans > 0) return false;
+    for (const j of this.jobs.values()) if (j.rank <= upTo) return false;
+    return true;
+  }
+  progress(upTo) {
+    let asked = 0, read = 0;
+    for (let r = 0; r <= upTo; r++) { asked += this.asked[r]; read += this.read[r]; }
+    return asked ? Math.min(1, read / asked) : 1;
+  }
+  // Whether the movies made ready have enough to start playing.
+  moviesReady() {
+    for (const v of this.movies.values()) if (!(v.readyState >= 3) && !v.error) return false;
+    return true;
+  }
+  // A script fetched to be read ahead: counted until its commands have been gone through.
+  later(script, then) {
+    this.scans++;
+    return script.then(then).catch(() => {}).finally(() => { this.scans--; });
   }
 
   // Everything queued has been read (for tests).
@@ -200,7 +226,7 @@ export class Preloader {
   // A script that may be started next, and what its first commands use.
   from(i, rank, limits = {}) {
     if (!(i >= 0)) return;
-    this.vm.getScript(i).then((s) => this.scan(s, 0, 0, { ...AHEAD, ...limits, rank, seen: new Set() })).catch(() => {});
+    this.later(this.vm.getScript(i), (s) => this.scan(s, 0, 0, { ...AHEAD, ...limits, rank, seen: new Set() }));
   }
 
   // ---- the look-ahead -------------------------------------------------------------------------------------------
@@ -231,7 +257,7 @@ export class Preloader {
         if (t !== undefined && left.jumps > 0 && !left.seen.has(key)) {
           left.seen.add(key);
           left.jumps--;
-          vm.getScript(t).then((s) => this.scan(s, (o[2] && s.labels[o[2]]) || 0, d, left)).catch(() => {});
+          this.later(vm.getScript(t), (s) => this.scan(s, (o[2] && s.labels[o[2]]) || 0, d, left));
         }
       } else if (d < NEAR) this.near(o, left);
     }

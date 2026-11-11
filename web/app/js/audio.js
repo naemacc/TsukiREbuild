@@ -112,6 +112,8 @@ const MUSIC_CUT = 416.6666564941406;   // 0x9c470: the track replaced without a 
 // The longest fade drawn frame by frame; longer ones are sampled more coarsely.
 const MAX_STEPS = 1800;
 
+const PACKS_KEPT = 8;   // packs held in memory at once (about 1.5 MB each)
+
 export class Audio {
   constructor() {
     this.ctx = null;
@@ -289,13 +291,53 @@ export class Audio {
     return this.ctx || (this.spare ||= new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(2, 1, 48000));
   }
 
+  // ---- packs --------------------------------------------------------------------------------------------------
+  // The voices, sound effects and interface sounds also come in packs (web-dev/tools/build_packs.py: about 1.5 MB of files end to end, in the order
+  // the story first uses them), so that a browser asks for one file where it asked for dozens. assets/pack/index.json names the index in use, which
+  // lists each pack's files and sizes. A sound the index names is cut from its pack; any other, or all of them where there are no packs, is read
+  // from its own file as before.
+  // The index: "voice/NAME" -> [pack, offset, bytes]; null where there is none.
+  packIndex() {
+    return (this.packed ||= (async () => {
+      try {
+        const get = async (name) => { const r = await fetch(`/assets/pack/${name}`); if (!r.ok) throw new Error(name); return r.json(); };
+        const list = await get((await get("index.json")).index), files = new Map();
+        for (const [pack, items] of list.packs) {
+          let at = 0;
+          for (let i = 0; i < items.length; i += 2) { files.set(items[i], [pack, at, items[i + 1]]); at += items[i + 1]; }
+        }
+        return files;
+      } catch { return null; }
+    })());
+  }
+  // A pack's bytes. The last few are kept: the lines that follow one another are in the same pack.
+  packData(name) {
+    const kept = (this.packs ||= new Map());
+    let p = kept.get(name);
+    if (!p) {
+      p = fetch(`/assets/pack/${name}`).then((r) => { if (!r.ok) throw new Error(`no pack ${name}`); return r.arrayBuffer(); });
+      kept.set(name, p);
+      p.catch(() => kept.delete(name));
+      if (kept.size > PACKS_KEPT) kept.delete(kept.keys().next().value);
+    }
+    return p;
+  }
+  // A sound file's bytes: from its pack, else from its own address.
+  async soundData(url) {
+    const hit = url.startsWith("/assets/") && url.endsWith(".ogg") ? (await this.packIndex())?.get(decodeURIComponent(url.slice(8, -4))) : null;
+    if (hit) {
+      try { return (await this.packData(hit[0])).slice(hit[1], hit[1] + hit[2]); } catch { /* the pack could not be read: the file itself */ }
+    }
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`no audio ${url}`);
+    return res.arrayBuffer();
+  }
+
   async buffer(url) {
     let p = this.buffers.get(url);
     if (!p) {
       p = (async () => {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`no audio ${url}`);
-        const data = await res.arrayBuffer();
+        const data = await this.soundData(url);
         return this.decoder().decodeAudioData(data);
       })();
       this.buffers.set(url, p);
