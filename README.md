@@ -18,11 +18,19 @@ Nothing else in the repository is read, nor the game's own files, so that folder
 
 ## Cloudflare deployment
 
-The live version is [tsukirebuild.pages.dev](https://tsukirebuild.pages.dev/). Pushes to `main` that change `web/`, `tools/cloudflare/`, or the deployment workflow publish automatically through GitHub Actions. The workflow can also be started manually from the Actions tab.
+The live version is [arcueid.date](https://arcueid.date/). Pushes to `main` that change `web/`, `tools/cloudflare/`, or the deployment workflow publish automatically through GitHub Actions (`tools/cloudflare/deploy.py`). The workflow can also be started manually from the Actions tab.
 
-The deployment compares file checksums and uploads new or modified game assets to the `tsukirebuild-assets` R2 bucket before publishing the frontend. Previous objects are retained for open browser sessions and deployment rollbacks. New asset files can be committed normally.
+**How it is served.** The R2 bucket `tsukirebuild-assets` holds the whole site: the app's files (`web/app`) at its root and the game's files under `assets/`. The bucket is attached to the domain `arcueid.date` as its custom domain, so Cloudflare serves it directly, behind its cache. No Worker runs for it, so nothing counts against the Workers request allowance, and a file already in Cloudflare's cache is not read from R2 again. Three rules on the `arcueid.date` zone (set in the Cloudflare dashboard under Rules, not in this repository) make that work:
 
-Browsers keep the game's media (`assets/voice`, `img`, `se`, `bgm`, `movie`, `sys`, `fonts`, and the sound packs and their index in `assets/pack`) for 30 days without asking again (`web/cloudflare/worker.js`), so a returning player makes no Worker requests or R2 reads for files they already have; the Workers free plan allows 100,000 requests a day, and every asset is one. The scripts, tables and interface art are kept for 5 minutes, so they follow a deployment by themselves. A media file converted again reaches players who already have it only when their copy expires: give it a new name if it must arrive at once.
+- a URL rewrite: `/` is the bucket's `index.html` (R2 has no index page of its own);
+- a cache rule: everything from the bucket may be cached, each file for as long as it says;
+- a cache rule: the game's media and the content-named sound packs are kept 30 days, at the edge and in the browser.
+
+Each object is stored with its lifetime: 30 days for the game's media (`assets/voice`, `img`, `se`, `bgm`, `movie`, `sys`, `fonts`) and the sound packs and their index in `assets/pack`, which are named by their content; 5 minutes for the app, the scripts, the tables and the interface art, so that those follow a deployment by themselves. When that rule changes in `deploy.py`, the next deployment sets it again on every object already stored. A media file converted again reaches players who already have it only when their copy expires: give it a new name if it must arrive at once.
+
+**The earlier address.** [tsukirebuild.pages.dev](https://tsukirebuild.pages.dev/) is a Cloudflare Pages project that now forwards to the domain, path and query kept (a `_redirects` file written by the deployment). Its Worker (`web/cloudflare/worker.js`) still answers `/assets/*` from the bucket there. Saves are kept by the browser for each address separately, so progress made at the Pages address does not appear on the domain.
+
+**The deployment** compares file checksums and uploads new or modified files to the bucket, then publishes the Pages project. Previous objects are retained for open browser sessions and rollbacks; nothing is deleted from the bucket.
 
 GitHub stores the deployment credential in the encrypted repository secret `CLOUDFLARE_API_TOKEN` and its token ID in the repository variable `CLOUDFLARE_API_TOKEN_ID`. The credential needs account-level `Pages Write` and `Workers R2 Storage Bucket Item Write` scoped to `tsukirebuild-assets`. Update both values when rotating the credential.
 
