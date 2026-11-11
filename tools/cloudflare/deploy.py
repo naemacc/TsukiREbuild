@@ -27,6 +27,7 @@ from botocore.config import Config
 
 
 ROOT = Path(__file__).resolve().parents[2]
+SITE = "https://arcueid.date"   # where the game is served from: the bucket, attached to this domain
 API = "https://api.cloudflare.com/client/v4"
 CONTENT_TYPES = {
     ".avif": "image/avif",
@@ -47,8 +48,16 @@ CONTENT_TYPES = {
 MEDIA = re.compile(r"^assets/((voice|img|se|bgm|movie|sys|fonts)/|pack/[a-z]+-[0-9a-f]{10}\.)")
 
 
+LONG, SHORT = "public, max-age=2592000, immutable", "public, max-age=300"
+# The lifetimes are stored with each object. This names the rule that set them: when it changes, every object already in the bucket is
+# given its lifetime again (a copy onto itself, no bytes sent), since an unchanged file is otherwise never touched. The bucket keeps
+# the name of the rule it was last brought to in POLICY_KEY.
+POLICY = hashlib.sha256(f"{MEDIA.pattern}|{LONG}|{SHORT}|types-1".encode()).hexdigest()[:16]
+POLICY_KEY = ".deploy/cache-policy"
+
+
 def cache_control(key):
-    return "public, max-age=2592000, immutable" if MEDIA.match(key) else "public, max-age=300"
+    return LONG if MEDIA.match(key) else SHORT
 
 
 def content_type(path):
@@ -105,6 +114,14 @@ def sync_assets(client, bucket):
     def key_of(path):
         return path.relative_to("web/app").as_posix() if path.is_relative_to("web/app") else path.relative_to("web").as_posix()
 
+    try:
+        stored = client.get_object(Bucket=bucket, Key=POLICY_KEY)["Body"].read().decode()
+    except client.exceptions.NoSuchKey:
+        stored = None
+    restamp = stored != POLICY
+    if restamp:
+        print(f"R2: the cache rule changed ({stored} -> {POLICY}): every object's lifetime and type are set again", flush=True)
+
     def upload(path):
         md5 = hashlib.md5()
         sha256 = hashlib.sha256()
@@ -114,6 +131,17 @@ def sync_assets(client, bucket):
                 sha256.update(chunk)
         key = key_of(path)
         if remote.get(key) == md5.hexdigest():
+            if restamp:   # the same bytes, their lifetime and type as the rule now has them
+                client.copy_object(
+                    Bucket=bucket,
+                    Key=key,
+                    CopySource={"Bucket": bucket, "Key": key},
+                    MetadataDirective="REPLACE",
+                    ContentType=content_type(path),
+                    CacheControl=cache_control(key),
+                    Metadata={"sha256": sha256.hexdigest()},
+                    StorageClass="STANDARD",
+                )
             return 0
         with (ROOT / path).open("rb") as source:
             result = client.put_object(
@@ -139,6 +167,8 @@ def sync_assets(client, bucket):
         raise RuntimeError(f"App files that would be stored among the game's assets: {clash}")
     with ThreadPoolExecutor(max_workers=8) as pool:
         uploaded = sum(pool.map(upload, files))
+    if restamp:
+        client.put_object(Bucket=bucket, Key=POLICY_KEY, Body=POLICY.encode(), ContentType="text/plain", CacheControl=SHORT)
     print(f"R2: uploaded {uploaded} new or modified files, skipped {len(files) - uploaded} unchanged files", flush=True)
 
 
@@ -178,6 +208,9 @@ def deployment_body(manifest):
         "_worker.js": ("_worker.js", "application/javascript+module", (ROOT / "web/cloudflare/worker.js").read_bytes()),
         "_routes.json": ("_routes.json", "application/json", b'{"version":1,"include":["/assets/*"],"exclude":[]}'),
         "_headers": ("_headers", "text/plain", b"/*\n  Cache-Control: public, max-age=300\n"),
+        # The Pages address forwards to the site's own domain, path and query kept. Not the assets, which the Worker still answers there
+        # (redirects do not apply to what a Function serves): a page loaded a moment before the forward began can finish loading.
+        "_redirects": ("_redirects", "text/plain", f"/* {SITE}/:splat 302\n".encode()),
     }
     for name, (filename, kind, data) in fields.items():
         disposition = f'Content-Disposition: form-data; name="{name}"'
