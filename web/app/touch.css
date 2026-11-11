@@ -46,7 +46,7 @@ html.touch .modepanel.tp.on { transform: none; }
 .tp-a, .tp-b { position: absolute; left: 0; width: 1920px; pointer-events: none; background: url("/assets/ui/MODEPNL_PARTS_JA/modepanel_window.webp") no-repeat; }
 .modepanel.tp .qbtn, .modepanel.wl .qbtn { transform: scale(1.5); transform-origin: 0 0; overflow: visible; }
 .modepanel.tp .qbtn::before { content: ""; position: absolute; left: -14px; right: -14px; top: -10px; bottom: -28px; }
-.modepanel.wl .qbtn::before { content: ""; position: absolute; left: -14px; right: -14px; top: -7px; bottom: -8px; }
+.modepanel.wl .qbtn::before { content: ""; position: absolute; left: -40px; right: -40px; top: -7px; bottom: -8px; }
 .qname { position: absolute; left: -14px; right: -14px; top: 65px; text-align: center; white-space: nowrap; text-transform: none; letter-spacing: .3px; pointer-events: none;
   font: 400 17px/22px var(--story-font); color: #e8f1fb; text-shadow: 0 1px 3px rgba(0, 0, 0, .85); }
 .qbtn.r0 .qname { color: rgba(232, 241, 251, .38); }

@@ -778,7 +778,7 @@ test("the game goes full screen at any click or tap, on every device, until the 
   assert.doesNotMatch(source("js/touch.js"), /panelWas = !!touch\.ui\?\.panelOpen;\n\s+fullscreen\(\);/, "one place asks: main.js");
 });
 
-test("the first-visit page on a touch device: the plates in two rows with START last, and how to play by touch", async () => {
+test("the first-visit page on a touch device: the eight plates in two full rows of four with START last, and how to play by touch", async () => {
   const { SECTIONS, TOUCH_INTRO } = await import("../../web/app/js/welcome.js");
   const w = source("js/welcome.js"), B = TOUCH.bar, W = TOUCH.welcome;
   assert.equal(SECTIONS.length + 1, 8, "eight plates");
@@ -786,10 +786,10 @@ test("the first-visit page on a touch device: the plates in two rows with START 
   assert.equal(TOUCH_INTRO[0][0], "h");
   assert.match(TOUCH_INTRO[1], /Swipe down .* up for the log.* fast forward.* two fingers.* Back button/);
   // two rows of five inside the strip, START in the last place of the second
-  const spot = (i) => [B.x + ((i === 7 ? 2 * B.cols - 1 : i) % B.cols) * B.pitch, W.y + (i < B.cols ? 0 : 1) * W.rowPitch];
-  assert.deepEqual(spot(0), [B.x, W.y]);
-  assert.deepEqual(spot(5), [B.x, W.y + W.rowPitch]);
-  assert.deepEqual(spot(7), [B.x + 4 * B.pitch, W.y + W.rowPitch]);
+  assert.match(w, /\[T\.welcome\.x \+ \(i % T\.welcome\.cols\) \* T\.welcome\.pitch, T\.welcome\.y \+ Math\.floor\(i \/ T\.welcome\.cols\) \* T\.welcome\.rowPitch\]/);
+  assert.equal(W.cols * 2, SECTIONS.length + 1, "no place left empty");
+  const right = W.x + (W.cols - 1) * W.pitch + B.w * B.scale;
+  assert.ok(Math.abs(W.x - (1920 - right)) <= 1 && W.pitch > B.w * B.scale, "the rows stand in the middle, no plate over the next");
   assert.ok(W.y + W.rowPitch + B.h * B.scale <= W.height);
   assert.match(source("touch.css"), /html\.touch \.wl-scroll \{ top: 262px; height: 818px; \}/);
 });

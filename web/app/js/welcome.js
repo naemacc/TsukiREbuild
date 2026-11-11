@@ -166,10 +166,10 @@ function blockEl(b) {
 export async function openWelcome(ui) {
   const page = ui.begin("welcome");
   const black = ui.blackout(page, 1);
-  // A touch device (touch.js): the plates larger, as its control panel has them, in two rows with START last in the second.
+  // A touch device (touch.js): the plates larger, as its control panel has them, in two full rows of four, START the last.
   const T = ui.touch ? TOUCH : null, P = T ? { w: T.bar.w, h: T.bar.h } : PLATE;
   const spot = (i) => (!T ? [PLATE.x + i * PLATE.pitch, PLATE.y]
-    : [T.bar.x + ((i === LABELS.length - 1 ? 2 * T.bar.cols - 1 : i) % T.bar.cols) * T.bar.pitch, T.welcome.y + (i < T.bar.cols ? 0 : 1) * T.welcome.rowPitch]);
+    : [T.welcome.x + (i % T.welcome.cols) * T.welcome.pitch, T.welcome.y + Math.floor(i / T.welcome.cols) * T.welcome.rowPitch]);
   const sheet = await Promise.all([quickBarArt(LABELS.map((label) => ({ label })), P),
     ...ART.map((a) => { const i = new Image(); i.src = `/assets/ui/${a}.webp`; return i.decode().catch(() => {}); })]).then(([s]) => s);
   return new Promise((done) => {

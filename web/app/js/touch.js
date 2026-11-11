@@ -49,8 +49,9 @@ export const TOUCH = {
   // The names under the control panel's plates, by the quick bar's ids.
   names: { prevScene: "Previous scene", rewind: "Previous message", auto: "Auto mode", skip: "Skip read text", nextScene: "Next scene", quickSave: "Quick save",
     quickLoad: "Quick load", voice: "Replay voice", log: "Log", hide: "Hide text", save: "Save", load: "Load", config: "Config", fullscreen: "Full screen", menu: "System menu" },
-  // The first-visit page's plates: as the panel's, two rows of five; the reading column starts under them.
-  welcome: { y: 28, rowPitch: 116, height: 262 },
+  // The first-visit page's eight plates: the panel's, at its size, in two rows of four `pitch` apart from x; the reading
+  // column starts under them.
+  welcome: { cols: 4, x: 97, pitch: 465, y: 28, rowPitch: 116, height: 262 },
   // The hint over a story's first screen: stays this many frames; kept in the browser once the panel has been pulled down.
   hint: { frames: 420, rate: 0.05, key: "tsuki.touch.hint" },
 };
