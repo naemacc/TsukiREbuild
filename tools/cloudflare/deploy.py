@@ -5,6 +5,8 @@ Two ways in serve the same files:
   https://arcueid.date            the R2 bucket itself, attached to the domain and behind Cloudflare's cache: the app's files at the
                                   bucket's root, the game's under assets/. No Worker runs, so nothing counts against the Workers
                                   request allowance. A zone rule turns "/" into "/index.html"; cache rules set how long things are kept.
+                                  The page loads its scripts, styles, icons and font from v/<version>/, a copy of web/app named by
+                                  its content, so a page only ever runs the one set of files it was published with (VERSIONED).
   https://tsukirebuild.pages.dev  Pages: the app as static files, and web/cloudflare/worker.js reading assets/ from the bucket.
 """
 
@@ -19,11 +21,10 @@ import subprocess
 import time
 import urllib.error
 import urllib.request
+import sys
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-
-import boto3
-from botocore.config import Config
+from contextlib import nullcontext
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -44,8 +45,9 @@ CONTENT_TYPES = {
 
 # What a browser may keep for 30 days: the game's converted media, which do not change with the code, and the sound packs and their
 # index, which are named by their content (web/cloudflare/worker.js has the same rule for the Pages way in). Everything else, the app
-# included, is kept 5 minutes so that a deployment reaches players by itself.
-MEDIA = re.compile(r"^assets/((voice|img|se|bgm|movie|sys|fonts)/|pack/[a-z]+-[0-9a-f]{10}\.)")
+# included, is kept 5 minutes so that a deployment reaches players by itself; the versioned copy of the app (VERSIONED) is kept 30 days,
+# since a new version is a new folder.
+MEDIA = re.compile(r"^(assets/((voice|img|se|bgm|movie|sys|fonts)/|pack/[a-z]+-[0-9a-f]{10}\.)|v/[0-9a-f]{12}/)")
 
 
 LONG, SHORT = "public, max-age=2592000, immutable", "public, max-age=300"
@@ -62,6 +64,65 @@ def cache_control(key):
 
 def content_type(path):
     return CONTENT_TYPES.get(path.suffix) or mimetypes.guess_type(path)[0] or "application/octet-stream"
+
+
+# The app's files are named the same in every deployment, so while index.html and the scripts sit in caches for their 5 minutes, a
+# browser could run a new main.js against an old vm.js (or the other way round) and fail at start. So the deployment also stores every
+# app file but index.html under v/<version>/, the version a hash of all of them, and the index.html it stores loads them from there.
+# The scripts import each other by relative paths and the styles name the font by one, so a page reached through v/<version>/ only
+# ever loads files of that version; the versions before stay in the bucket for pages still open or still cached. The files at the
+# bucket's root stay too, for addresses asked for directly (/favicon.ico) and for the plain web/app layout the local server serves.
+VERSIONED_REFERENCE = re.compile(r'(\s(?:href|src)=")([^"/:#?][^":#?]*)(")')
+
+
+def app_version(files):
+    digest = hashlib.sha256()
+    for path in sorted(files):
+        if path.name != "index.html":
+            digest.update(path.relative_to("web/app").as_posix().encode() + b"\0" + (ROOT / path).read_bytes() + b"\0")
+    return digest.hexdigest()[:12]
+
+
+def versioned_index(path, version, names):
+    """index.html with each reference to an app file sent to that file's copy under v/<version>/."""
+    seen = set()
+
+    def swap(match):
+        name = match.group(2)
+        if name not in names:
+            raise RuntimeError(f"index.html refers to {name}, which is not a tracked app file")
+        seen.add(name)
+        return f"{match.group(1)}v/{version}/{name}{match.group(3)}"
+
+    text = VERSIONED_REFERENCE.sub(swap, (ROOT / path).read_text(encoding="utf-8"))
+    if "js/main.js" not in seen:
+        raise RuntimeError("index.html no longer loads js/main.js: the versioned page would not run the game")
+    return text.encode("utf-8")
+
+
+def site_objects(files):
+    """(key, source path, bytes or None) for every object a deployment stores, the app's index.html last: it is uploaded only once
+    everything it refers to is in place."""
+    app = [p for p in files if p.is_relative_to("web/app")]
+    version = app_version(app)
+    names = {p.relative_to("web/app").as_posix() for p in app}
+    clash = sorted(n for n in names if n.startswith(("assets/", "v/")))
+    if clash:
+        raise RuntimeError(f"App files that would be stored among the game's assets or the app's versions: {clash}")
+    objects, index = [], None
+    for path in files:
+        if not path.is_relative_to("web/app"):
+            objects.append((path.relative_to("web").as_posix(), path, None))
+            continue
+        name = path.relative_to("web/app").as_posix()
+        if name == "index.html":
+            index = (name, path, versioned_index(path, version, names))
+            continue
+        objects.append((name, path, None))
+        objects.append((f"v/{version}/{name}", path, None))
+    if index is None:
+        raise RuntimeError("No web/app/index.html")
+    return objects, index, version
 
 
 def tracked_files(directory):
@@ -110,10 +171,6 @@ def sync_assets(client, bucket):
         for item in page.get("Contents", []):
             remote[item["Key"]] = item["ETag"].strip('"')
 
-    # web/assets/x is the object assets/x; web/app/x is the object x, at the bucket's root, where the domain serves the app from.
-    def key_of(path):
-        return path.relative_to("web/app").as_posix() if path.is_relative_to("web/app") else path.relative_to("web").as_posix()
-
     try:
         stored = client.get_object(Bucket=bucket, Key=POLICY_KEY)["Body"].read().decode()
     except client.exceptions.NoSuchKey:
@@ -122,14 +179,18 @@ def sync_assets(client, bucket):
     if restamp:
         print(f"R2: the cache rule changed ({stored} -> {POLICY}): every object's lifetime and type are set again", flush=True)
 
-    def upload(path):
+    def upload(item):
+        key, path, data = item
         md5 = hashlib.md5()
         sha256 = hashlib.sha256()
-        with (ROOT / path).open("rb") as source:
-            for chunk in iter(lambda: source.read(1024 * 1024), b""):
-                md5.update(chunk)
-                sha256.update(chunk)
-        key = key_of(path)
+        if data is None:
+            with (ROOT / path).open("rb") as source:
+                for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                    md5.update(chunk)
+                    sha256.update(chunk)
+        else:
+            md5.update(data)
+            sha256.update(data)
         if remote.get(key) == md5.hexdigest():
             if restamp:   # the same bytes, their lifetime and type as the rule now has them
                 client.copy_object(
@@ -143,12 +204,12 @@ def sync_assets(client, bucket):
                     StorageClass="STANDARD",
                 )
             return 0
-        with (ROOT / path).open("rb") as source:
+        with (ROOT / path).open("rb") if data is None else nullcontext(data) as source:
             result = client.put_object(
                 Bucket=bucket,
                 Key=key,
                 Body=source,
-                ContentLength=(ROOT / path).stat().st_size,
+                ContentLength=(ROOT / path).stat().st_size if data is None else len(data),
                 ContentType=content_type(path),
                 CacheControl=cache_control(key),
                 ChecksumSHA256=base64.b64encode(sha256.digest()).decode(),
@@ -161,15 +222,14 @@ def sync_assets(client, bucket):
         return 1
 
     # Retain previous objects for open browser sessions and deployment rollbacks.
-    files = tracked_files("web/assets") + tracked_files("web/app")
-    clash = [str(p) for p in files if p.is_relative_to("web/app") and key_of(p).startswith("assets/")]
-    if clash:
-        raise RuntimeError(f"App files that would be stored among the game's assets: {clash}")
+    objects, index, version = site_objects(tracked_files("web/assets") + tracked_files("web/app"))
     with ThreadPoolExecutor(max_workers=8) as pool:
-        uploaded = sum(pool.map(upload, files))
+        uploaded = sum(pool.map(upload, objects))
+    uploaded += upload(index)   # last: the page a player gets only once every file it names is there
+    print(f"R2: the page loads the app from v/{version}/", flush=True)
     if restamp:
         client.put_object(Bucket=bucket, Key=POLICY_KEY, Body=POLICY.encode(), ContentType="text/plain", CacheControl=SHORT)
-    print(f"R2: uploaded {uploaded} new or modified files, skipped {len(files) - uploaded} unchanged files", flush=True)
+    print(f"R2: uploaded {uploaded} new or modified files, skipped {len(objects) + 1 - uploaded} unchanged files", flush=True)
 
 
 def frontend_assets(account, project, token):
@@ -247,7 +307,28 @@ def deploy(account, project, token, manifest):
     raise RuntimeError(f"Timed out waiting for Pages deployment {deployment['id']}")
 
 
+def stage(directory):
+    """Write the app's objects as a deployment would store them into a folder, keys as paths, with assets/ a link to web/assets, to try
+    the site locally (python3 -m http.server)."""
+    objects, index, version = site_objects(tracked_files("web/assets") + tracked_files("web/app"))
+    out = Path(directory).resolve()
+    out.mkdir(parents=True, exist_ok=True)
+    if not (out / "assets").exists():
+        (out / "assets").symlink_to(ROOT / "web/assets")
+    objects = [o for o in objects if not o[0].startswith("assets/")]
+    for key, path, data in objects + [index]:
+        target = out / key
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((ROOT / path).read_bytes() if data is None else data)
+    print(f"Staged {len(objects) + 1} objects in {out}; the page loads the app from v/{version}/ ({cache_control('v/' + version + '/js/main.js')})")
+
+
 def main():
+    if len(sys.argv) == 3 and sys.argv[1] == "--stage":
+        return stage(sys.argv[2])
+    import boto3
+    from botocore.config import Config
+
     names = ("CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN_ID")
     for name in names:
         if not os.environ.get(name):
