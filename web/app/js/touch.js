@@ -7,7 +7,7 @@
 //   the menus     an item lights as it is pressed and is chosen by the tap; lists move under the finger
 //   portrait      a screen asks for the device to be turned, and the game is held under it as under a hidden tab
 // The screens' own parts (larger plates, wider rows, the two-tap rule of choices and the flowchart) are in ui.js,
-// gallery.js, flowchart.js and welcome.js, each behind ui.touch, with their measures here (TOUCH).
+// gallery.js, flowchart.js and home.js, each behind ui.touch, with their measures here (TOUCH).
 
 export const TOUCH = {
   // touch-first: the first pointer is coarse and cannot hover. A laptop with a touch screen has a fine first pointer, a
@@ -49,9 +49,9 @@ export const TOUCH = {
   // The names under the control panel's plates, by the quick bar's ids.
   names: { prevScene: "Previous scene", rewind: "Previous message", auto: "Auto mode", skip: "Skip read text", nextScene: "Next scene", quickSave: "Quick save",
     quickLoad: "Quick load", voice: "Replay voice", log: "Log", hide: "Hide text", save: "Save", load: "Load", config: "Config", fullscreen: "Full screen", menu: "System menu" },
-  // The first-visit page's eight plates: the panel's, at its size, in two rows of four `pitch` apart from x; the reading
-  // column starts under them.
-  welcome: { cols: 4, x: 97, pitch: 465, y: 28, rowPitch: 116, height: 262 },
+  // The opening page's four plates (home.js): the panel's, at its size, in one row `pitch` apart, centred; the reading
+  // column starts under the strip, `height` high.
+  home: { pitch: 465, y: 28, height: 150 },
   // The hint over a story's first screen: stays this many frames; kept in the browser once the panel has been pulled down.
   hint: { frames: 420, rate: 0.05, key: "tsuki.touch.hint" },
 };

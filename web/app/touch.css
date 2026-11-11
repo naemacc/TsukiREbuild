@@ -44,9 +44,9 @@ html.touch #touch-hint { position: absolute; left: 240px; top: 20px; width: 1440
 html.touch .modepanel.tp { height: 486px; transform: translateY(-494px); }
 html.touch .modepanel.tp.on { transform: none; }
 .tp-a, .tp-b { position: absolute; left: 0; width: 1920px; pointer-events: none; background: url("/assets/ui/MODEPNL_PARTS_JA/modepanel_window.webp") no-repeat; }
-.modepanel.tp .qbtn, .modepanel.wl .qbtn { transform: scale(1.5); transform-origin: 0 0; overflow: visible; }
+.modepanel.tp .qbtn, .modepanel.hm .qbtn { transform: scale(1.5); transform-origin: 0 0; overflow: visible; }
 .modepanel.tp .qbtn::before { content: ""; position: absolute; left: -14px; right: -14px; top: -10px; bottom: -28px; }
-.modepanel.wl .qbtn::before { content: ""; position: absolute; left: -40px; right: -40px; top: -7px; bottom: -8px; }
+.modepanel.hm .qbtn::before { content: ""; position: absolute; left: -40px; right: -40px; top: -7px; bottom: -8px; }
 .qname { position: absolute; left: -14px; right: -14px; top: 65px; text-align: center; white-space: nowrap; text-transform: none; letter-spacing: .3px; pointer-events: none;
   font: 400 17px/22px var(--story-font); color: #e8f1fb; text-shadow: 0 1px 3px rgba(0, 0, 0, .85); }
 .qbtn.r0 .qname { color: rgba(232, 241, 251, .38); }
@@ -92,20 +92,14 @@ html.touch .gl-track { font-size: 40px; letter-spacing: 2px; overflow: hidden; }
 html.touch .gl-control, html.touch .gl-control-flash { transform: scale(1.25); transform-origin: 0 0; }
 html.touch .gl-slider::before { content: ""; position: absolute; left: 0; right: 0; top: -26px; bottom: -26px; }
 
-/* ---- the first-visit page: the plates in two rows (welcome.js), the reading column under them, larger letters ---------- */
-html.touch .modepanel.wl { height: 262px; transform: translateY(-270px); }
-html.touch .modepanel.wl.on { transform: none; }
-html.touch .wl-scroll { top: 262px; height: 818px; }
-html.touch .wl-bar { position: absolute; inset: 0; pointer-events: none; transform-origin: 0 993px; transform: scaleY(.81); }
-html.touch .wl-bar > .scrollstrip { pointer-events: auto; }
-/* the site's opening page (home.js): its three plates in one row, the column under them */
+/* ---- the opening page (home.js): its four plates in one row at 1.5, the reading column under them, larger letters ------- */
 html.touch .modepanel.hm { height: 150px; transform: translateY(-158px); }
 html.touch .modepanel.hm.on { transform: none; }
-.modepanel.hm .qbtn { transform: scale(1.5); transform-origin: 0 0; overflow: visible; }
-.modepanel.hm .qbtn::before { content: ""; position: absolute; left: -40px; right: -40px; top: -7px; bottom: -8px; }
 html.touch .hm-scroll { top: 150px; height: 930px; }
-html.touch .hm-bar { transform-origin: 0 1050px; transform: scaleY(.89); }
-html.touch .hm-link { font-size: 42px; line-height: 54px; }
+html.touch .hm-bar { position: absolute; inset: 0; pointer-events: none; transform-origin: 0 993px; transform: scaleY(.94); }
+html.touch .hm-bar > .scrollstrip { pointer-events: auto; }
+html.touch .hm-link { font-size: 44px; line-height: 56px; }
+html.touch .hm-press { width: 708px; height: 132px; }
 html.touch .wl-text { padding: 30px 110px 150px; font-size: 40px; line-height: 60px; }
 html.touch .wl-text p { margin-bottom: 30px; }
 html.touch .wl-text h2 { font-size: 64px; line-height: 78px; }

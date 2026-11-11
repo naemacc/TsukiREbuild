@@ -1,50 +1,58 @@
-// The site's opening page (web/app/js/home.js): where it shows, where its three plates lead, and that it comes before the welcome page.
+// The opening page (web/app/js/home.js): it shows for everyone on every visit, its four tabs, where their links lead, and that the game starts from PLAY ONLINE.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const { homeDue, playAddress, CHOICES, GITHUB, APK } = await import("../../web/app/js/home.js");
+const { homeDue, TABS, ABOUT, PLAY, GITHUB, APK } = await import("../../web/app/js/home.js");
+const { SECTIONS } = await import("../../web/app/js/welcome.js");
 const source = (name) => readFileSync(new URL(`../../web/app/${name}`, import.meta.url), "utf8");
 const q = (s) => new URLSearchParams(s);
+const blocks = (k) => TABS[k].sections.flatMap((s) => s.blocks);
 
-test("the opening page shows on the published site, not on the local server or in the Android app", () => {
-  assert.equal(homeDue(q(""), "arcueid.date"), true);
-  assert.equal(homeDue(q("mute"), "tsukirebuild.pages.dev"), true);
-  for (const host of ["localhost", "127.0.0.1", "[::1]", "appassets.androidplatform.net"]) assert.equal(homeDue(q(""), host), false, host);
-  assert.equal(homeDue(q("home"), "localhost"), true, "?home opens it anywhere");
-  assert.equal(homeDue(q("home"), "appassets.androidplatform.net"), true);
+test("it opens for everyone, on every visit and every address, the local server included", () => {
+  for (const host of ["arcueid.date", "tsukirebuild.pages.dev", "localhost", "127.0.0.1"]) {
+    for (const s of ["", "mute", "play", "welcome", "home"]) assert.equal(homeDue(q(s), host), true, `${host} ?${s}`);
+  }
 });
 
-test("an address that already asks for the game, a scene or the welcome page goes past it", () => {
-  for (const s of ["play", "script=00_02", "script=89&pc=500", "welcome"]) assert.equal(homeDue(q(s), "arcueid.date"), false, s);
+test("only the Android app, which is the game itself, and an address for a scene go past it", () => {
+  assert.equal(homeDue(q(""), "appassets.androidplatform.net"), false);
+  for (const s of ["script=00_02", "script=89&pc=500", "script=04_00_ARC04_3&label=LBL_008&mute"]) assert.equal(homeDue(q(s), "arcueid.date"), false, s);
 });
 
-test("PLAY ONLINE leaves ?play in the address, so a reload goes straight to the game", () => {
-  assert.equal(playAddress("https://arcueid.date/"), "/?play");
-  assert.equal(playAddress("https://arcueid.date/?home&mute"), "/?mute&play");
-  assert.equal(playAddress("https://arcueid.date/?mute#x"), "/?mute&play#x");
-  assert.equal(homeDue(new URL("https://arcueid.date" + playAddress("https://arcueid.date/?home")).searchParams, "arcueid.date"), false);
+test("four tabs: ABOUT, GITHUB, ANDROID APP, PLAY ONLINE, each a page of its own", () => {
+  assert.deepEqual(TABS.map((t) => t.plate), ["ABOUT", "GITHUB", "ANDROID APP", "PLAY ONLINE"]);
+  assert.equal(ABOUT, 0);
+  assert.equal(PLAY, 3);
+  assert.equal(TABS[ABOUT].sections.length, SECTIONS.length, "everything the first-visit page said");
+  for (const k of [1, 2, 3]) assert.equal(TABS[k].sections.length, 1, TABS[k].plate);
 });
 
-test("three plates in the order GitHub, Android app, play here; their links", () => {
-  assert.deepEqual(CHOICES.map((c) => c.plate), ["GITHUB", "ANDROID APP", "PLAY ONLINE"]);
-  assert.equal(CHOICES[0].link.href, GITHUB);
+test("GitHub's page links the repository, the Android app's the download, PLAY ONLINE's has the prompt that starts the game", () => {
+  const link = (k) => blocks(k).find((b) => b[0] === "link");
+  assert.equal(link(1)[2], GITHUB);
   assert.match(GITHUB, /^https:\/\/github\.com\/waifwu\/TsukiREbuild$/);
-  assert.equal(CHOICES[1].link.href, "/android/tsukihime.apk");
-  assert.equal(CHOICES[1].link.download, "Tsukihime.apk");
+  assert.equal(link(1)[3], undefined, "a page in a new tab, not a download");
+  assert.deepEqual(link(2).slice(2), ["/android/tsukihime.apk", "Tsukihime.apk"]);
   assert.equal(APK.size, "2.8 GB", "the size phones show for the 2,800,247,921-byte APK");
-  assert.equal(CHOICES[2].link, null, "PLAY ONLINE plays here");
+  assert.ok(blocks(3).some((b) => b[0] === "press"));
+  assert.ok(!blocks(1).some((b) => b[0] === "press") && !blocks(2).some((b) => b[0] === "press"), "only PLAY ONLINE starts the game");
 });
 
-test("main.js opens it before the welcome page, after the first screens start loading", () => {
-  const main = source("js/main.js");
-  assert.match(main, /if \(homeDue\(q\)\) await openHome\(ui\);[^\n]*\n  if \(welcomeDue\(q\)\) await openWelcome\(ui\);/);
-  assert.ok(main.indexOf("preload.startup(") < main.indexOf("await openHome(ui)"), "the game loads while the page is read");
+test("a first visit opens on ABOUT, later ones on PLAY ONLINE; a choice or a click on PLAY ONLINE's page starts the game", () => {
+  const home = source("js/home.js"), main = source("js/main.js");
+  assert.match(main, /if \(homeDue\(q\)\) await openHome\(ui, \{ about: firstVisit \}\);/);
+  assert.match(home, /show\(about \? ABOUT : PLAY\);/);
+  assert.match(home, /if \(i === PLAY && tab === PLAY\) \{ start\(\); return; \}/);
+  assert.match(home, /list\.addEventListener\("click", \(e\) => \{ if \(tab === PLAY && !e\.target\.closest\("a"\)\) start\(\); \}\);/);
+  assert.match(home, /if \(leaving \|\| tab !== PLAY\) return;/, "nothing else starts it");
+  assert.ok(main.indexOf("preload.startup(") < main.indexOf("await openHome(ui"), "the game loads while the page is open");
 });
 
-test("built from the game's art as the welcome page is", () => {
+test("built from the game's art: the panel's strip and plates, Config's panel, the title's picture and its PRESS ANY BUTTON with the title's pulse", () => {
   const home = source("js/home.js");
-  for (const art of ["MODEPNL_PARTS_JA/modepanel_window", "CONF_PARTS_JA/config_innerbg", "TITLE_PARTS_JA/title_bg1", "TITLE_PARTS_JA/title_titlelog"]) assert.ok(home.includes(art), art);
-  assert.match(home, /quickBarArt\(CHOICES\.map/);
-  assert.match(source("touch.css"), /html\.touch \.modepanel\.hm \{ height: 150px;/);
+  for (const art of ["MODEPNL_PARTS_JA/modepanel_window", "CONF_PARTS_JA/config_innerbg", "TITLE_PARTS_JA/title_bg1", "TITLE_PARTS_JA/press_start"]) assert.ok(home.includes(art), art);
+  assert.match(home, /quickBarArt\(TABS\.map/);
+  assert.match(home, /pulse = pressPulse\(pulse, dt\);/);
+  assert.match(source("style.css"), /\.hm-press \{[^}]*TITLE_PARTS_JA\/press_start\.webp/);
 });

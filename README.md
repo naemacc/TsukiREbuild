@@ -7,7 +7,7 @@ directory is generated from a game dump.
 
 ## Play it
 
-- **Online:** [arcueid.date](https://arcueid.date/) opens on a page with three ways in: this repository, the Android app, and PLAY ONLINE, which starts the game in the browser (Chrome or Firefox, not Safari). [arcueid.date/?play](https://arcueid.date/?play) goes straight to the game.
+- **Online:** [arcueid.date](https://arcueid.date/) opens on a page with four tabs: ABOUT (what this is and how it was made), GITHUB, ANDROID APP, and PLAY ONLINE, whose PRESS ANY BUTTON starts the game in the browser (Chrome or Firefox, not Safari).
 - **Android app:** [Download Tsukihime.apk](https://arcueid.date/android/tsukihime.apk) (2.8 GB). The whole game in one app that needs no connection and asks for no permissions. It needs Android 8 or newer, plays in landscape, and needs as much space again free while it installs. Android asks you to allow installing apps from the browser you downloaded it with. Saves are kept in the app, separately from the website's. It is built from `web/` by `web-dev/android/build_apk.sh` (see [web-dev/android/README.md](web-dev/android/README.md)).
 
 ## Run it
@@ -82,9 +82,14 @@ see [ANIMATIONS.md](web-dev/ANIMATIONS.md) for command coverage and remaining di
 
 ## The first page
 
-The first time the game is opened in a browser, it starts on a page that says what this project is and how it was made. Browsers play no sound until the page has been clicked, so its START button is that click, and the game opens with its sound on. It shows once; `http://localhost:8765/?welcome` opens it again. On later visits sound starts at the first click or key, as browsers require.
+The game opens on the same page every time, for everyone (`app/js/home.js`). It is built from the game's art: the mode panel's strip with four of its plates relettered (ABOUT, GITHUB, ANDROID APP, PLAY ONLINE), over Config's inner panel. Each plate shows its own page:
 
-On the published site an opening page comes before it (`app/js/home.js`), built from the game's art the same way: three of the panel's plates, GITHUB, ANDROID APP and PLAY ONLINE, over a column that says what each one is. PLAY ONLINE is the click that lets sound play, and it adds `?play` to the address so that a reload goes straight back to the game. The local server and the Android app skip the opening page; `/?home` opens it anywhere.
+- **ABOUT**: what this project is and how it was made, from decompiling the game to testing the port against it (the sections are in `app/js/welcome.js`).
+- **GITHUB**: what is in the repository, and a link to it.
+- **ANDROID APP**: what the offline app is, how to install it, and the download.
+- **PLAY ONLINE**: what the browser version needs, and the title's PRESS ANY BUTTON. A click or tap on that page, or Enter, starts the game. Browsers play no sound until the page has been clicked, so this press is that click, and the game opens with its sound on. On a touch device the page also says how to play by touch.
+
+A first visit opens on ABOUT, and the game's Loading window then waits for the first screens' files. Later visits open on PLAY ONLINE. The page is skipped only inside the Android app, which is the game itself, and for an address that opens a scene (`?script=...`).
 
 ## Loading
 
@@ -110,7 +115,7 @@ Add these to the address:
 | `/?script=04_00_ARC04_4_1&pc=500` | Runs through to command 500, then plays normally |
 | `/?script=04_00_ARC04_3&label=LBL_008` | Starts at a label inside the script. Nothing before it has run, so the screen stays empty until the scene next draws a picture |
 | `&mute` | No sound at all, with any of these |
-| `/?welcome` | The first page again |
+| `/?welcome` | The first page on its ABOUT tab, as on a first visit |
 
 Script names start with the day, then 00 for Arcueid's route or 01 for Ciel's. `00_00` to `00_02` are the prologue and `QA_01` to `QA_24` the Teach Me, Ciel-sensei episodes. All 549 are in `assets/scripts/index.json`. A scene opened this way starts with the story's flags empty, so one that depends on earlier choices can branch differently than in play. It also skips the first page, so sound begins at your first click.
 

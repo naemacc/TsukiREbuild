@@ -11,7 +11,7 @@ import { KeyMap, keyName } from "./keys.js";
 import { advanceRandom, textShakePixels } from "./effects.js";
 import { openFlowchart } from "./flowchart.js";
 import { openGallery, preloadGallery } from "./gallery.js";
-import { openWelcome, welcomeDue } from "./welcome.js";
+import { welcomeDue, markWelcomed } from "./welcome.js";
 import { openHome, homeDue } from "./home.js";
 import { Preloader, RANK } from "./preload.js";
 import { REWIND_FIXED, ROUTE_FLAGS, fvar } from "./flowchart-model.js";
@@ -1177,15 +1177,16 @@ async function loadingScreen() {
   relettered().then((art) => { ui.confArt = art; });   // the System page's words at one size (confart.js), ready before the config is first opened
   await ui.panel.ready;
   const q = new URLSearchParams(location.search);
-  const firstVisit = welcomeDue(q);   // (asked now: pressing START marks the visit as made)
+  const firstVisit = welcomeDue(q);   // (marked as made once the first screens have loaded, below)
   if (q.has("mute")) audio.muted = true;   // for testing: no sound at all
   // From here on, while the first page is read (or the logo plays), what comes after it is fetched, the most pressing first: the opening or the title, the
   // story's screen, the menus, the gallery.
   preload.startup({ firstLaunch, stage: firstLaunch ? 0 : titleNext(), scene: q.has("script") });
   window.preload = preload;
-  if (homeDue(q)) await openHome(ui);         // the published site: GitHub, the Android app, or play here (home.js)
-  if (welcomeDue(q)) await openWelcome(ui);   // a first visit: its START is the click the browser wants before it will play sound
-  if (firstVisit) await loadingScreen();      // ... and what the first screens use is waited for, under the game's "Loading"
+  // The opening page (home.js): About, GitHub, the Android app, and PLAY ONLINE, whose press is the click the browser wants before it will play sound.
+  // A first visit opens it on About.
+  if (homeDue(q)) await openHome(ui, { about: firstVisit });
+  if (firstVisit) { await loadingScreen(); markWelcomed(); }   // ... and what the first screens use is waited for, under the game's "Loading"
   if (q.has("script")) {
     const name = q.get("script");
     const i = Number.isNaN(Number(name)) ? vm.index.names.indexOf(name) : Number(name);

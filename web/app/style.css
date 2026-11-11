@@ -379,16 +379,10 @@ div.fc-node { pointer-events: none; cursor: default; }
 .wl-what { font: 400 24px/32px var(--story-font); color: #c9d8e6; }
 .wl-rows { display: grid; grid-template-columns: 500px 1fr; gap: 12px 30px; margin: 14px 0 28px; align-items: baseline; }
 .wl-name { font: 400 32px/40px "PT Sans Narrow", "Ubuntu Condensed", "Arial Narrow", "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: #f2f6f8; text-shadow: 0 0 9px rgba(110, 195, 255, .75); overflow-wrap: anywhere; }
-/* The site's opening page (home.js): the first-visit page's column, a section for each plate, the chosen plate's section lit as h2 is. */
-.hm-text { padding-top: 22px; padding-bottom: 0; font-size: 28px; line-height: 42px; }
-.wl-text .hm-sec:last-child { padding-bottom: 0; }
-.wl-text .hm-sec:last-child p:last-of-type { margin-bottom: 0; }
-.hm-text .hm-logo { width: 130px; height: 150px; margin: 0 auto 10px; }
-.hm-text .hm-lead { margin: 0 60px 6px; }
-.hm-sec { margin: 0; padding: 0 0 4px; opacity: .72; transition: opacity calc(10s / 60); }
-.hm-sec.on { opacity: 1; }
-.wl-text .hm-sec h3 { margin: 16px 0 12px; padding-bottom: 12px; font-size: 36px; line-height: 44px; background: url("/assets/ui/MENU_PARTS_JA/underline.webp") 0 100% / 100% 12px no-repeat; transition: color calc(10s / 60), text-shadow calc(10s / 60); }
-.wl-text .hm-sec.on h3 { color: #fff; text-shadow: 0 0 5px rgba(112, 255, 255, .95), 0 0 14px rgba(112, 255, 255, .8), 0 0 28px rgba(64, 200, 255, .55), 0 1px 3px rgba(0, 0, 0, .85); }
-.wl-text .hm-sec p { margin: 0 0 8px; }
-.hm-link { display: inline-block; margin: 0 0 4px; font: 400 31px/40px "PT Sans Narrow", "Ubuntu Condensed", "Arial Narrow", "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: #f2f6f8; text-decoration: underline 1px rgba(191, 238, 255, .55); text-underline-offset: 7px; text-shadow: 0 0 9px rgba(110, 195, 255, .75); }
+/* The opening page (home.js): a tab's page in the first-visit page's column; ABOUT's sections one after another; a link in the plates' lettering; the
+   title's PRESS ANY BUTTON at its own size. */
+.hm-part + .hm-part h2 { margin-top: 76px; }
+.wl-text .wl-rows.hm-rows { grid-template-columns: max-content 1fr; gap: 14px 44px; }
+.hm-press { display: block; width: 472px; height: 88px; margin: 64px auto 24px; padding: 0; border: 0; cursor: pointer; background: url("/assets/ui/TITLE_PARTS_JA/press_start.webp") 0 0 / 100% 100% no-repeat; }
+.hm-link { display: inline-block; margin: 6px 0 20px; font: 400 34px/44px "PT Sans Narrow", "Ubuntu Condensed", "Arial Narrow", "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: #f2f6f8; text-decoration: underline 1px rgba(191, 238, 255, .55); text-underline-offset: 7px; text-shadow: 0 0 9px rgba(110, 195, 255, .75); }
 .hm-link:hover { color: #fff; text-decoration-color: #bfeeff; text-shadow: 0 0 9px rgba(112, 255, 255, .95), 0 0 18px rgba(64, 200, 255, .6); }

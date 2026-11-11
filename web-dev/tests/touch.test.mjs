@@ -60,7 +60,7 @@ test("every rule of touch.css hangs on html.touch or on a class only a touch dev
   const ui = source("js/ui.js");
   assert.match(ui, /el\.className = TB \? "modepanel tp" : "modepanel";/);
   assert.match(ui, /const TB = this\.touch \? TOUCH\.bar : null;/);
-  assert.match(source("js/welcome.js"), /bar\.className = T \? "modepanel wl" : "modepanel";/);
+  assert.match(source("js/home.js"), /const bar = el\("div", T \? "modepanel hm" : "modepanel"\);/);
   const html = source("index.html");
   assert.match(html, /<link rel="stylesheet" href="style\.css">\n<link rel="stylesheet" href="touch\.css">/);
   assert.match(html, /<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">/);
@@ -634,7 +634,7 @@ test("the control panel is the quick bar's fifteen buttons at a finger's size: t
   } finally { globalThis.document = had; }
   const css = source("touch.css");
   assert.match(css, /html\.touch \.modepanel\.tp \{ height: 486px; transform: translateY\(-494px\); \}/);
-  assert.match(css, /\.modepanel\.tp \.qbtn, \.modepanel\.wl \.qbtn \{ transform: scale\(1\.5\); transform-origin: 0 0; overflow: visible; \}/);
+  assert.match(css, /\.modepanel\.tp \.qbtn, \.modepanel\.hm \.qbtn \{ transform: scale\(1\.5\); transform-origin: 0 0; overflow: visible; \}/);
   assert.equal(B.height, 486);
   // with a mouse the bar is as it was
   assert.deepEqual([QUICK_BAR.w, QUICK_BAR.h, QUICK_BAR.pitch], [117, 62, 118]);
@@ -783,18 +783,18 @@ test("Firefox on Android draws a movie's own element: painted to a canvas its fr
   assert.match(main, /const paintsNothing = \/Android\/i\.test\(navigator\.userAgent \|\| ""\);\nfunction paintMovie\(v\) \{\n  stopPaintingMovie\(v\);   \/\/ nothing of the last movie\n  if \(paintsNothing\) return;/);
 });
 
-test("the first-visit page on a touch device: the eight plates in two full rows of four with START last, and how to play by touch", async () => {
-  const { SECTIONS, TOUCH_INTRO } = await import("../../web/app/js/welcome.js");
-  const w = source("js/welcome.js"), B = TOUCH.bar, W = TOUCH.welcome;
-  assert.equal(SECTIONS.length + 1, 8, "eight plates");
-  assert.match(w, /\(T && k === 0 \? \[\.\.\.s\.blocks, \.\.\.TOUCH_INTRO\] : s\.blocks\)\.map\(blockEl\)/);
+test("the opening page on a touch device: its four plates in one row in the strip's middle, and how to play by touch under PLAY ONLINE's prompt", async () => {
+  const { TOUCH_INTRO } = await import("../../web/app/js/welcome.js");
+  const { TABS, PLAY } = await import("../../web/app/js/home.js");
+  const h = source("js/home.js"), B = TOUCH.bar, H = TOUCH.home;
+  assert.equal(TABS.length, 4);
+  assert.match(h, /const blocks = T && k === PLAY \? \[\.\.\.s\.blocks, \.\.\.TOUCH_INTRO\] : s\.blocks;/);
+  assert.deepEqual(TABS[PLAY].sections.at(-1).blocks.at(-1), ["press"], "the prompt before the notes");
   assert.equal(TOUCH_INTRO[0][0], "h");
   assert.match(TOUCH_INTRO[1], /Swipe down .* up for the log.* fast forward.* two fingers.* Back button/);
-  // two rows of five inside the strip, START in the last place of the second
-  assert.match(w, /\[T\.welcome\.x \+ \(i % T\.welcome\.cols\) \* T\.welcome\.pitch, T\.welcome\.y \+ Math\.floor\(i \/ T\.welcome\.cols\) \* T\.welcome\.rowPitch\]/);
-  assert.equal(W.cols * 2, SECTIONS.length + 1, "no place left empty");
-  const right = W.x + (W.cols - 1) * W.pitch + B.w * B.scale;
-  assert.ok(Math.abs(W.x - (1920 - right)) <= 1 && W.pitch > B.w * B.scale, "the rows stand in the middle, no plate over the next");
-  assert.ok(W.y + W.rowPitch + B.h * B.scale <= W.height);
-  assert.match(source("touch.css"), /html\.touch \.wl-scroll \{ top: 262px; height: 818px; \}/);
+  const width = H.pitch * (TABS.length - 1) + B.w * B.scale, x0 = Math.round((1920 - width) / 2);
+  assert.ok(x0 > 0 && H.pitch > B.w * B.scale, "inside the strip, no plate over the next");
+  assert.ok(H.y + B.h * B.scale <= H.height);
+  assert.match(source("touch.css"), /html\.touch \.hm-scroll \{ top: 150px; height: 930px; \}/);
+  assert.match(source("touch.css"), /html\.touch \.modepanel\.hm \{ height: 150px;/);
 });

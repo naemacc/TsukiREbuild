@@ -123,27 +123,30 @@ test("Firefox paints every movie on a canvas of its own (white flashes in its ow
   assert.doesNotMatch(main, /flashtest/, "the test page is gone");
 });
 
-test("First visit: the page that takes the click the browser wants before sound, built on the game's panel, once only", async () => {
+test("First visit: what the first page said is the opening page's ABOUT tab, opened first on a first visit; the visit is marked once the game has loaded", async () => {
   const store = {};
   globalThis.localStorage = { getItem: (k) => store[k] ?? null, setItem: (k, v) => { store[k] = String(v); }, removeItem: (k) => { delete store[k]; } };
-  const { SECTIONS, welcomeDue } = await import("../../web/app/js/welcome.js");
+  const { SECTIONS, welcomeDue, markWelcomed } = await import("../../web/app/js/welcome.js");
+  const { TABS, ABOUT } = await import("../../web/app/js/home.js");
   const query = (s) => new URLSearchParams(s);
   assert.equal(welcomeDue(query("")), true, "a first visit");
   assert.equal(welcomeDue(query("?script=00_02")), false, "not for a test going straight to a scene");
-  store["tsuki.welcomed"] = "1";
+  markWelcomed();
+  assert.equal(store["tsuki.welcomed"], "1");
   assert.equal(welcomeDue(query("")), false, "once only");
   assert.equal(welcomeDue(query("?welcome")), true, "unless asked for");
-  assert.equal(SECTIONS.length + 1, 8, "seven sections and START, on the panel's own eight plates (Extras is part of Testing since 2026-11-10)");
+  assert.equal(SECTIONS.length, 7, "About, Decompile, Rebuild, Graphics, Assets, Testing (with Extras), Credits");
   assert.ok(SECTIONS.find((s) => s.tab === "TESTING").blocks.some((b) => b[0] === "h" && b[1] === "Extras"));
-  assert.match(source("js/welcome.js"), /const PLATE = \{ w: 220, h: 62, x: 82, pitch: 221, y: 29 \};/);
-  for (const s of SECTIONS) { assert.ok(s.tab.length <= 9, s.tab); assert.ok(s.blocks.length > 0, s.tab); }
-  const text = source("js/welcome.js"), main = source("js/main.js");
-  assert.match(text, /ui\.audio\.start\(\);    \/\/ the click or key the browser wanted/);
-  assert.match(text, /sprite\("MODEPNL_PARTS_JA", "modepanel_window", 0, 0, 1920, 96\)/, "the game's own strip");
-  assert.match(text, /quickBarArt\(LABELS\.map/, "and its plates");
-  assert.match(main, /if \(welcomeDue\(q\)\) await openWelcome\(ui\);/);
-  assert.ok(main.indexOf("await openWelcome(ui)") < main.indexOf("await boot()"), "before the first movie");
-  assert.ok(text.indexOf("localStorage.setItem(KEY") > text.indexOf("const begin ="), "marked only once START is pressed");
+  assert.deepEqual(TABS[ABOUT].sections.map((s) => s.head), SECTIONS.map((s) => s.head), "every section, in order, on the one tab");
+  for (const s of SECTIONS) assert.ok(s.blocks.length > 0, s.tab);
+  const text = source("js/welcome.js"), home = source("js/home.js"), main = source("js/main.js");
+  assert.doesNotMatch(text, /START is that click|This page again|You will only see this page once/, "nothing left that speaks of a page of its own");
+  assert.match(home, /ui\.audio\.start\(\);    \/\/ the click or key the browser wanted/);
+  assert.match(home, /sprite\("MODEPNL_PARTS_JA", "modepanel_window", 0, 0, 1920, 96\)/, "the game's own strip");
+  assert.match(home, /quickBarArt\(TABS\.map/, "and its plates");
+  assert.doesNotMatch(main, /openWelcome/);
+  assert.ok(main.indexOf("await openHome(ui") < main.indexOf("await boot()"), "before the first movie");
+  assert.ok(main.indexOf("markWelcomed()") > main.indexOf("await loadingScreen()"), "marked only once the first screens are in");
 });
 
 test("Self-contained: the app asks only for /assets/..., and the server needs nothing outside web/", () => {
