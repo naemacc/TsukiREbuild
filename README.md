@@ -1,14 +1,14 @@
 # TsukiREbuild
 
-The Tsukihime remake, *Tsukihime -A piece of blue glass moon-*, rebuilt to play in a web browser and on Android. The game's engine was rewritten in JavaScript and WebGL2, and that new engine plays the game's own scripts, pictures, voices, music and movies. Wherever the port had to decide how something looks, sounds or moves, the answer was taken from the game itself and checked against it frame by frame.
+The Tsukihime remake, *Tsukihime -A piece of blue glass moon-*, rebuilt to play in a web browser, on Android, and as an app on Windows, macOS and Linux. The game's engine was rewritten in JavaScript and WebGL2, and that new engine plays the game's own scripts, pictures, voices, music and movies. Wherever the port had to decide how something looks, sounds or moves, the answer was taken from the game itself and checked against it frame by frame.
 
-**[▶ Play online](https://arcueid.date/)** · **[⬇ Android app](https://arcueid.date/android/tsukihime.apk)** (2.8 GB)
+**[▶ Play online](https://arcueid.date/)** · ⬇ Download: **[Windows](https://arcueid.date/desktop/Tsukihime-win-x64.zip)** (2.9 GB) · **[Android](https://arcueid.date/android/tsukihime.apk)** (2.8 GB) · macOS and Linux: [build it](#on-windows-macos-and-linux)
 
 > An unofficial, non-commercial fan project, not affiliated with TYPE-MOON or Aniplex. Please support the official release.
 
 ## Contents
 
-- [Play it](#play-it): in a browser, on Android, on your own computer
+- [Play it](#play-it): in a browser, on Android, on Windows, macOS and Linux, from this folder
 - [Controls](#controls): mouse and keyboard, touch, controller
 - [How it plays](#how-it-plays): the opening page, saves, skipping, movies, Ciel-sensei
 - [Under the hood](#under-the-hood): loading, fonts, opening a particular scene
@@ -22,7 +22,7 @@ The Tsukihime remake, *Tsukihime -A piece of blue glass moon-*, rebuilt to play 
 
 Open **[arcueid.date](https://arcueid.date/)** in Chrome or Firefox, on a computer, a phone or a tablet. Nothing is installed: the game's files arrive as you play, and saves stay in the browser.
 
-The site opens on a page with four tabs: **ABOUT** (what this is and how it was made), **GITHUB**, **ANDROID APP**, and **PLAY ONLINE**, whose PRESS ANY BUTTON starts the game.
+The site opens on a page with four tabs: **ABOUT** (what this is and how it was made), **GITHUB**, **DOWNLOAD** (the apps below), and **PLAY ONLINE**, whose PRESS ANY BUTTON starts the game.
 
 **It does not work in Safari.** The movies are AV1 video, which Safari plays only on Apple's newest hardware (it has no decoder of its own), and the game has not been tried there.
 
@@ -35,6 +35,26 @@ The site opens on a page with four tabs: **ABOUT** (what this is and how it was 
 3. Install. As much space again must be free while it installs; afterwards the download can be deleted.
 
 It needs Android 8 or newer and plays in landscape, by touch, as the site does on a phone. Android's Back gesture does what the game's own Back button does, and leaving the app makes the automatic save. Saves are kept in the app, apart from the website's, and a newer APK installs over the old one with them kept. How it is built: [web-dev/android/README.md](web-dev/android/README.md).
+
+### On Windows, macOS and Linux
+
+The whole game as a desktop app, with every picture, voice, song and movie inside it and no connection needed. It is the same web port in a window of its own (Electron), opening on the game itself. Closing the window makes the automatic save. Saves are kept in the app's own data folder, apart from the website's, and stay when a newer version replaces the app.
+
+**Windows** (10 or newer, 64-bit): **[download Tsukihime-win-x64.zip](https://arcueid.date/desktop/Tsukihime-win-x64.zip)** (2.9 GB).
+
+1. Right-click the file and choose Extract All, into a folder of its own. There is nothing to install.
+2. Open `Tsukihime.exe` in that folder. Windows may say it does not know the publisher: More info, then Run anyway.
+
+**macOS and Linux** have no download yet (the site's storage has no room for them). The app is the same one, and one command builds it from this repository, which carries the game's files:
+
+```bash
+git clone --depth 1 https://github.com/waifwu/TsukiREbuild
+cd TsukiREbuild
+web-dev/desktop/build.sh mac      # on a Mac: web-dev/desktop/out/Tsukihime-mac-universal.dmg
+web-dev/desktop/build.sh linux    # web-dev/desktop/out/Tsukihime-linux-x86_64.AppImage
+```
+
+It needs Git, Node.js with npm, and about 20 GB free while it builds; the first run fetches Electron. The Mac app is for macOS 13 or newer, Apple silicon and Intel: open the `.dmg` and drag Tsukihime to Applications. The Linux one is for 64-bit (x86) systems: `chmod +x` it and open it (it needs FUSE, `libfuse2`; without it, add `--appimage-extract-and-run`). How it works: [web-dev/desktop/README.md](web-dev/desktop/README.md).
 
 ### On your own computer
 
@@ -119,18 +139,18 @@ A controller works as a second way to play: A advances and chooses, B cancels or
 
 ### The opening page
 
-The game opens on the same page every time, for everyone (`app/js/home.js`). It is built from the game's art: the mode panel's strip with four of its plates relettered (ABOUT, GITHUB, ANDROID APP, PLAY ONLINE), over Config's inner panel. Each plate shows its own page:
+The game opens on the same page every time, for everyone (`app/js/home.js`). It is built from the game's art: the mode panel's strip with four of its plates relettered (ABOUT, GITHUB, DOWNLOAD, PLAY ONLINE), over Config's inner panel. Each plate shows its own page:
 
 - **ABOUT**: what this project is and how it was made, from decompiling the game to testing the port against it (the sections are in `app/js/welcome.js`).
 - **GITHUB**: what is in the repository, and a link to it.
-- **ANDROID APP**: what the offline app is, how to install it, and the download.
+- **DOWNLOAD**: the game as an app that needs no connection. Windows and Android each have what the app needs, how to install it, and its download; macOS and Linux have the steps to build the same app from the source.
 - **PLAY ONLINE**: what the browser version needs, and the title's PRESS ANY BUTTON. A click or tap on that page, or Enter, starts the game. Browsers play no sound until the page has been clicked, so this press is that click, and the game opens with its sound on. On a touch device the page also says how to play by touch.
 
-It opens with no tab chosen, showing the game's logo and a line naming the plates, so a stray tap starts nothing. It is skipped only inside the Android app, which is the game itself, and for an address that opens a scene (`?script=...`).
+It opens with no tab chosen, showing the game's logo and a line naming the plates, so a stray tap starts nothing. It is skipped only inside the Android and desktop apps, which are the game itself, and for an address that opens a scene (`?script=...`).
 
 ### Saves
 
-100 save slots, a quick save, and 39 automatic saves. As in the game a save holds the latest checkpoint (a scene's start, a choice, or the first line of a page), so loading shows that page from its first line. The automatic save is made when you return to the title from the system menu (which asks nothing outside a gallery replay), and here also when the page is closed during a story, or the Android app is left. The save screen lists all 100 slots by number, starting on the lowest empty one. The load screen lists everything there is to load, newest first: the slots in use, the quick save and the automatic saves, each named. Continue loads the save written last. In the story's Save and Load, Left gives the menu's column the cursor and Right gives it back to the row you were on. Some chapters ask "Save Progress?"; Yes opens the save screen and the story goes on when it closes.
+100 save slots, a quick save, and 39 automatic saves. As in the game a save holds the latest checkpoint (a scene's start, a choice, or the first line of a page), so loading shows that page from its first line. The automatic save is made when you return to the title from the system menu (which asks nothing outside a gallery replay), and here also when the page is closed during a story, or the Android app is left, or the desktop app is closed. The save screen lists all 100 slots by number, starting on the lowest empty one. The load screen lists everything there is to load, newest first: the slots in use, the quick save and the automatic saves, each named. Continue loads the save written last. In the story's Save and Load, Left gives the menu's column the cursor and Right gives it back to the row you were on. Some chapters ask "Save Progress?"; Yes opens the save screen and the story goes on when it closes.
 
 Saves and progress are kept in the browser, so clearing its site data removes them, and another browser starts empty. A save of an ordinary scene is about 13 KB; the browser allows about 5 MB in all.
 
@@ -205,7 +225,7 @@ Script names start with the day, then 00 for Arcueid's route or 01 for Ciel's: `
 | Folder | What is in it |
 |---|---|
 | `web/` | The game as served: `app/` (engine, interface, styles, fonts), `assets/` (the game's converted files) and `server.py`. It runs by itself. |
-| `web-dev/` | What makes and checks it: `tools/` (conversions from a game dump), `tests/`, `smoketest/`, `audit/` (the parity audit and the function map), `android/` (the Android app) |
+| `web-dev/` | What makes and checks it: `tools/` (conversions from a game dump), `tests/`, `smoketest/`, `audit/` (the parity audit and the function map), `android/` (the Android app), `desktop/` (the Windows, macOS and Linux app) |
 | `web-research/` | The first size research and its tools ([FINDINGS.md](web-research/FINDINGS.md)) |
 | `tools/cloudflare/` | The deployment ([below](#deployment)) |
 

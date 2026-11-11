@@ -1,9 +1,9 @@
 // home.js - the page the game opens on: four tabs on the game's own panel, ABOUT (what this project is and how it was made, welcome.js), GITHUB (the source),
-// ANDROID APP (the offline app) and PLAY ONLINE, whose PRESS ANY BUTTON starts the game; that press is also the click a browser wants before it plays sound.
+// DOWNLOAD (the game as an app: Windows and Android to download, macOS and Linux to build) and PLAY ONLINE, whose PRESS ANY BUTTON starts the game; that press is also the click a browser wants before it plays sound.
 // Built as the quick bar is (ui.js buildPanel), from the game's art: the mode panel's strip with four of its plates relettered, the title's picture under the
 // system menu's sky, Config's inner panel, the game's scroll bar and help band, and the title's own prompt.
 // It opens on every visit, for everyone, with no tab chosen and no plate lit: the column holds only the game's logo and a line naming the plates, so
-// a stray tap starts nothing. Not inside the Android app (web-dev/android), which is the game itself, nor where the address asks for a scene (?script,
+// a stray tap starts nothing. Not inside the Android or desktop app (web-dev/android, web-dev/desktop), which is the game itself, nor where the address asks for a scene (?script,
 // for tests and the scene links in ABOUT's Extras).
 import { sprite, quickBarArt, panelBack } from "./ui.js";
 import { TOUCH } from "./touch.js";
@@ -11,17 +11,20 @@ import { ButtonState, pressPulse } from "./uifx.js";
 import { SECTIONS, TOUCH_INTRO, blockEl } from "./welcome.js";
 
 export const GITHUB = "https://github.com/waifwu/TsukiREbuild";
+// The downloads: the whole game as an app that needs no connection (web-dev/android, web-dev/desktop), with the size each system shows for its file.
 export const APK = { href: "/android/tsukihime.apk", file: "Tsukihime.apk", size: "2.8 GB" };
+export const DESKTOP = { href: "/desktop/Tsukihime-win-x64.zip", file: "Tsukihime-win-x64.zip", size: "2.9 GB" };   // Windows; macOS and Linux are built from the source
+const download = (d) => ["link", `${d.file}  ·  ${d.size}`, d.href, d.file];
 const PLATE = { w: 220, h: 62, pitch: 221, y: 29 };                       // the game's panel plates, at their size and pitch (ui.js QUICK_BAR)
 const FADE = { in: 0.024, out: 0.02, to: 1.2 };                          // Config's fade in, and the title's black as it leaves
 const PRESS = { w: 472, h: 88 };                                          // the title's prompt (TITLE_PARTS_JA/press_start), at its size
 const ART = ["TITLE_PARTS_JA/title_bg1", "TITLE_PARTS_JA/title_titlelog", "TITLE_PARTS_JA/press_start", "DISP_PARTS_JA/menuBG01_upscale", "DIALOG_PARTS_JA/dialog_BG",
   "CONF_PARTS_JA/config_innerbg", "MODEPNL_PARTS_JA/modepanel_window", "MENU_PARTS_JA/underline"];
-const APP_HOST = "appassets.androidplatform.net";   // the Android app's own address for the page (web-dev/android)
+const APP_HOSTS = ["appassets.androidplatform.net", "tsukihime.desktop"];   // the apps' own addresses for the page (web-dev/android, web-dev/desktop)
 
 export function homeDue(query, host = globalThis.location?.hostname || "") {
   if (query.has("script")) return false;
-  return host !== APP_HOST;
+  return !APP_HOSTS.includes(host);
 }
 
 // The tabs: a plate, and the sections its page shows, each a heading and blocks as welcome.js draws them, plus ["link", text, address, file name if a
@@ -37,22 +40,46 @@ export const TABS = [
       ["web-dev/tests", "The automated tests: node --test web-dev/tests/*.test.mjs"],
       ["web-dev/audit", "The map of all 5,984 functions in the game's executable, and what is left to do."],
       ["web-dev/android", "The Android app, and how it is built."],
+      ["web-dev/desktop", "The Windows, macOS and Linux app, and how it is built."],
     ]],
     ["link", "github.com/waifwu/TsukiREbuild", GITHUB],
   ] }] },
-  { plate: "ANDROID APP", sections: [{ head: "The Android app", blocks: [
-    "The whole game in one app that needs no connection: every picture, voice, song and movie is inside it, and nothing is fetched while you play. It asks for no permissions at all, not even the internet.",
-    ["facts", [[APK.size, "the download"], ["Android 8", "or newer"], ["0", "permissions asked for"]]],
-    ["h", "Installing it"],
-    ["rows", [
-      ["1. Download", `${APK.file}, below, on the phone itself. It is large, so Wi-Fi is best.`],
-      ["2. Open it", "From the browser's downloads. Android asks whether that browser may install apps: allow it."],
-      ["3. Install", "As much space again must be free while it installs. Afterwards the download can be deleted."],
-    ]],
-    ["h", "Playing"],
-    "It plays in landscape, by touch, as this site does on a phone. Android's Back gesture does what the game's own Back button does. Leaving the app makes the automatic save, so you come back to where you were. Saves are kept in the app, apart from this site's.",
-    ["link", `${APK.file}  ·  ${APK.size}`, APK.href, APK.file],
-  ] }] },
+  { plate: "DOWNLOAD", sections: [
+    { head: "Download the game", blocks: [
+      "The whole game as an app that needs no connection: every picture, voice, song and movie is inside it, and nothing is fetched while you play. Windows and Android have a download here; for macOS and Linux the same app is built from the source, below.",
+      ["facts", [[DESKTOP.size, "Windows"], [APK.size, "Android"], ["0", "connections needed"]]],
+      "It is this site's game in a window of its own, opening on the game itself. Saves are kept in the app, apart from this site's, and stay when a newer version replaces it. Leaving the app makes the automatic save, so you come back to where you were.",
+    ] },
+    { head: "Windows", blocks: [
+      ["rows", [
+        ["Needs", "Windows 10 or newer, 64-bit."],
+        ["1. Download", `${DESKTOP.file}, below.`],
+        ["2. Extract", "Right-click the file and choose Extract All, into a folder of its own. There is nothing to install."],
+        ["3. Play", "Open Tsukihime.exe in that folder. Windows may say it does not know the publisher: choose More info, then Run anyway."],
+      ]],
+      download(DESKTOP),
+    ] },
+    { head: "Android", blocks: [
+      ["rows", [
+        ["Needs", "Android 8 or newer. It asks for no permissions at all, not even the internet."],
+        ["1. Download", `${APK.file}, below, on the phone itself. It is large, so Wi-Fi is best.`],
+        ["2. Open it", "From the browser's downloads. Android asks whether that browser may install apps: allow it."],
+        ["3. Install", "As much space again must be free while it installs. Afterwards the download can be deleted."],
+      ]],
+      "It plays in landscape, by touch, as this site does on a phone. Android's Back gesture does what the game's own Back button does.",
+      download(APK),
+    ] },
+    { head: "macOS and Linux", blocks: [
+      "There is no download for these yet. The app is the same one, and one command builds it from the source, with the game's files already in the repository.",
+      ["rows", [
+        ["Needs", "Git, Node.js with npm, and about 20 GB free while it builds. A Mac with macOS 13 or newer for the Mac app; the Linux one is for 64-bit (x86) systems."],
+        ["1. Get the source", "git clone --depth 1 https://github.com/waifwu/TsukiREbuild"],
+        ["2. Build", "In that folder: web-dev/desktop/build.sh mac, or web-dev/desktop/build.sh linux. The first run fetches Electron."],
+        ["3. Play", "The app is in web-dev/desktop/out: Tsukihime-mac-universal.dmg (open it, drag Tsukihime to Applications), or Tsukihime-linux-x86_64.AppImage (chmod +x, then open it)."],
+      ]],
+      ["link", "How the desktop app is built", `${GITHUB}/tree/main/web-dev/desktop`],
+    ] },
+  ] },
   { plate: "PLAY ONLINE", sections: [{ head: "Play here, in the browser", blocks: [
     "Nothing to install. It runs in Chrome or Firefox, on a computer, a phone or a tablet. Not in Safari, which plays the AV1 movies only on Apple's newest hardware.",
     "The game's files arrive as you play: the first screens load while this page is open, and the rest follow. Saves, settings and progress are kept in this browser; clearing the site's data removes them.",
@@ -61,7 +88,7 @@ export const TABS = [
 ];
 export const ABOUT = 0, PLAY = TABS.length - 1, NONE = -1;
 // The line under the logo before a plate is chosen.
-export const NONE_LINE = "An unofficial fan rebuild of the Tsukihime remake. Choose a page above: ABOUT, GITHUB, ANDROID APP, or PLAY ONLINE to start the game.";
+export const NONE_LINE = "An unofficial fan rebuild of the Tsukihime remake. Choose a page above: ABOUT, GITHUB, DOWNLOAD, or PLAY ONLINE to start the game.";
 
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
 
