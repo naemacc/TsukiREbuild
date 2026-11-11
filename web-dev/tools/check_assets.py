@@ -24,12 +24,22 @@ def have(folder, ext):
     return {n[:-len(ext)] for n in os.listdir(d) if n.endswith(ext)} if os.path.isdir(d) else set()
 
 
+def packed(folder):
+    """The files of a folder that the sound packs carry (build_packs.py): a copy of the game may have a voice or a sound in a pack alone."""
+    try:
+        pack = os.path.join(A, "pack")
+        index = json.load(open(os.path.join(pack, json.load(open(os.path.join(pack, "index.json")))["index"])))
+    except (OSError, ValueError, KeyError):
+        return set()
+    return {name.split("/", 1)[1] for _, listing in index["packs"] for name in listing[0::2] if name.startswith(folder + "/")}
+
+
 def main():
     missing, extra = {}, {}
     want = needed.needed(A)
     counts = {}
     for key, folder, ext in (("images", "img", ".avif"), ("voices", "voice", ".ogg"), ("sounds", "se", ".ogg"), ("music", "bgm", ".ogg"), ("movies", "movie", ".mp4")):
-        got = have(folder, ext)
+        got = have(folder, ext) | (packed(folder) if folder in ("voice", "se") else set())
         counts[key] = len(got)
         if want[key] - got:
             missing[key] = sorted(want[key] - got)
@@ -58,10 +68,16 @@ def main():
     # The sound packs (build_packs.py), where there are any: they must be the ones the loose files make, or the game would play an old copy of a sound.
     packs = ""
     if os.path.isdir(os.path.join(A, "pack")):
-        ok, made, gone = build_packs.check(A)
-        packs = f", sound packs {made['packs']}"
-        if not ok:
-            missing["sound packs (run build_packs.py)"] = gone or ["index.json names another index"]
+        if build_packs.has_sources(A):
+            ok, made, gone = build_packs.check(A)
+            packs = f", sound packs {made['packs']}"
+            if not ok:
+                missing["sound packs (run build_packs.py)"] = gone or ["index.json names another index"]
+        else:   # the packs alone: each must be whole
+            ok, n, _, wrong = build_packs.intact(A)
+            packs = f", sound packs {n} (no loose voices or sounds here)"
+            if not ok:
+                missing["sound packs"] = wrong
     print(", ".join(f"{k} {v}" for k, v in counts.items()) + f", interface art {sum(len(v) for v in manifest.values())}" + packs)
     for what, names in missing.items():
         print(f"MISSING {what}: {len(names)}, for example {names[:8]}")

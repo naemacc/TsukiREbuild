@@ -14,7 +14,8 @@ follows by name. A pack's name carries a hash of its content, so a browser may k
     web/assets/pack/index.json             { "index": "index-<hash>.json" }: the one short-lived file, which names the index in use
 
 The port reads a sound from its pack when the index names it and from its own file otherwise (app/js/audio.js), so the loose files stay the source and
-a copy of the game without packs still plays. Standard library only.
+a copy of the game without packs still plays. A copy that carries the packs alone (the repository does, for voices and sound effects) cannot make
+them again: there this tool builds nothing and removes nothing, and --check verifies the packs against their index. Standard library only.
 """
 import glob
 import hashlib
@@ -72,7 +73,27 @@ def plan(assets, target=TARGET):
     return packs
 
 
+def has_sources(assets=ASSETS):
+    """Whether the loose voices and sound effects, which the packs are made from, are here."""
+    return all(glob.glob(os.path.join(assets, kind, "*.ogg")) for kind in ("voice", "se"))
+
+
+def intact(assets=ASSETS):
+    """Without the loose files: (ok, packs, files, what is wrong) from the index and the packs it names."""
+    out = os.path.join(assets, "pack")
+    try:
+        index = json.load(open(os.path.join(out, json.load(open(os.path.join(out, "index.json")))["index"])))
+    except (OSError, ValueError, KeyError):
+        return False, 0, 0, ["index.json"]
+    wrong = [name for name, listing in index["packs"]
+             if not os.path.isfile(os.path.join(out, name)) or os.path.getsize(os.path.join(out, name)) != sum(listing[1::2])]
+    return not wrong, len(index["packs"]), sum(len(listing) // 2 for _, listing in index["packs"]), wrong
+
+
 def build(assets=ASSETS, write=True):
+    if write and not has_sources(assets):
+        raise SystemExit("build_packs.py: the loose voices and sound effects (web/assets/voice, web/assets/se) are not here, so there is nothing to make "
+                         "packs from. The packs in web/assets/pack are left as they are; convert_all.py makes the loose files from a dump.")
     out = os.path.join(assets, "pack")
     entries, wanted, total = [], set(), 0
     for kind, files in plan(assets):
@@ -120,6 +141,10 @@ def check(assets=ASSETS):
 
 if __name__ == "__main__":
     if "--check" in sys.argv[1:]:
+        if not has_sources():
+            ok, packs, files, wrong = intact()
+            print(f"packs: {packs} for {files} files, checked against their index (no loose files here)" + ("" if ok else f"; {len(wrong)} wrong: {wrong[:5]}"))
+            sys.exit(0 if ok else 1)
         ok, made, missing = check()
         print(f"packs: {made['packs']} for {made['files']} files" + ("" if ok else f"; out of date ({len(missing)} missing): run build_packs.py"))
         sys.exit(0 if ok else 1)

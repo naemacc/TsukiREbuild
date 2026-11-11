@@ -1,3 +1,8 @@
 .DS_Store
 __pycache__/
 *.pyc
+
+# The voices and sound effects are in the repository as packs alone (assets/pack, web-dev/tools/build_packs.py):
+# the loose files the packs are made from stay out.
+assets/voice/
+assets/se/
