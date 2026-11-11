@@ -89,3 +89,11 @@ test("on a phone held upright the opening page has a layout of its own and no ro
   assert.match(css, /html\.touch\.upright \.hm-scroll \{ left: 40px; top: 262px; width: 1000px; height: calc\(100% - 262px\); \}/);
   assert.match(css, /border-image: url\("\/assets\/ui\/MODEPNL_PARTS_JA\/modepanel_window\.webp"\) 0 40 8 40 fill stretch;/, "the game's strip, its ends kept");
 });
+
+test("PLAY ONLINE opens on the hardware acceleration notice, with each browser's setting, and says so when WebGL is drawn in software", async () => {
+  const { TABS, PLAY, GPU_NOTICE } = await import("../../web/app/js/home.js");
+  assert.deepEqual(TABS[PLAY].sections[0].blocks[0], ["gpu"]);
+  assert.match(GPU_NOTICE.head, /hardware acceleration/);
+  assert.deepEqual(GPU_NOTICE.rows.map((r) => r[0]), ["Chrome", "Edge", "Firefox"]);
+  assert.match(readFileSync(new URL("../../web/app/js/home.js", import.meta.url), "utf8"), /swiftshader\|llvmpipe/);
+});

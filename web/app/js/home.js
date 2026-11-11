@@ -81,11 +81,34 @@ export const TABS = [
     ] },
   ] },
   { plate: "PLAY ONLINE", sections: [{ head: "Play here, in the browser", blocks: [
+    ["gpu"],
     "Nothing to install. It runs in Chrome or Firefox, on a computer, a phone or a tablet. Not in Safari, which plays the AV1 movies only on Apple's newest hardware.",
     "The game's files arrive as you play: the first screens load while this page is open, and the rest follow. Saves, settings and progress are kept in this browser; clearing the site's data removes them.",
     ["press"],
   ] }] },
 ];
+// PLAY ONLINE's notice, first on its page: with the browser drawing on the processor instead of the graphics card the game stutters and its frame rate falls.
+// (On a phone or tablet the browser has no such setting, so the touch layer leaves it out.)
+export const GPU_NOTICE = {
+  head: "Stutters or a low frame rate? Turn on hardware acceleration",
+  off: "This browser is drawing without your graphics card right now.",
+  rows: [
+    ["Chrome", "Settings › System › Use graphics acceleration when available, then Relaunch"],
+    ["Edge", "Settings › System and performance › Use graphics acceleration when available, then Restart"],
+    ["Firefox", "Settings › General › Performance: untick Use recommended performance settings, tick Use hardware acceleration when available, then restart Firefox"],
+  ],
+};
+// Whether WebGL is drawn in software (Chrome's SwiftShader, Mesa's llvmpipe, Windows' Basic Render Driver): the sign hardware acceleration is off.
+export function softwareGL() {
+  try {
+    const gl = document.createElement("canvas").getContext("webgl2") || document.createElement("canvas").getContext("webgl");
+    if (!gl) return true;
+    const info = gl.getExtension("WEBGL_debug_renderer_info");
+    const name = String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER));
+    gl.getExtension("WEBGL_lose_context")?.loseContext();
+    return /swiftshader|llvmpipe|softpipe|software|basic render/i.test(name);
+  } catch { return false; }
+}
 export const ABOUT = 0, PLAY = TABS.length - 1, NONE = -1;
 // The line under the logo before a plate is chosen.
 export const NONE_LINE = "An unofficial fan rebuild of the Tsukihime remake. Choose a page above: ABOUT, GITHUB, DOWNLOAD, or PLAY ONLINE to start the game.";
@@ -129,6 +152,7 @@ export async function openHome(ui, { started = null } = {}) {
     page.append(bar);
     page.append(black);   // over all but the bar, which has a level of its own and slides
 
+    const soft = !T && softwareGL();
     let tab = -1, shownAt = 0, leaving = false, prompt = null, pulse = { alpha: 0, up: true };
     const block = (b) => {
       if (b[0] === "press") {
@@ -137,6 +161,13 @@ export async function openHome(ui, { started = null } = {}) {
         prompt.style.opacity = "0";
         prompt.addEventListener("click", (e) => { e.stopPropagation(); start(); });
         return prompt;
+      }
+      if (b[0] === "gpu") {
+        const box = el("div", "hm-notice");
+        box.append(el("h3", "", GPU_NOTICE.head));
+        if (soft) box.append(el("p", "hm-notice-off", GPU_NOTICE.off));
+        box.append(blockEl(["rows", GPU_NOTICE.rows]));
+        return box;
       }
       if (b[0] === "link") {
         const a = el("a", "hm-link", b[1]);
@@ -167,7 +198,7 @@ export async function openHome(ui, { started = null } = {}) {
         const part = el("div", "hm-part");
         // (on a touch device the PLAY ONLINE page also says, under its prompt, how the game is played by touch: there are no hints to find by resting a
         // pointer)
-        const blocks = T && k === PLAY ? [...s.blocks, ...TOUCH_INTRO] : s.blocks;
+        const blocks = T && k === PLAY ? [...s.blocks.filter((b) => b[0] !== "gpu"), ...TOUCH_INTRO] : s.blocks;
         part.append(el("h2", "", s.head), ...blocks.map(block));
         return part;
       }));

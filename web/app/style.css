@@ -398,5 +398,10 @@ div.fc-node { pointer-events: none; cursor: default; }
 .hm-tall { display: none; }   /* (the opening page's parts for a phone held upright: touch.css html.upright) */
 .wl-text .wl-rows.hm-rows { grid-template-columns: max-content 1fr; gap: 14px 44px; }
 .hm-press { display: block; width: 472px; height: 88px; margin: 64px auto 24px; padding: 0; border: 0; cursor: pointer; background: url("/assets/ui/TITLE_PARTS_JA/press_start.webp") 0 0 / 100% 100% no-repeat; }
+.hm-notice { margin: 0 0 40px; padding: 26px 40px 10px; background: url("/assets/ui/MENU_PARTS_JA/underline.webp") 0 0 / 100% 16px no-repeat, url("/assets/ui/MENU_PARTS_JA/underline.webp") 0 100% / 100% 16px no-repeat, rgba(0, 12, 26, .55); }
+.wl-text .hm-notice h3 { margin: 6px 0 14px; font-size: 44px; line-height: 56px; color: #fff; text-align: center; text-shadow: 0 0 5px rgba(112, 255, 255, .95), 0 0 14px rgba(112, 255, 255, .8), 0 0 28px rgba(64, 200, 255, .55), 0 1px 3px rgba(0, 0, 0, .85); }
+.wl-text .hm-notice-off { margin: 0 0 14px; text-align: center; color: #ffd27a; text-shadow: 0 0 9px rgba(255, 170, 60, .7), 0 1px 3px rgba(0, 0, 0, .85); }
+.wl-text .hm-notice .wl-rows { grid-template-columns: max-content 1fr; gap: 10px 40px; margin: 0 0 18px; }
+.hm-notice .wl-what { font-size: 28px; line-height: 38px; color: #e8f1fb; }
 .hm-link { display: inline-block; margin: 6px 0 20px; font: 400 34px/44px "PT Sans Narrow", "Ubuntu Condensed", "Arial Narrow", "PT Sans Narrow Bundled", "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: #f2f6f8; text-decoration: underline 1px rgba(191, 238, 255, .55); text-underline-offset: 7px; text-shadow: 0 0 9px rgba(110, 195, 255, .75); }
 .hm-link:hover { color: #fff; text-decoration-color: #bfeeff; text-shadow: 0 0 9px rgba(112, 255, 255, .95), 0 0 18px rgba(64, 200, 255, .6); }
