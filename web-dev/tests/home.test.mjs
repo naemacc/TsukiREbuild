@@ -41,7 +41,7 @@ test("GitHub's page links the repository, the Android app's the download, PLAY O
 
 test("a first visit opens on ABOUT, later ones on PLAY ONLINE; a choice or a click on PLAY ONLINE's page starts the game", () => {
   const home = source("js/home.js"), main = source("js/main.js");
-  assert.match(main, /if \(homeDue\(q\)\) await openHome\(ui, \{ about: firstVisit \}\);/);
+  assert.match(main, /if \(homeDue\(q\)\) await openHome\(ui, \{ about: firstVisit, started: gameStarted \}\);/);
   assert.match(home, /show\(about \? ABOUT : PLAY\);/);
   assert.match(home, /if \(i === PLAY && tab === PLAY\) \{ start\(\); return; \}/);
   assert.match(home, /list\.addEventListener\("click", \(e\) => \{ if \(tab === PLAY && !e\.target\.closest\("a"\)\) start\(\); \}\);/);

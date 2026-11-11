@@ -296,7 +296,7 @@ export function installTouch({ win = window, doc = document } = {}) {
     win.addEventListener(type, (e) => {
       if (!touch.held) return;
       e.stopImmediatePropagation();
-      if (type === "click") { asked = false; fullscreen(); }
+      if (type === "click" && !touch.fullHeld?.()) { asked = false; fullscreen(); }   // (not while the opening page holds it back, main.js)
       if (e.cancelable && type !== "touchstart" && type !== "touchmove" && type !== "wheel") e.preventDefault();
     }, { capture: true, passive: false });
   }

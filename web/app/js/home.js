@@ -63,7 +63,8 @@ export const ABOUT = 0, PLAY = TABS.length - 1;
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
 
 // Resolves once the game has been started from PLAY ONLINE and the page has gone. about: open on ABOUT (a first visit) rather than PLAY ONLINE.
-export async function openHome(ui, { about = false } = {}) {
+// started: called within the click or key that starts the game, while the browser still counts it as the player's (main.js asks for full screen there).
+export async function openHome(ui, { about = false, started = null } = {}) {
   const page = ui.begin("home");
   const black = ui.blackout(page, 1);
   const T = ui.touch ? TOUCH : null, P = T ? { w: T.bar.w, h: T.bar.h } : PLATE;
@@ -135,6 +136,7 @@ export async function openHome(ui, { about = false } = {}) {
     function start() {
       if (leaving || tab !== PLAY) return;
       leaving = true;
+      started?.();         // full screen, now and not before (main.js)
       ui.audio.start();    // the click or key the browser wanted
       ui.sound(6);
       plates[PLAY].st.pressFor(10);

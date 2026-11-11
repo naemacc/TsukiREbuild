@@ -963,10 +963,16 @@ function toggleFullscreen() {
   going.then(() => navigator.keyboard?.lock?.(["Escape"])?.catch?.(() => {})).catch((e) => toast(e.message, 3000));
 }
 document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement) navigator.keyboard?.unlock?.(); });
-addEventListener("click", () => {
+// While the opening page is up (home.js) nothing asks for it: choosing a tab, following a link or scrolling is not playing. Starting the game
+// from PLAY ONLINE asks, within that click or key (gameStarted, below), and from then on any click does, as above.
+let fullHeld = homeDue(new URLSearchParams(location.search));
+if (touch.on) touch.fullHeld = () => fullHeld;   // (the rotate screen's tap asks too, touch.js)
+function enterFullscreen() {
   if (!wantFull || document.fullscreenElement) return;
   try { document.documentElement.requestFullscreen?.()?.then(() => navigator.keyboard?.lock?.(["Escape"])?.catch?.(() => {}))?.catch(() => {}); } catch { /* not here */ }
-}, true);
+}
+addEventListener("click", () => { if (!fullHeld) enterFullscreen(); }, true);
+const gameStarted = () => { fullHeld = false; enterFullscreen(); };
 
 addEventListener("pointerdown", () => audio.start(), true);
 stage.addEventListener("click", (e) => {
@@ -1185,7 +1191,7 @@ async function loadingScreen() {
   window.preload = preload;
   // The opening page (home.js): About, GitHub, the Android app, and PLAY ONLINE, whose press is the click the browser wants before it will play sound.
   // A first visit opens it on About.
-  if (homeDue(q)) await openHome(ui, { about: firstVisit });
+  if (homeDue(q)) await openHome(ui, { about: firstVisit, started: gameStarted });
   if (firstVisit) { await loadingScreen(); markWelcomed(); }   // ... and what the first screens use is waited for, under the game's "Loading"
   if (q.has("script")) {
     const name = q.get("script");

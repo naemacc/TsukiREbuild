@@ -771,10 +771,15 @@ test("the title, the column, the config and the lists are laid out for a finger 
   assert.match(g, /if \(drag\.swipe && Math\.abs\(dx\) > SWIPE && change\(dx < 0 \? 1 : -1\)\) ui\.sound\(0\);/);
 });
 
-test("the game goes full screen at any click or tap, on every device, until the Full screen key or button takes it out", () => {
+test("the game goes full screen at any click or tap, on every device, until the Full screen key or button takes it out; not on the opening page, where only starting the game asks", () => {
   const main = source("js/main.js");
   assert.match(main, /let wantFull = true;\nfunction toggleFullscreen\(\) \{\n  if \(document\.fullscreenElement\) \{ wantFull = false; document\.exitFullscreen\?\.\(\)\.catch\(\(\) => \{\}\); return; \}\n  wantFull = true;/);
-  assert.match(main, /addEventListener\("click", \(\) => \{\n  if \(!wantFull \|\| document\.fullscreenElement\) return;\n  try \{ document\.documentElement\.requestFullscreen\?\.\(\)/);
+  assert.match(main, /function enterFullscreen\(\) \{\n  if \(!wantFull \|\| document\.fullscreenElement\) return;\n  try \{ document\.documentElement\.requestFullscreen\?\.\(\)/);
+  assert.match(main, /let fullHeld = homeDue\(new URLSearchParams\(location\.search\)\);/, "held while the opening page is up");
+  assert.match(main, /addEventListener\("click", \(\) => \{ if \(!fullHeld\) enterFullscreen\(\); \}, true\);/);
+  assert.match(main, /const gameStarted = \(\) => \{ fullHeld = false; enterFullscreen\(\); \};/);
+  assert.match(source("js/home.js"), /leaving = true;\n      started\?\.\(\);/, "within the press that starts the game");
+  assert.match(source("js/touch.js"), /if \(type === "click" && !touch\.fullHeld\?\.\(\)\) \{ asked = false; fullscreen\(\); \}/, "the rotate screen's tap holds back too");
   assert.doesNotMatch(source("js/touch.js"), /panelWas = !!touch\.ui\?\.panelOpen;\n\s+fullscreen\(\);/, "one place asks: main.js");
 });
 
