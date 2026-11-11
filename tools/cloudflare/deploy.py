@@ -46,7 +46,7 @@ def tracked_files(directory):
     return files
 
 
-def cloudflare(method, path, token, body=None, content_type="application/json"):
+def cloudflare(method, path, token, body=None, content_type="application/json", absent=False):
     if isinstance(body, (dict, list)):
         body = json.dumps(body).encode()
     request = urllib.request.Request(
@@ -63,6 +63,8 @@ def cloudflare(method, path, token, body=None, content_type="application/json"):
                 raise RuntimeError(f"Cloudflare {path}: {result.get('errors')}")
             return result.get("result")
         except urllib.error.HTTPError as error:
+            if absent and error.code == 404:
+                return None   # not there (yet): the caller decides whether that is a failure
             if error.code not in (408, 429) and error.code < 500:
                 raise RuntimeError(f"Cloudflare {method} {path}: HTTP {error.code}, {error.read().decode()}") from None
             if attempt == 4:
@@ -163,9 +165,18 @@ def deploy(account, project, token, manifest):
     path = f"/accounts/{account}/pages/projects/{project}/deployments"
     body, kind = deployment_body(manifest)
     deployment = cloudflare("POST", path, token, body, kind)
-    deadline = time.monotonic() + 600
+    # A deployment just created can be unknown to the next request for a moment (HTTP 404 with the upload already accepted,
+    # 2026-11-11): for the first minute that is waited out, after that it is a failure.
+    created, identifier = time.monotonic(), deployment["id"]
+    deadline = created + 600
     while time.monotonic() < deadline:
-        deployment = cloudflare("GET", path + "/" + deployment["id"], token)
+        found = cloudflare("GET", path + "/" + identifier, token, absent=True)
+        if found is None:
+            if time.monotonic() - created > 60:
+                raise RuntimeError(f"Pages deployment {identifier} was created but cannot be found")
+            time.sleep(3)
+            continue
+        deployment = found
         stage = deployment["latest_stage"]
         if stage["name"] == "deploy" and stage["status"] == "success":
             print(f"Published https://{project}.pages.dev at {deployment['deployment_trigger']['metadata']['commit_hash']}")
