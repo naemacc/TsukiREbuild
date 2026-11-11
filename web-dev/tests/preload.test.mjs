@@ -214,7 +214,7 @@ test("two movies are kept ready at most, the oldest let go; one taken is the cal
 test("the game uses it: movies play in the element made ready, the script runner calls the look-ahead, sounds decode before the first click", async () => {
   const main = source("js/main.js"), vm = source("js/vm.js"), audio = source("js/audio.js");
   assert.match(main, /const preload = new Preloader\(\{ vm, gfx, audio \}\);\nvm\.ahead = \(script, pc\) => preload\.ahead\(script, pc\);/);
-  assert.match(main, /preload\.startup\(\{ firstLaunch, stage: firstLaunch \? 0 : titleNext\(\), scene: q\.has\("script"\) \}\);\n  window\.preload = preload;\n  if \(welcomeDue\(q\)\) await openWelcome\(ui\);/,
+  assert.match(main, /preload\.startup\(\{ firstLaunch, stage: firstLaunch \? 0 : titleNext\(\), scene: q\.has\("script"\) \}\);\n  window\.preload = preload;\n  if \(homeDue\(q\)\) await openHome\(ui\);[^\n]*\n  if \(welcomeDue\(q\)\) await openWelcome\(ui\);/,
     "begun before the first page, so it reads while the page is up");
   assert.equal(main.match(/= movieElement\(name\);/g).length, 2, "story movies and the title's");
   assert.match(main, /old\.replaceWith\(made\);/);

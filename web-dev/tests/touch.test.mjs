@@ -47,7 +47,7 @@ test("a device with a mouse gets nothing of it: no class, no listeners, no gate,
 
 test("every rule of touch.css hangs on html.touch or on a class only a touch device's screens are given", () => {
   const css = source("touch.css").replace(/\/\*[\s\S]*?\*\//g, "");
-  const own = /^(#touch-safe|#rotate|#touch-back|#touch-hint|\.rt-|\.th-|\.tp-|\.qname|\.qbtn\.r0 \.qname|\.modepanel\.(tp|wl) |\.touchnote)/;
+  const own = /^(#touch-safe|#rotate|#touch-back|#touch-hint|\.rt-|\.th-|\.tp-|\.qname|\.qbtn\.r0 \.qname|\.modepanel\.(tp|wl|hm) |\.touchnote)/;
   let rules = 0;
   for (const m of css.matchAll(/([^{}]+)\{[^{}]*\}/g)) {
     for (const sel of m[1].split(",").map((s) => s.trim()).filter(Boolean)) {

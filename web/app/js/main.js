@@ -12,6 +12,7 @@ import { advanceRandom, textShakePixels } from "./effects.js";
 import { openFlowchart } from "./flowchart.js";
 import { openGallery, preloadGallery } from "./gallery.js";
 import { openWelcome, welcomeDue } from "./welcome.js";
+import { openHome, homeDue } from "./home.js";
 import { Preloader, RANK } from "./preload.js";
 import { REWIND_FIXED, ROUTE_FLAGS, fvar } from "./flowchart-model.js";
 import { CLICK_MARK, STORY_MOVIES, TITLE_MOVIE_LOOP, movieLook, movieQuestion, nextTitleStage, titleMusic as titleTrack, titleVariant } from "./uifx.js";
@@ -490,6 +491,9 @@ document.addEventListener("visibilitychange", () => {
 // Leaving the page while a story runs counts as leaving the story: the automatic save is made, as native makes it on
 // returning to the title (0x4cea0 -> 0x52aa0).
 addEventListener("pagehide", () => { autosave(); vm.saveRead(); vm.unlocks.save(); if (audio.ctx) audio.ctx.close(); });
+// The Android app (web-dev/android) calls this when it goes to the background, where Android may end it without a
+// pagehide: the same saves, with the sound left open for coming back. Nothing on the web calls it.
+globalThis.appSuspend = () => { autosave(); vm.saveRead(); vm.unlocks.save(); };
 
 // Ordinary skipping passes only text already read; a forced skip passes everything up to the next choice.
 // The skip toggle is bit 1 of 0xae0660 (vm.skipToggle): an instant run takes the flags over until it ends (N2-208), and then what it gives back is what this sets.
@@ -1179,6 +1183,7 @@ async function loadingScreen() {
   // story's screen, the menus, the gallery.
   preload.startup({ firstLaunch, stage: firstLaunch ? 0 : titleNext(), scene: q.has("script") });
   window.preload = preload;
+  if (homeDue(q)) await openHome(ui);         // the published site: GitHub, the Android app, or play here (home.js)
   if (welcomeDue(q)) await openWelcome(ui);   // a first visit: its START is the click the browser wants before it will play sound
   if (firstVisit) await loadingScreen();      // ... and what the first screens use is waited for, under the game's "Loading"
   if (q.has("script")) {

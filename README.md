@@ -5,6 +5,11 @@ The web version is the `web` folder: `app/`, `assets/` and `server.py`. The buil
 A rewrite of the game's engine in JavaScript and WebGL2 that runs the game's own scripts in the browser. The `assets/`
 directory is generated from a game dump.
 
+## Play it
+
+- **Online:** [arcueid.date](https://arcueid.date/) opens on a page with three ways in: this repository, the Android app, and PLAY ONLINE, which starts the game in the browser (Chrome or Firefox, not Safari). [arcueid.date/?play](https://arcueid.date/?play) goes straight to the game.
+- **Android app:** [Download Tsukihime.apk](https://arcueid.date/android/tsukihime.apk) (2.8 GB). The whole game in one app that needs no connection and asks for no permissions. It needs Android 8 or newer, plays in landscape, and needs as much space again free while it installs. Android asks you to allow installing apps from the browser you downloaded it with. Saves are kept in the app, separately from the website's. It is built from `web/` by `web-dev/android/build_apk.sh` (see [web-dev/android/README.md](web-dev/android/README.md)).
+
 ## Run it
 
 ```bash
@@ -33,6 +38,8 @@ Each object is stored with its lifetime: 30 days for the game's media (`assets/v
 **The earlier address.** [tsukirebuild.pages.dev](https://tsukirebuild.pages.dev/) is a Cloudflare Pages project that now forwards to the domain, path and query kept (a `_redirects` file written by the deployment). Its Worker (`web/cloudflare/worker.js`) still answers `/assets/*` from the bucket there. Saves are kept by the browser for each address separately, so progress made at the Pages address does not appear on the domain.
 
 **The deployment** compares file checksums and uploads new or modified files to the bucket, then publishes the Pages project. Previous objects are retained for open browser sessions and rollbacks; nothing is deleted from the bucket.
+
+**The Android app** is not part of the deployment. `android/tsukihime.apk` was uploaded to the bucket by hand, because at 2.8 GB it is too large for the repository. On this plan Cloudflare does not cache files over 512 MB, so each download is read from R2, which charges nothing for downloads. To replace it, upload a new build (`web-dev/android/build_apk.sh`) to the same key with the type `application/vnd.android.package-archive` and `Content-Disposition: attachment; filename="Tsukihime.apk"`, signed with the same key as before so that it installs over the old one.
 
 GitHub stores the deployment credential in the encrypted repository secret `CLOUDFLARE_API_TOKEN` and its token ID in the repository variable `CLOUDFLARE_API_TOKEN_ID`. The credential needs account-level `Pages Write` and `Workers R2 Storage Bucket Item Write` scoped to `tsukirebuild-assets`. Update both values when rotating the credential.
 
@@ -76,6 +83,8 @@ see [ANIMATIONS.md](web-dev/ANIMATIONS.md) for command coverage and remaining di
 ## The first page
 
 The first time the game is opened in a browser, it starts on a page that says what this project is and how it was made. Browsers play no sound until the page has been clicked, so its START button is that click, and the game opens with its sound on. It shows once; `http://localhost:8765/?welcome` opens it again. On later visits sound starts at the first click or key, as browsers require.
+
+On the published site an opening page comes before it (`app/js/home.js`), built from the game's art the same way: three of the panel's plates, GITHUB, ANDROID APP and PLAY ONLINE, over a column that says what each one is. PLAY ONLINE is the click that lets sound play, and it adds `?play` to the address so that a reload goes straight back to the game. The local server and the Android app skip the opening page; `/?home` opens it anywhere.
 
 ## Loading
 
