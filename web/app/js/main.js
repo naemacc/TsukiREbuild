@@ -1,5 +1,7 @@
 // main.js - the game's window: input, the frame loop, settings, saving; the screens themselves are in ui.js.
 import { TouchFx } from "./touchfx.js";
+import { installTouch } from "./touch.js";
+import { relettered } from "./confart.js";
 import { Renderer } from "./renderer.js";
 import { Audio } from "./audio.js";
 import { TextBox } from "./textbox.js";
@@ -10,13 +12,17 @@ import { advanceRandom, textShakePixels } from "./effects.js";
 import { openFlowchart } from "./flowchart.js";
 import { openGallery, preloadGallery } from "./gallery.js";
 import { openWelcome, welcomeDue } from "./welcome.js";
+import { Preloader } from "./preload.js";
 import { REWIND_FIXED, ROUTE_FLAGS, fvar } from "./flowchart-model.js";
-import { CLICK_MARK, STORY_MOVIES, TITLE_MOVIE_LOOP, movieLook, movieQuestion, titleMusic as titleTrack, titleVariant } from "./uifx.js";
+import { CLICK_MARK, STORY_MOVIES, TITLE_MOVIE_LOOP, movieLook, movieQuestion, nextTitleStage, titleMusic as titleTrack, titleVariant } from "./uifx.js";
 
 const $ = (id) => document.getElementById(id);
 const stage = $("stage");
+// A device played by touch (touch.js): its listeners go in before any other, and it fits the stage inside the safe area.
+const touch = installTouch();
 
 function fitStage() {
+  if (touch.on) { touch.place(stage); return; }
   const k = Math.min(innerWidth / 1920, innerHeight / 1080);
   stage.style.transform = `translate(${(innerWidth - 1920 * k) / 2}px, ${(innerHeight - 1080 * k) / 2}px) scale(${k})`;
 }
@@ -166,6 +172,26 @@ function paintMovie(v) {
   v.requestVideoFrameCallback(step);
 }
 
+// The element a movie plays in. One that has been reading the file in advance (preload.js readyMovie) takes the place of the page's, with what that one was
+// styled with, so the movie starts from what has been read; else the page's own starts on the file.
+function movieElement(name) {
+  const old = $("movie"), made = preload.takeMovie(name);
+  if (!made) { old.src = `/assets/movie/${name}.mp4`; return old; }
+  stopPaintingMovie(old);
+  old.onended = old.onerror = null;
+  old.pause();
+  old.removeAttribute("src");
+  old.load();
+  old.removeAttribute("id");
+  made.id = "movie";
+  made.style.cssText = old.style.cssText;
+  old.replaceWith(made);
+  return made;
+}
+// The title's movie at its stage (uifx.js titleVariant), and the stage the title will be at when it is next entered: it moves a step each time (ui.title).
+const titleMovie = (stage = ui.titleStageNow()) => `titlebg${titleVariant(stage)}`;
+const titleNext = () => nextTitleStage(ui.titleStageNow(), vm.flow.started);
+
 let moviesDone = null;
 function movieCover() {
   let c = $("movie-cover");
@@ -176,11 +202,10 @@ function movieCover() {
 // opts.music: { at, n } plays music n once the movie has run `at` seconds (the gallery's prologue: 2 at 360 s, 0x19040).
 function playMovie(name, opts = {}) {
   return new Promise((res) => {
-    const v = $("movie");
     // A test jump and the smoke test pass movies; the story's own run even while skipping.
     if (vm.skip && (!opts.story || vm.skipUntil || !vm.skipPaced)) { res(); return; }
     movieClicks = !name.startsWith("phasetitle_");
-    v.src = `/assets/movie/${name}.mp4`;
+    const v = movieElement(name);
     v.style.display = "block";
     if (paintsMovies) paintMovie(v);
     v.loop = false;
@@ -283,12 +308,11 @@ const passMovie = async () => {
 let firstLaunch = true;
 async function boot() {
   if (firstLaunch) return false;
-  const v = $("movie");
-  v.style.background = "#fff";
+  $("movie").style.background = "#fff";
   movieMinTime = 2;
   await playMovie("TM_CI");
   movieMinTime = 0;
-  v.style.background = "";
+  $("movie").style.background = "";   // asked for again: the movie may have brought its own element (movieElement)
   await new Promise((res) => ui.notice(res));
   return true;
 }
@@ -310,6 +334,9 @@ const vm = new VM({
   onLock: (on) => lockControls(on),
 });
 vm.externalTicks = true;   // the frame loop below steps the game's frames (vm.tick)
+// What is read before it is asked for (preload.js): the start-up list from the first page on, and what the script is coming to.
+const preload = new Preloader({ vm, gfx, audio });
+vm.ahead = (script, pc) => preload.ahead(script, pc);
 
 // XSTP .. XRSM: no skipping, auto mode, menus or rewinding, and the screen kept awake (native 0x40b70 calls
 // nn::oe::SetUserInactivityDetectionTimeExtended(true)). 0x40b70 keeps the skip toggle and auto (0xae0660 / 0xae0650)
@@ -440,7 +467,7 @@ document.addEventListener("visibilitychange", () => {
   vm.holdClocks("hidden", document.hidden);
   if (!audio.ctx) return;
   if (document.hidden) audio.ctx.suspend();
-  else audio.ctx.resume();
+  else if (!touch.held) audio.ctx.resume();   // not under the rotate screen (touch.js)
 });
 // Leaving the page while a story runs counts as leaving the story: the automatic save is made, as native makes it on
 // returning to the title (0x4cea0 -> 0x52aa0).
@@ -554,12 +581,12 @@ async function startAt(i, label, { continueFlow = false, then = null, replay = f
 
 // The title's movie: titlebg1-4 by how far the player has come (uifx.js), its opening once, then from 8 s on.
 function titleVideo(on) {
-  const v = $("movie");
+  let v = $("movie");
   if (on) {
-    const src = `/assets/movie/titlebg${titleVariant(ui.titleStageNow())}.mp4`;
-    if (v.titleLoop && v.style.display === "block" && v.getAttribute("src") === src) return;
+    const name = titleMovie();
+    if (v.titleLoop && v.style.display === "block" && v.getAttribute("src") === `/assets/movie/${name}.mp4`) return;
+    v = movieElement(name);
     v.titleLoop = true;
-    v.src = src;
     v.muted = true;
     v.loop = false;
     v.onended = () => { if (v.titleLoop) { v.currentTime = TITLE_MOVIE_LOOP; v.play().catch(() => {}); } };
@@ -622,6 +649,7 @@ function holdWhite() {
 // frame (0x48ac0 state 7). A replay goes back where it came from.
 vm.onEnd = async () => {
   if (afterEnd) { const then = afterEnd; afterEnd = null; toTitle(false); then(); return; }
+  preload.readyMovie(titleMovie(titleNext()));   // the title is next: its movie starts reading under the black
   await fadeToBlack(0.02);
   toTitle();
 };
@@ -717,6 +745,7 @@ function loadSave(s) {
 // the column closes first (0x5912ec, state 9), after the save and its popup have started.
 async function toTitle(showTitle = true, { fromStory = false, fade = false, leave = null } = {}) {
   const wrote = fromStory ? autosave() : false;
+  if (fade && showTitle) preload.readyMovie(titleMovie(titleNext()));
   if (fade) {
     text.closeWindow();   // the text window goes from the press (0x4cea0: 0x2e120(0)), and its waiting mark with it
     onWait(false);
@@ -795,6 +824,7 @@ function rewindTo(i, node) {
 // The title's music plays on in it (nothing in 0x4210 / 0x42d0 stops it); the gallery starts it again where the game
 // does (gallery.js) and the Music Player cuts it while it is open.
 function gallery(section, opts = {}) {
+  preload.readyMovie(titleMovie(titleNext()));   // the gallery's Title goes back to it
   openGallery(ui, vm, galleryEnv(), section, opts);
 }
 function galleryEnv() {
@@ -829,6 +859,7 @@ const ui = new UI({
   vm, gfx, audio, text, keys,
   env: null,
 });
+ui.touch = touch.on ? touch : null;   // the screens ask it for their touch layouts
 ui.env = {
   newGame, startStory, firstLaunch: () => firstLaunch, loadSave, makeSave, toTitle, flowchart, gallery, toast, settings, titleVideo, titleHold, titleMusic,
   setSetting, autosaves, preloadGallery,
@@ -900,17 +931,26 @@ function hideText() {
 }
 const showText = () => { const hidden = stage.classList.contains("notext"); stage.classList.remove("notext"); return hidden; };
 // Full screen, with Esc kept for the menus where the browser allows it (it leaves full screen when held).
+// The game is played full screen: any click or tap asks for it (below), until the Full screen key or the bar's FULL has taken the game
+// out of it; the same key or button puts it back. Leaving it another way (the browser's own Esc) does not count: the next click returns.
+let wantFull = true;
 function toggleFullscreen() {
-  if (document.fullscreenElement) { document.exitFullscreen?.().catch(() => {}); return; }
+  if (document.fullscreenElement) { wantFull = false; document.exitFullscreen?.().catch(() => {}); return; }
+  wantFull = true;
   const going = document.documentElement.requestFullscreen?.();
   if (!going) { toast("Full screen is not available here"); return; }
   going.then(() => navigator.keyboard?.lock?.(["Escape"])?.catch?.(() => {})).catch((e) => toast(e.message, 3000));
 }
 document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement) navigator.keyboard?.unlock?.(); });
+addEventListener("click", () => {
+  if (!wantFull || document.fullscreenElement) return;
+  try { document.documentElement.requestFullscreen?.()?.then(() => navigator.keyboard?.lock?.(["Escape"])?.catch?.(() => {}))?.catch(() => {}); } catch { /* not here */ }
+}, true);
 
 addEventListener("pointerdown", () => audio.start(), true);
-stage.addEventListener("click", () => {
+stage.addEventListener("click", (e) => {
   audio.start();
+  if (touch.storyClick(e)) return;   // touch: the tap that sent the control panel up, or one at the top strip, which brings it down
   if (ui.screen === "title" && ui.pressAny) return;
   if (ui.open) return;
   if (choosing()) return;
@@ -967,6 +1007,7 @@ stage.addEventListener("wheel", (e) => {
 // rested for a while over the story, and comes back as it moves.
 let idleTimer = null;
 addEventListener("mousemove", (e) => {
+  if (touch.on) return;   // a tap's own mouse events are not a mouse at the top of the picture
   stage.classList.remove("idle");
   clearTimeout(idleTimer);
   idleTimer = setTimeout(() => { if (vm.running && !ui.open && !ui.panelOpen && !choosing()) stage.classList.add("idle"); }, 3000);
@@ -1074,6 +1115,9 @@ function pollGamepads(now) {
   for (const i of [...padHeld.keys()]) if (!pressed.has(i)) { padHeld.delete(i); padKey(PAD[i], false); }
 }
 
+// What a finger does on the story's screen goes through the same actions (touch.js).
+touch.bind({ ui, vm, audio, act: { fast: fastForwardKey, log: () => ui.backlog(), hide: hideText, choosing, movie: () => !!moviesDone, refit: fitStage } });
+
 // ---- start ----------------------------------------------------------------------------------------------------
 (async () => {
   await vm.init();
@@ -1088,9 +1132,14 @@ function pollGamepads(now) {
   requestAnimationFrame(frame);
   // The quick bar's art is made here, on the black before the first screen, so that its first opening looks like every other.
   ui.buildPanel();
+  relettered().then((art) => { ui.confArt = art; });   // the System page's words at one size (confart.js), ready before the config is first opened
   await ui.panel.ready;
   const q = new URLSearchParams(location.search);
   if (q.has("mute")) audio.muted = true;   // for testing: no sound at all
+  // From here on, while the first page is read (or the logo plays), what comes after it is fetched, the most pressing first: the opening or the title, the
+  // story's screen, the menus, the gallery.
+  preload.startup({ firstLaunch, stage: firstLaunch ? 0 : titleNext(), scene: q.has("script") });
+  window.preload = preload;
   if (welcomeDue(q)) await openWelcome(ui);   // a first visit: its START is the click the browser wants before it will play sound
   if (q.has("script")) {
     const name = q.get("script");

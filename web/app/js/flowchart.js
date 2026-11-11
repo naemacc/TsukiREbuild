@@ -262,8 +262,9 @@ export async function openFlowchart(ui, vm, jump, keep = null, opts = {}) {
     b.setAttribute("aria-label", `${p.title}${p.node === "thumb" ? "" : " (not read yet)"}`);
     b.setAttribute("aria-disabled", p.jumpable ? "false" : "true");
     b.dataset.flag = p.flag;
+    // (a touch device: a first tap shows the scene at the right, a tap on the scene shown opens it; ui.add's twoTap)
     map.append(ui.add(b, () => decide(p), { up: () => move("up"), down: () => move("down"), left: () => move("left"),
-      right: () => move("right"), onSelect: () => select(p, how) }));
+      right: () => move("right"), onSelect: () => select(p, how), twoTap: true }));
   }
   map.append(cursor, flash);
 

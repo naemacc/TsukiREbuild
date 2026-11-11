@@ -5,6 +5,7 @@ import { sprite } from "./ui.js";
 import { LAYOUT as END, endingList } from "./endings.js";
 import { ButtonState, EASE, GALLERY_OPEN, MenuBgFade, Tween, fadeIn, fadeOut, wheelPixels } from "./uifx.js";
 import { cgLists, musicUnlocked } from "./unlocks.js";
+import { TOUCH, pinch } from "./touch.js";
 
 const P = "GALLERY_PARTS_JA";
 const url = (pack, name) => `/assets/ui/${pack}/${name}.webp`;
@@ -505,9 +506,10 @@ export function openGallery(ui, vm, env, start = session.section || "cg", opts =
   // The column's rows are buttons (native group 25, table 0x44e438): gallerymenu_btn cells 256 x 96 at (80, 160 + 80 k),
   // normal from x 8 (7 for the first), lit from 272, and the open section's from 536 (the marker 0x6e28 moves to the
   // row, table 0x3372f8). A row lights up with the arrival flash (ButtonState); the rows have no pressed hold.
+  const ROW = ui.touch ? TOUCH.galleryStep : 80;   // a touch device: the same rows, further apart
   const labels = ITEMS.map((id, k) => {
     const b = el("button", "gl-item");
-    place(b, 80, 160 + 80 * k, 256, 96);
+    place(b, 80, 160 + ROW * k, 256, 96);
     b.style.backgroundImage = `url("${url(P, "gallerymenu_btn")}")`;
     const flash = el("div", "sp fx-add");
     flash.style.cssText = `left:0;top:0;width:256px;height:96px;background-image:url("${url(P, "gallerymenu_btn")}");background-position:-272px ${-(8 + 104 * k)}px;opacity:0;`;
@@ -591,8 +593,8 @@ export function openGallery(ui, vm, env, start = session.section || "cg", opts =
 
   function draw() {
     render();
-    line.style.top = `${192 + 80 * menuSel}px`;
-    star.style.top = `${96 + 80 * menuSel}px`;
+    line.style.top = `${192 + ROW * menuSel}px`;
+    star.style.top = `${96 + ROW * menuSel}px`;
     if (cursorFx.row !== menuSel) Object.assign(cursorFx, { row: menuSel, stretch: 0, from: 1, to: 0.4, t: 0 });
     line.style.visibility = star.style.visibility = focus === "menu" ? "visible" : "hidden";
   }
@@ -913,6 +915,7 @@ export function openGallery(ui, vm, env, start = session.section || "cg", opts =
         let min = 1, max = 1;
         if (rx < 1 || ry < 1) min = Math.min(rx, ry);
         else if (rx > 1 && ry > 1) min = max = Math.min(rx, ry);
+        if (ui.touch) max = Math.max(max, min * TOUCH.viewerZoom);   // on a phone the picture's own size is not much larger than the fit: fingers may go on
         view = { w: r.w, h: r.h, fit: min, min, max, scale: min, cx: SW / 2, cy: SH / 2, fill: Math.min(max, Math.max(rx, ry)), mirror: !!v.flag, r, full };
         if (viewerKeeps(prev, p) && before) Object.assign(view, { scale: before.scale, cx: before.cx, cy: before.cy });
         placeView();
@@ -960,23 +963,49 @@ export function openGallery(ui, vm, env, start = session.section || "cg", opts =
       if (wipe) { wipe.remove(); wipe = null; }
       onClose(lists.flat[k], opened);
     };
-    let drag = null, moved = false;
+    // Fingers (a touch device): two on the picture zoom it about the point between them (touch.js pinch); one moves a picture
+    // that has been made larger, and across one that has not it is a swipe, on to the next picture (leftwards) or back to the one before.
+    const fingers = new Map(), SWIPE = 150;
+    let drag = null, moved = false, pinched = null;
     box.addEventListener("pointerdown", (e) => {
       e.stopPropagation();
       const r = box.getBoundingClientRect(), k2 = SW / r.width;
-      drag = { x: e.clientX, y: e.clientY, k: k2 };
+      if (e.pointerType === "touch") {
+        fingers.set(e.pointerId, [e.clientX, e.clientY]);
+        if (fingers.size === 2 && view) { const [a, b] = [...fingers.values()]; pinched = { a: [...a], b: [...b], scale: view.scale }; moved = true; drag = null; return; }
+        if (fingers.size > 2) return;
+      }
+      drag = { x: e.clientX, y: e.clientY, k: k2, x0: e.clientX, swipe: e.pointerType === "touch" && !!view && view.scale <= view.fit * 1.001 };
       moved = false;
       box.setPointerCapture?.(e.pointerId);
     });
     box.addEventListener("pointermove", (e) => {
+      if (fingers.has(e.pointerId)) fingers.set(e.pointerId, [e.clientX, e.clientY]);
+      if (pinched) {
+        if (fingers.size < 2 || !view || phase !== "idle") return;
+        const [a, b] = [...fingers.values()], r = box.getBoundingClientRect(), k2 = SW / r.width, z = pinch(pinched.a, pinched.b, a, b);
+        zoomTo(pinched.scale * z.ratio, [(z.at[0] - r.left) * k2, (z.at[1] - r.top) * k2]);
+        return;
+      }
       if (!drag || !view || phase !== "idle") return;
       const dx = (e.clientX - drag.x) * drag.k, dy = (e.clientY - drag.y) * drag.k;
       if (Math.abs(dx) + Math.abs(dy) > 4) moved = true;
       drag.x = e.clientX; drag.y = e.clientY;
+      if (drag.swipe) return;
       view.cx += dx; view.cy += dy;
       placeView();
     });
-    box.addEventListener("pointerup", () => { drag = null; });
+    const lift = (e) => {
+      fingers.delete(e.pointerId);
+      if (pinched) { if (!fingers.size) pinched = null; drag = null; return; }
+      if (drag && ui.touch && e.type === "pointerup" && e.pointerType === "touch" && view && phase === "idle") {
+        const dx = (e.clientX - drag.x0) * drag.k;
+        if (drag.swipe && Math.abs(dx) > SWIPE && change(dx < 0 ? 1 : -1)) ui.sound(0);
+      }
+      drag = null;
+    };
+    box.addEventListener("pointerup", lift);
+    box.addEventListener("pointercancel", lift);
     box.addEventListener("wheel", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -1039,6 +1068,8 @@ export function openGallery(ui, vm, env, start = session.section || "cg", opts =
   // 0x9c9b0 at 3333 a frame). Every track is listed, SYSMES 244 until it has been heard. Its playback is the Jukebox's;
   // closing the section stops it (closeSection).
   function musicView() {
+    // (a touch device: the list's rows further apart, ten to the screen, so a finger finds one)
+    const ML = ui.touch ? { ...MUSIC, ...TOUCH.music } : MUSIC;
     const playing = vm.audio.bgmState?.n;
     if (Number.isInteger(playing)) vm.unlocks.playedMusic(playing);
     vm.audio.stopBGM(0);
@@ -1055,8 +1086,12 @@ export function openGallery(ui, vm, env, start = session.section || "cg", opts =
     let sel = 0, scroll = 0, area = "list", btn = 0, lastBtn = 0, row = -1;
     const rowEls = tracks.map((t, k) => {
       const r = el("button", "gl-track", unlocked(t) ? t.title : text.locked);
-      place(r, MUSIC.x - 392, MUSIC.top - 109 + k * MUSIC.pitch - MUSIC.pitch / 2, 900, MUSIC.pitch);
-      r.append(sprite(P, "music_bgline", 409 - MUSIC.x, MUSIC.pitch / 2 + 12, 926, 16));
+      place(r, MUSIC.x - 392, MUSIC.top - 109 + k * ML.pitch - ML.pitch / 2, 900, ML.pitch);
+      if (ui.touch) r.style.lineHeight = `${ML.pitch}px`;
+      rows.append(r);
+      // (a touch device sets the titles larger, touch.css; one too long for its row at that size is brought down until it fits)
+      if (ui.touch) for (let size = TOUCH.music.font; size > TOUCH.music.least && r.scrollWidth > r.clientWidth; ) r.style.fontSize = `${--size}px`;
+      r.append(sprite(P, "music_bgline", 409 - MUSIC.x, ML.pitch / 2 + 12, 926, 16));
       pointed(r, () => {
         if (!ready() || (focused && area === "list" && sel === k)) return;
         focusContent(); area = "list"; rows.classList.add("focused"); select(k, false);
@@ -1109,7 +1144,9 @@ export function openGallery(ui, vm, env, start = session.section || "cg", opts =
 
     const buttons = {};
     const cell = (k, row) => `${-(CONTROL_CELL.x + CONTROL_CELL.dx * k)}px ${-CONTROL_CELL.rows[row]}px`;
-    for (const [name, [x, y]] of Object.entries(CONTROLS)) {
+    // (a touch device: the buttons larger and further apart on the same panel, TOUCH.musicControls and touch.css)
+    const CT = ui.touch ? TOUCH.musicControls : CONTROLS;
+    for (const [name, [x, y]] of Object.entries(CT)) {
       const k = BUTTONS.indexOf(name);
       const b = el("button", "gl-control");
       b.setAttribute("aria-label", name);
@@ -1146,7 +1183,7 @@ export function openGallery(ui, vm, env, start = session.section || "cg", opts =
     function press(b) {
       const name = BUTTONS[b];
       if (musicFlashes(b)) {
-        const [x, y] = CONTROLS[name];
+        const [x, y] = CT[name];
         place(flash, x, y);
         flash.style.backgroundPosition = cell(b, 1);
         flash.style.opacity = "1";
@@ -1170,25 +1207,25 @@ export function openGallery(ui, vm, env, start = session.section || "cg", opts =
     function select(k, follow = true) {
       sel = Math.max(0, Math.min(tracks.length - 1, k));
       if (follow && sel < scroll) scroll = sel;
-      if (follow && sel >= scroll + MUSIC.rows) scroll = sel - MUSIC.rows + 1;
-      rows.style.transform = `translateY(${-scroll * MUSIC.pitch}px)`;
+      if (follow && sel >= scroll + ML.rows) scroll = sel - ML.rows + 1;
+      rows.style.transform = `translateY(${-scroll * ML.pitch}px)`;
       rowEls.forEach((r, i) => r.classList.toggle("sel", i === sel));
-      scroller.set(scroll, tracks.length - MUSIC.rows);
+      scroller.set(scroll, tracks.length - ML.rows);
     }
     // the wheel moves the list by its own distance (WHEEL_GAIN), Page Up / Page Down a screenful
     const scrollRows = (n) => {
-      scroll = Math.max(0, Math.min(tracks.length - MUSIC.rows, scroll + n));
-      rows.style.transform = `translateY(${-scroll * MUSIC.pitch}px)`;
-      scroller.set(scroll, tracks.length - MUSIC.rows);
+      scroll = Math.max(0, Math.min(tracks.length - ML.rows, scroll + n));
+      rows.style.transform = `translateY(${-scroll * ML.pitch}px)`;
+      scroller.set(scroll, tracks.length - ML.rows);
     };
     list.addEventListener("wheel", (e) => { e.stopPropagation(); scrollRows((wheelPixels(e, stageScale()) * WHEEL_GAIN) / MUSIC.pitch); }, { passive: true });
     // a drag over (408, 109, 926 x 905) moves the list by its velocity once it is 3 or more (0x1a7fc: 0x6a0, 0x40c(1),
     // 0x6c4 -> 0x27bd4); rows can rest part way
     ui.touchDrag?.(list, [408, 109, 926, 905], (v) => {
       if (Math.abs(v) < 3) return;
-      scroll = Math.max(0, Math.min(tracks.length - MUSIC.rows, scroll + v / MUSIC.pitch));
-      rows.style.transform = `translateY(${-scroll * MUSIC.pitch}px)`;
-      scroller.set(scroll, tracks.length - MUSIC.rows);
+      scroll = Math.max(0, Math.min(tracks.length - ML.rows, scroll + v / ML.pitch));
+      rows.style.transform = `translateY(${-scroll * ML.pitch}px)`;
+      scroller.set(scroll, tracks.length - ML.rows);
     }, { widgets: null });
 
     let shownTrack = null;
@@ -1231,7 +1268,7 @@ export function openGallery(ui, vm, env, start = session.section || "cg", opts =
       helpKind: () => (area === "list" ? 0 : 10),
       focus(on) { focused = on; if (on) area = "list"; rows.classList.toggle("focused", on && area === "list"); },
       close() { alive = false; },
-      page: (dir) => scrollRows(dir * (MUSIC.rows - 1)),
+      page: (dir) => scrollRows(dir * (ML.rows - 1)),
       step(dt) {
         if (!flashTw) return;
         flash.style.opacity = String(flashTw.step(dt));

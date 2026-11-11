@@ -209,7 +209,8 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 .keyslot.sel { background: rgba(70, 150, 240, .85); border-color: #bff; box-shadow: 0 0 10px rgba(120, 220, 255, .9); color: #fff; }
 .keyslot.wait { background: rgba(120, 235, 255, .95); border-color: #fff; color: #0b3a66; box-shadow: 0 0 14px rgba(150, 245, 255, 1); }
 .confnum { position: absolute; text-align: right; font: 32px Georgia, serif; letter-spacing: 3px; color: #fff; pointer-events: none; }
-.confsample { position: absolute; left: 756px; font: 40px var(--story-font); color: #fff; pointer-events: none; line-height: 64px; }
+/* (the samples at the size of the page's other words: confart.js CONF_TEXT.size) */
+.confsample { position: absolute; left: 756px; font: 28px var(--story-font); color: #fff; pointer-events: none; line-height: 64px; }
 .confscroll::-webkit-scrollbar, .slotlist::-webkit-scrollbar { display: none; }
 /* The backlog (ui.js backlog, native 0x27d10): a black veil at 0.75 of its alpha over the held scene, and the page drawn
    as the text window drew it (.logpage shares #text's rules) with the help and scroll bars at its alpha. */

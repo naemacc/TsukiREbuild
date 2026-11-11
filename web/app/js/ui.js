@@ -9,6 +9,7 @@ import { LogoDust, LogoShards, MenuCursor, MENU_COLUMN, MENU_FADE, drawTitlePart
   SampleFx, NOTICE, NoticeFx, voiceScrollMax, wheelPixels, hitBoxPixels, STORY_HIT, SYSTEM_HIT } from "./uifx.js";
 import { ACTIONS, MENU_KEYS, MOUSE, SLOTS, canBind, keyLabel, keyName } from "./keys.js";
 import { chapterNamed, menuChapter } from "./chapters.js";
+import { TOUCH, TOUCH_CONTROLS, TOUCH_HINTS, barPlace } from "./touch.js";
 const PHASES = {
   // script prefix -> [column, row] in system_phasetitle_ja. The route of each is inferred from the script names.
   "00": [2, 7], "01": [0, 1], "02": [0, 2], "03": [0, 3], "04": [0, 4], "05_00": [2, 8], "05_01": [0, 5],
@@ -255,6 +256,16 @@ function drawQuickBar(img, defs, B) {
     });
   }
   return sheet.toDataURL("image/png");
+}
+// The mode panel's strip H high, for a touch device's panels (TOUCH.bar): modepanel_window's lower edge as it is, under
+// the rest of it stretched.
+export function panelBack(H) {
+  const B = TOUCH.bar, a = document.createElement("div"), b = document.createElement("div");
+  a.className = "tp-a";
+  a.style.cssText = `top:0;height:${H - B.edge}px;background-size:1920px ${((H - B.edge) * 96) / B.cut}px;`;
+  b.className = "tp-b";
+  b.style.cssText = `top:${H - B.edge}px;height:${B.edge}px;background-position:0 ${-B.cut}px;`;
+  return [a, b];
 }
 // The hint bar's entries (ui.helpBar): the keys and the mouse's part for each thing a screen can do.
 export const HINTS = {
@@ -564,10 +575,20 @@ export class UI {
         });
         el.addEventListener("pointerleave", () => { if (this.captionBox?.key === el) this.captionBox.hide(); });
       }
+      // A finger (ui.touch, touch.js): the item lights as it is pressed, and its tap chooses it. opts.twoTap: only an item that
+      // was lit before the press began is chosen, a first tap lighting it (the game's own touch rule, kept on touch devices
+      // for what is small on a phone and starts something).
+      let lit = true;
+      if (!opts.keysOnly) el.addEventListener("pointerdown", (e) => {
+        if (!this.touch || e.pointerType !== "touch" || !live()) return;
+        lit = this.sel === i && el.classList.contains("sel");
+        point(() => this.select(i));
+      });
       el.addEventListener("click", (e) => {
         e.stopPropagation();
         if (!live() || opts.keysOnly) return;
         point(() => this.select(i));
+        if (opts.twoTap && this.touch && !lit) { lit = true; this.sound(0); return; }
         this.choose(i);
       });
     }
@@ -653,7 +674,9 @@ export class UI {
     for (const label of labels) {
       const hint = document.createElement("span");
       hint.className = "hint";
-      const keys = label === "Replay voice" ? [this.keys?.label("voice") || "V", ...HINTS[label].slice(1)] : HINTS[label] || [];
+      // on a touch device, what a finger does instead (touch.js TOUCH_HINTS); an entry with nothing to say is left out
+      const keys = this.touch ? TOUCH_HINTS[label] : label === "Replay voice" ? [this.keys?.label("voice") || "V", ...HINTS[label].slice(1)] : HINTS[label] || [];
+      if (!keys) continue;
       for (const key of keys) hint.append(Object.assign(document.createElement("kbd"), { textContent: key }));
       hint.append(Object.assign(document.createElement("span"), { className: "hint-label", textContent: label }));
       bar.append(hint);
@@ -737,7 +760,8 @@ export class UI {
   // it, added (0x8d5d0: blend 0x1e), its top left at (360, 278) on the 960 x 544 screen. step returns the third piece's
   // alpha (0x1536198), which the rows take. At level 0 everything here stands still (0x8d86c-0x8daf8 is skipped), with that
   // alpha left as it was, so the dust, the shards and the light's pulse carry on from where they stopped.
-  titleLogoLayer(page, { lumi: withLumi = true } = {}) {
+  // over: where the light goes (a touch device draws the logo in a box of its own, and a light added inside a box would add to nothing).
+  titleLogoLayer(page, { lumi: withLumi = true, over = page } = {}) {
     const dust = document.createElement("canvas");
     dust.className = "fxcanvas";
     dust.width = 1920; dust.height = 1080;
@@ -748,8 +772,8 @@ export class UI {
       page.append(p);
       return p;
     });
-    const lumi = withLumi ? sprite("TITLE_PARTS_JA", "titlemenu_lumi", 720, 552, 488, 256, 0, 0, "lumi") : null;
-    if (lumi) page.append(lumi);
+    const lumi = withLumi ? sprite("TITLE_PARTS_JA", "titlemenu_lumi", 720, 552, 488, 256, 0, 0, this.touch ? "lumi t-lumi" : "lumi") : null;
+    if (lumi) over.append(lumi);
     const ctx = dust.getContext("2d");
     const atlas = new Image();
     atlas.src = url("TITLE_PARTS_JA", "logoparticle_all");
@@ -834,8 +858,12 @@ export class UI {
     page.append(still);
     // Native 0x8d5d0 draws, in order: the dust and shards (uifx.js), the logo in its three pieces (0x3529fc: rows
     // 0-285, 285-570, 570-648) at the logo's level (titleLogo in uifx.js), then titlemenu_lumi over it.
-    const logo = this.titleLogoLayer(page, { lumi: true });
-    page.append(sprite("TITLE_PARTS_JA", "titlemenu__c_type-moon", 868, 1000, 184, 64));
+    // On a touch device the logo, the rows and the maker's line each go in a box of their own, which touch.css sizes and
+    // moves (TOUCH.title): the logo smaller and higher, the rows at twice their size under it, a finger's width apart.
+    const boxed = (cls) => (this.touch ? page.appendChild(Object.assign(document.createElement("div"), { className: `tbox ${cls}` })) : page);
+    const logo = this.titleLogoLayer(boxed("t-logo"), { lumi: true, over: page });
+    boxed("t-copy").append(sprite("TITLE_PARTS_JA", "titlemenu__c_type-moon", 868, 1000, 184, 64));
+    const rowBox = boxed("t-rows");
     const start = (fn) => () => { this.env.titleVideo(false); fn(); };
     // The menu's buttons (group 10, table 0x65cbd8): titlemenu cells 296 x 72, normal from x 24, lit from 336, pressed
     // from 648, drawn 1:1 from (272, 298.67 + 23.23 k) of 640 x 448; hit boxes (0, 4)-(98, 25) of the same units.
@@ -897,7 +925,7 @@ export class UI {
       // The pointer lights the row under it and a click chooses it (the game's touch rule, 0x8e200 state 0x11, lit a row on
       // the press and chose it on a release 7-199 frames later).
       const act = fn ? pressThen(b, fn) : toGallery;
-      page.append(this.add(b.el, () => { logo.snap(); act(); }, { sound: fn === newGame ? 6 : 1, ready: () => ready() && shown[k] >= 1,
+      rowBox.append(this.add(b.el, () => { logo.snap(); act(); }, { sound: fn === newGame ? 6 : 1, ready: () => ready() && shown[k] >= 1,
         left: toRow(0), right: toRow(rows.length - 1) }));   // the left and right directions go to the first and the last row
     });
     this.completionBanner(page);
@@ -917,12 +945,11 @@ export class UI {
     if (fromGallery) raiseBg(new MenuBgFade(1, 1).set(-TITLE_MENU.rate));
     // m (0xae0b78): follows 1 - black upward and never comes down; held and resumed with the rest of the title.
     let menu = 0, movieUp = false;
-    const movie = document.getElementById("movie");
     const live = this.titleLive = { page, fx: null, cover: null, resume: () => { busy = false; pending = null; } };
     this.animate((dt) => {
       // One black in the original (0x1536184) for the fade in, the fade out and GALLERY's.
       const dark = Math.max(black.level, black2.level);
-      movieUp = titleMovieUp(movieUp, movie);
+      movieUp = titleMovieUp(movieUp, document.getElementById("movie"));   // asked for each frame: a movie made ready ahead comes with its own element (main.js movieElement)
       still.style.visibility = movieUp ? "hidden" : "visible";
       const third = logo.step(dt, { bgUp: (!!bgFade && bgFade.level > 0) || (!!live.cover && live.cover.level > 0), black: dark,
         particles: still.style.visibility === "hidden" });   // the movie's own first frames hold the fades up natively (0x1a30)
@@ -1209,6 +1236,7 @@ export class UI {
   // Right to the last, also only on a fresh press (with Save or Load open, Right gives the list the cursor back, 0x50ed0).
   column(page, active) {
     const M = MENU_COLUMN;
+    const gap = this.touch ? TOUCH.columnStep - M.step : 0;   // a touch device: the same rows, further apart
     page.append(sprite("MENU_PARTS_JA", "menu_window", M.window[0], M.window[1], 312, 1080));
     // The cursor (native 0x4c370): systemcursor_line's strip (16, 8)-(344, 32), drawn after the buttons, added,
     // anchored at its top centre (flags 0x11) at (66, 56.41 + 31.11 r) of 640 x 448, so its bright row lies along the
@@ -1237,8 +1265,8 @@ export class UI {
     const cursor = sprite("MENU_PARTS_JA", "systemcursor_light", 0, 0, 528, 240, 0, 0, "cursor");
     page.append(cursor);
     const place = (r) => {
-      cursor.style.top = `${py(13.27407 + 31.11111 * r)}px`;
-      line.style.top = `${py(56.41481 + 31.11111 * r)}px`;
+      cursor.style.top = `${py(13.27407 + 31.11111 * r) + gap * r}px`;
+      line.style.top = `${py(56.41481 + 31.11111 * r) + gap * r}px`;
     };
     place(this.menuRow);
     const btns = [], first = this.items.length, own = this.items;
@@ -1254,7 +1282,7 @@ export class UI {
       const cy = M.cellY + M.cellStep * r;
       const b = document.createElement("button");
       b.className = "spbtn menucol";
-      b.style.cssText = `left:${M.x}px;top:${M.y + M.step * r}px;width:${M.hit[0]}px;height:${M.hit[1]}px;`;
+      b.style.cssText = `left:${M.x}px;top:${M.y + (M.step + gap) * r}px;width:${M.hit[0]}px;height:${M.hit[1]}px;`;
       const art = sprite("MENU_PARTS_JA", "menu_btn_ja", 0, 0, M.cell[0], M.cell[1], M.cellX[0], cy);
       const flash = sprite("MENU_PARTS_JA", "menu_btn_ja", 0, 0, M.cell[0], M.cell[1], M.cellX[1], cy, "fx-add");
       b.append(art, flash);
@@ -1614,6 +1642,7 @@ export class UI {
     if (!fromTitle) this.header(page);
     // the column under the save screen's backdrop: the menu is draw task 0x11 at priority 84 (0x4ca50), the save screen 0x16 at 100 (0x4ef00)
     const col = document.createElement("div");
+    col.className = "colbox";
     page.append(col);
     page.append(sprite("SAVE_PARTS_JA", "config_innerbg", 360, 0, 1560, 1080, 0, 0, "savea"));
     if (!fromTitle) this.column(col, mode === "save" ? "Save" : "Load");
@@ -2066,6 +2095,9 @@ export class UI {
     return el;
   }
 
+  // A config picture's address: the one made again with its words at one size (confart.js, main.js), else the art as it is.
+  confTex(name) { return this.confArt?.[name] || url("CONF_PARTS_JA", name); }
+
   // A config widget as the engine's button system shows it (0xadca0 registers it from its definition, system.json
   // "config", 0xae840 gives it a state every frame, 0xaeec0 draws it): the cells of its state (0 normal, 1 lit, 2 on,
   // 3 lit and on; the config holds none pressed: its one 0xae040, the tab of a page change, is refused for a tab that is
@@ -2088,7 +2120,7 @@ export class UI {
     const paint = (d, s) => {
       const c = def.states[s][0], [rx0, ry0, rx1, ry1] = c.rect;
       d.style.cssText = `left:${c.x - hx0}px;top:${c.y - hy0}px;width:${rx1 - rx0}px;height:${ry1 - ry0}px;` +
-        `background-image:url("${url("CONF_PARTS_JA", c.tex)}");background-position:${-rx0}px ${-ry0}px;`;
+        `background-image:url("${this.confTex(c.tex)}");background-position:${-rx0}px ${-ry0}px;`;
     };
     b.moveTo = (nx, ny) => { b.style.cssText = `left:${nx + hx0}px;top:${ny + hy0}px;width:${hx1 - hx0}px;height:${hy1 - hy0}px;`; };
     b.moveTo(x, y);
@@ -2148,27 +2180,61 @@ export class UI {
       b.press = (pointer = false) => { step(dir); C.hold = { button: b, n: CONFIG.hold, pointer }; };
       b.addEventListener("pointerdown", (e) => {
         if (e.button !== 0) return;
+        // A finger (a touch device): the press may be the start of a drag of the page, so nothing steps yet. The tap steps
+        // once (the click below); a finger that stays starts the hold's counter and then steps as a held press does.
+        if (this.touch && e.pointerType === "touch") { b.finger = { repeated: false }; C.hold = { button: b, n: CONFIG.hold, pointer: true, finger: b.finger }; return; }
         e.stopPropagation();
         b.press(true);
       });
+      b.addEventListener("click", () => { const f = b.finger; b.finger = null; if (f && !f.repeated) step(dir); }, true);
       // the pointer held on another widget is no longer on the cursor's (0x2b930 compares the two)
       b.addEventListener("pointerleave", () => { if (C.hold?.button === b && C.hold.pointer) C.hold = null; });
       return b;
     };
     const minus = button(minusW, -1), plus = button(plusW, 1);
     knob.step = step;
-    const stage = () => document.getElementById("stage").getBoundingClientRect();
+    // (the widgets' layer is the stage's width and starts at its left edge: read from it, the place holds when a touch device draws the screen larger)
+    const stage = () => (this.touch ? body : document.getElementById("stage")).getBoundingClientRect();
     const fromPointer = (e) => { const r = stage(); apply(sliderValue(((e.clientX - r.left) * 1920) / (r.width || 1920), max)); };
+    // A finger (a touch device) on the knob or the bar: which way it goes decides. Along the bar the knob follows it; up or
+    // down, the page scrolls (touchDrag takes the press, or leaves it, by the same measure: e.sliderPress); lifted where it
+    // came down, the knob goes there.
+    const stageScale = () => document.getElementById("stage").getBoundingClientRect().width / 1920 || 1;
+    const toKnob = () => { const i = C.grid[row]?.[knobW.col]; if (i !== undefined && this.sel !== i) this.move(i); };
+    let finger = null;
+    const fingerDown = (e, el) => {
+      if (!this.touch || e.pointerType !== "touch") return false;
+      finger = e.sliderPress = { x: e.clientX, y: e.clientY, el, id: e.pointerId, on: false };
+      return true;
+    };
+    const fingerMove = (e) => {
+      if (!finger || e.pointerId !== finger.id) return;
+      if (!finger.on) {
+        const dx = e.clientX - finger.x, dy = e.clientY - finger.y;
+        if (Math.hypot(dx, dy) / stageScale() <= 6) return;
+        if (Math.abs(dx) <= Math.abs(dy)) { finger = null; return; }
+        finger.on = true;
+        finger.el.setPointerCapture?.(finger.id);
+        toKnob();
+      }
+      fromPointer(e);
+    };
+    const fingerUp = (e) => {
+      if (!finger || e.pointerId !== finger.id) return;
+      if (!finger.on && e.type === "pointerup") { toKnob(); fromPointer(e); }
+      finger = null;
+    };
     let dragging = false;
     knob.addEventListener("pointerdown", (e) => {
       if (e.button !== 0) return;
+      if (fingerDown(e, knob)) return;
       e.stopPropagation();
       dragging = true;
       knob.setPointerCapture?.(e.pointerId);
       fromPointer(e);
     });
-    knob.addEventListener("pointermove", (e) => { if (dragging) fromPointer(e); });
-    const end = () => { dragging = false; };
+    knob.addEventListener("pointermove", (e) => { if (dragging) fromPointer(e); else fingerMove(e); });
+    const end = (e) => { dragging = false; fingerUp(e); };
     knob.addEventListener("pointerup", end);
     knob.addEventListener("pointercancel", end);
     for (const [el, kind, w] of [[minus, 3, minusW], [knob, 4, knobW], [plus, 5, plusW]]) {
@@ -2186,6 +2252,7 @@ export class UI {
     let barDrag = false;
     bar.addEventListener("pointerdown", (e) => {
       if (e.button !== 0) return;
+      if (fingerDown(e, bar)) return;
       e.stopPropagation();
       barDrag = true;
       bar.setPointerCapture?.(e.pointerId);
@@ -2193,8 +2260,8 @@ export class UI {
       if (i !== undefined) this.move(i);
       fromPointer(e);
     });
-    bar.addEventListener("pointermove", (e) => { if (barDrag) fromPointer(e); });
-    const barEnd = () => { barDrag = false; };
+    bar.addEventListener("pointermove", (e) => { if (barDrag) fromPointer(e); else fingerMove(e); });
+    const barEnd = (e) => { barDrag = false; fingerUp(e); };
     bar.addEventListener("pointerup", barEnd);
     bar.addEventListener("pointercancel", barEnd);
     bar.addEventListener("click", (e) => e.stopPropagation());
@@ -2246,16 +2313,20 @@ export class UI {
     el.addEventListener("pointerdown", (e) => {
       if (e.button !== 0) return;
       const r = stage(), x = (e.clientX - r.left) / scale(), y = (e.clientY - r.top) / scale();
-      const [rx, ry, rw, rh] = region;
+      const [rx, ry, rw, rh] = region || [0, 0, 1920, 1080];   // (no region: anywhere on the element)
       if (x < rx || x > rx + rw || y < ry || y > ry + rh) return;
       if (widgets && e.target.closest?.(widgets)) return;
-      press = { x: e.clientX, y: e.clientY, cur: e.clientY, id: e.pointerId };
+      press = { x: e.clientX, y: e.clientY, cur: e.clientY, id: e.pointerId, slider: !!e.sliderPress };
       dragged = false;
     });
     el.addEventListener("pointermove", (e) => {
       if (!press) return;
       press.cur = e.clientY;
-      if (!dragged && Math.hypot(e.clientX - press.x, e.clientY - press.y) / scale() > 6) { dragged = true; el.setPointerCapture?.(press.id); }
+      if (!dragged && Math.hypot(e.clientX - press.x, e.clientY - press.y) / scale() > 6) {
+        // (a finger that came down on a slider and goes along it is the slider's: confSlider)
+        if (press.slider && Math.abs(e.clientX - press.x) > Math.abs(e.clientY - press.y)) { press = null; return; }
+        dragged = true; el.setPointerCapture?.(press.id);
+      }
     });
     const release = () => { press = null; setTimeout(() => { dragged = false; }); };
     el.addEventListener("pointerup", release);
@@ -2291,8 +2362,10 @@ export class UI {
     this.animate((dt) => { scroll.step(dt); place(); });
     const scale = () => document.getElementById("stage").getBoundingClientRect().width / 1920 || 1;
     box.addEventListener("wheel", (e) => { e.preventDefault(); e.stopPropagation(); scroll.set(scroll.target + wheelPixels(e, scale())); }, { passive: false });
-    this.scrollBar(page, { frac: () => (scroll.max ? scroll.target / scroll.max : 0), seek: (f) => scroll.set(f * scroll.max) }, () => scroll.max > 0);
-    this.touchDrag(box, CONFIG.clip, (v) => scroll.set(scroll.target + v));
+    // (a touch device draws the screen larger: the bar goes in a box that keeps its height, and a drag counts wherever the page is)
+    const barBox = this.touch ? page.appendChild(Object.assign(document.createElement("div"), { className: "conf-bar" })) : page;
+    this.scrollBar(barBox, { frac: () => (scroll.max ? scroll.target / scroll.max : 0), seek: (f) => scroll.set(f * scroll.max) }, () => scroll.max > 0);
+    this.touchDrag(box, this.touch ? null : CONFIG.clip, (v) => scroll.set(scroll.target + v), this.touch ? { widgets: null } : {});
     // the widgets in the engine's order once the page is built
     const order = () => { for (const el of [...widgets.children].sort((a, b) => (b.confId ?? 0) - (a.confId ?? 0))) widgets.append(el); };
     return { under, widgets, over, scroll, order };
@@ -2388,6 +2461,7 @@ export class UI {
     // The column goes first: the menu is draw task 0x11 at priority 84 (0x4ca50) and the config task 90 (0x2b010), so the config's
     // backdrop and help bar (0x2aa80) lie over it.
     const col = document.createElement("div");
+    col.className = "colbox conf";   // left out on a touch device, where the config takes the screen's width (touch.css)
     page.append(col);
     const fg = document.createElement("div");
     fg.className = "conffg";
@@ -2446,7 +2520,7 @@ export class UI {
       stopPage = () => { for (const st of stops) st(); };
       help?.remove();
       help = document.createElement("div");
-      fg.append(help);
+      (this.touch ? page : fg).append(help);   // (a touch device draws the screen larger; the band stays as it is)
       this.helpBar(help, C.page === 2 ? ["Back", "Change key", "Cursor movement", "Change page", "Scroll"] : ["Back", "Choose", "Cursor movement", "Change page", "Scroll"]);
       for (const k of tabItems.slice(0, 3)) this.items[k].el.refresh();
     };
@@ -2464,6 +2538,7 @@ export class UI {
     const draw = () => {
       fg.style.opacity = String(level);
       pageBox.style.opacity = String(pageLevel);
+      if (this.touch && help) help.style.opacity = String(level);
     };
     draw();
     const changePage = (d) => {
@@ -2511,7 +2586,7 @@ export class UI {
       // (0x2b930: 0x46f81c below 1 steps, else it counts down)
       const h = C.hold;
       if (h && (h.pointer || C.held)) {
-        if (h.n < 1) h.button.step();
+        if (h.n < 1) { h.button.step(); if (h.finger) h.finger.repeated = true; }
         else h.n -= dt;
       }
       // every widget's state and flash (0xae840), and the page's scroll as the engine keeps it
@@ -2612,21 +2687,24 @@ export class UI {
     const set = (k) => (v) => this.env.setSetting(k, v);
     const cfg = this.vm.system?.config;
     const n = ["system", "sound", "controls"].indexOf(tab);
-    if (n === 2) { this.buildControlsPage(pageBox); return; }
+    if (n === 2) { if (this.touch) this.buildTouchPage(pageBox); else this.buildControlsPage(pageBox); return; }
     if (!cfg) return;
     // the page's grid: each widget's kind, place and column, by id; each row's slider maximum
     const grid = cfg.pages[n].rows, at = {};
     grid.forEach((r, row) => r.widgets.forEach((w, col) => { at[w.id] = { ...w, row, col }; }));
     const sliderOf = (row) => [3, 4, 5].map((k) => grid[row].widgets.map((w, col) => ({ ...w, col })).find((w) => w.kind === k));
     const rows = n === 1 ? this.voiceRows(fromTitle) : [];
-    const max = n === 1 ? voiceScrollMax(rows.length) : cfg.pages[n].scrollMax;
+    // (a touch device shows less of the page at a time: what its shorter window hides is added to the range)
+    const max = (n === 1 ? voiceScrollMax(rows.length) : cfg.pages[n].scrollMax) + (this.touch ? TOUCH.config.clip - TOUCH.config.height : 0);
     const page = this.configScroll(pageBox, max, M?.scroll[n] ?? 0);
     C.scroll = page.scroll;
     const { under, widgets, over } = page;
     const [bx, by] = CONFIG.pageBg;
     if (n === 0) {
       // system_bg (1432 x 1336); rows 0-11 of page 0's grid (widgets 0x37-0x4d)
-      under.append(sprite("CONF_PARTS_JA", "system_bg", bx, by, 1432, 1336));
+      const sheet = sprite("CONF_PARTS_JA", "system_bg", bx, by, 1432, 1336);
+      sheet.style.backgroundImage = `url("${this.confTex("system_bg")}")`;
+      under.append(sheet);
       // the samples (SYSMES 138 / 139) at (757, 306) and (757, 485), typing in the "Text display" style
       const msg = (k, f) => this.vm.system?.messages?.[String(k)] || f;
       this.typingSample(under, 300, msg(138, "First Message Read"), () => S.textSpeed, () => S.fadeUnread !== false);
@@ -2769,6 +2847,22 @@ export class UI {
       const y = menuTop + L.head + k * L.row;
       line(label, x2, y, half);
       cap(what, x2 + 360, y);
+    });
+    page.order();
+  }
+
+  // The Controls page on a touch device: what a finger does (touch.js TOUCH_CONTROLS), in the rows of the keyboard's page.
+  buildTouchPage(pageBox) {
+    const C = this.conf, M = this.confMem, L = KEYPAGE, rowsY = L.top + L.head;
+    const height = rowsY + TOUCH_CONTROLS.length * L.row + L.foot - CONFIG.clip[1];
+    const page = this.configScroll(pageBox, Math.max(0, height - TOUCH.config.height), M?.scroll[2] ?? 0);
+    C.scroll = page.scroll;
+    const div = (cls, text, css) => { const d = document.createElement("div"); d.className = cls; d.textContent = text; d.style.cssText = css; return d; };
+    page.under.append(div("keyhead", "Touch", `left:${L.x}px;top:${L.top}px;width:${L.w}px;height:${L.head}px;line-height:${L.head}px;`));
+    TOUCH_CONTROLS.forEach(([label, how], k) => {
+      const y = rowsY + k * L.row;
+      page.under.append(div("keyrow", label, `left:${L.x}px;top:${y}px;width:${L.w}px;height:${L.row}px;line-height:${L.row}px;`));
+      page.over.append(div("keycap", how, `left:${L.x + 520}px;top:${y + (L.row - L.slot[1]) / 2}px;height:${L.slot[1]}px;line-height:${L.slot[1]}px;`));
     });
     page.order();
   }
@@ -2936,6 +3030,16 @@ export class UI {
       past = e.deltaY > 0 && atEnd() ? past + e.deltaY : 0;
       if (past >= LOG.close) leave();
     }, { passive: true });
+    // A finger moves the list itself; pulled on up from the newest line, it closes the log as the wheel does.
+    if (this.touch) {
+      let from = null;
+      list.addEventListener("touchstart", (e) => { from = atEnd() && e.touches.length === 1 ? e.touches[0].clientY : null; }, { passive: true });
+      list.addEventListener("touchmove", (e) => {
+        if (from === null || state !== "open" || (from - e.touches[0].clientY) / scale() < LOG.close) return;
+        from = null;
+        leave();
+      }, { passive: true });
+    }
   }
 
   // ---- sounds ---------------------------------------------------------------------------------------------
@@ -2981,7 +3085,15 @@ export class UI {
         glow.className = "choice-glow";
         for (const c of fillSegment(glow, label).chars) c.classList.add("on");
         row.append(glow);
-        row.addEventListener("click", (e) => { e.stopPropagation(); press(i); });
+        // A finger (the game's own touch rule, on touch devices): the row lights as it is pressed, and only a row that was lit
+        // before the press is taken by its tap. The rows stand 28 px apart on a phone, and a choice is not lightly undone.
+        let lit = true;
+        row.addEventListener("pointerdown", (e) => {
+          if (!this.touch || e.pointerType !== "touch" || fx.state === 2) return;
+          lit = fx.cur === i;
+          if (!lit && fx.move(i)) this.sound(0);
+        });
+        row.addEventListener("click", (e) => { e.stopPropagation(); if (this.touch && !lit && fx.state !== 2) { lit = true; return; } press(i); });
         // the row under a moving pointer takes the cursor (a row not yet opened cannot)
         row.addEventListener("pointermove", (e) => { if (e.pointerType !== "touch" && this.pointerMoved && fx.cur !== i && fx.move(i)) this.sound(0); });
         add(row);
@@ -3089,17 +3201,22 @@ export class UI {
       { id: "fullscreen", label: "Full", tip: "Full Screen: ON / OFF", fn: () => E.fullscreen(), on: () => !!document.fullscreenElement },
       { id: "menu", label: "Menu", tip: "System Menu", fn: () => E.menu() },
     ];
+    // A touch device's control panel (touch.js TOUCH.bar): the same buttons, the game's plates uncut and larger, in three rows
+    // of five on the strip made as high, each with its name under it (there is no pointer to rest on a button for a caption).
+    const TB = this.touch ? TOUCH.bar : null;
     const el = document.createElement("div");
-    el.className = "modepanel";
-    el.append(sprite("MODEPNL_PARTS_JA", "modepanel_window", 0, 0, 1920, 96));
+    el.className = TB ? "modepanel tp" : "modepanel";
+    if (TB) el.append(...panelBack(TB.height)); else el.append(sprite("MODEPNL_PARTS_JA", "modepanel_window", 0, 0, 1920, 96));
     const panel = { el, defs, btns: [], open: false, keyboard: false, sel: -1, hover: -1, hideTimer: null, art: false };
-    const B = QUICK_BAR, x0 = Math.round((1920 - (defs.length * B.pitch - (B.pitch - B.w))) / 2);
+    const B = panel.bar = TB || QUICK_BAR, x0 = Math.round((1920 - (defs.length * B.pitch - (B.pitch - B.w))) / 2);
     defs.forEach((d, i) => {
       const b = document.createElement("button");
       b.className = "qbtn r1";
       b.textContent = d.label;   // until the art is in, and where it cannot be made
       b.setAttribute("aria-label", d.tip);
-      b.style.cssText = `left:${x0 + i * B.pitch}px;top:${B.y}px;width:${B.w}px;height:${B.h}px;`;
+      const [bx, by] = TB ? barPlace(i, TB) : [x0 + i * B.pitch, B.y];
+      b.style.cssText = `left:${bx}px;top:${by}px;width:${B.w}px;height:${B.h}px;`;
+      if (TB) b.append(Object.assign(document.createElement("div"), { className: "qname", textContent: TOUCH.names[d.id] || d.tip }));
       // the cell under the cursor again, added, at the arrival flash
       const lit = document.createElement("div");
       lit.className = "sp fx-add";
@@ -3114,7 +3231,8 @@ export class UI {
         if (!d.can || d.can()) this.sound(0);
         panel.sel = i;
       });
-      b.addEventListener("pointerleave", () => { if (panel.hover === i) panel.hover = -1; if (!panel.keyboard && panel.sel === i) panel.sel = -1; });
+      b.addEventListener("pointerleave", () => { if (panel.hover === i) panel.hover = -1; if ((!panel.keyboard || TB) && panel.sel === i) panel.sel = -1; });
+      b.addEventListener("pointerdown", (e) => { if (TB && e.pointerType === "touch") panel.sel = i; });   // a finger lights the plate it presses
       b.addEventListener("click", (e) => { e.stopPropagation(); this.pressPanel(i); this.dismissPanel(); });
       el.append(b);
       panel.btns.push(b);
@@ -3156,7 +3274,7 @@ export class UI {
     if (keyboard) this.sound(3);
     p.open = true;
     p.keyboard = keyboard;
-    p.sel = keyboard ? p.defs.findIndex((d) => d.id === "auto") : -1;
+    p.sel = keyboard && !this.touch ? p.defs.findIndex((d) => d.id === "auto") : -1;   // (a finger has no cursor to start on)
     p.hover = -1;
     this.renderPanel();
     p.el.classList.add("on");
@@ -3200,7 +3318,7 @@ export class UI {
   }
 
   renderPanel() {
-    const p = this.panel, B = QUICK_BAR;
+    const p = this.panel, B = p.bar;
     const tip = p.hover >= 0 && p.defs[p.hover] ? this.panelTip(p.defs[p.hover]) : null;
     if (tip) p.caption.show(`${p.hover}:${tip}`, tip, p.btns[p.hover], [B.w / 3, B.h / (1080 / 448)]);
     else p.caption.hide();

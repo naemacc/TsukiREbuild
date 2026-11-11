@@ -711,7 +711,7 @@ export class Renderer {
     if (hit) return hit.tex;
     const e = { tex: null };
     this.ui.set(path, e);
-    fetch(`/assets/ui/${path}.webp`).then((r) => (r.ok ? r.blob() : Promise.reject(new Error(path))))
+    e.loaded = fetch(`/assets/ui/${path}.webp`).then((r) => (r.ok ? r.blob() : Promise.reject(new Error(path))))
       .then((b) => createImageBitmap(b, { premultiplyAlpha: "premultiply", colorSpaceConversion: "none" }))
       .then((bmp) => {
         const gl = this.gl;

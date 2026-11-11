@@ -283,6 +283,12 @@ export class Audio {
     return this.vol.charOn[c] ? this.vol.chars[c] / 100 : 0;
   }
 
+  // What decodes a sound: the context, or before the first click or key has made it (start) one that plays nothing, at the same rate, so that sounds
+  // read ahead (preload.js) are ready when it is.
+  decoder() {
+    return this.ctx || (this.spare ||= new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(2, 1, 48000));
+  }
+
   async buffer(url) {
     let p = this.buffers.get(url);
     if (!p) {
@@ -290,7 +296,7 @@ export class Audio {
         const res = await fetch(url);
         if (!res.ok) throw new Error(`no audio ${url}`);
         const data = await res.arrayBuffer();
-        return this.ctx.decodeAudioData(data);
+        return this.decoder().decodeAudioData(data);
       })();
       this.buffers.set(url, p);
       p.catch(() => this.buffers.delete(url));

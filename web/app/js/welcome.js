@@ -1,12 +1,13 @@
 // welcome.js - the page a first visit opens on. A browser plays no sound until the page has been clicked, so START is that click, and the game then opens with its
 // sound on. It also says what this project is and how it was made.
-// It is built as the quick bar is (ui.js buildPanel), from the game's own art: the mode panel's strip across the top with its plates, cut a little narrower so that nine
-// stand where the panel had eight, the title's picture under the system menu's sky, Config's inner panel, the game's scroll bar and help band. /?welcome opens it again.
-import { sprite, quickBarArt } from "./ui.js";
+// It is built as the quick bar is (ui.js buildPanel), from the game's own art: the mode panel's strip across the top with its eight plates as the panel
+// has them, the title's picture under the system menu's sky, Config's inner panel, the game's scroll bar and help band. /?welcome opens it again.
+import { sprite, quickBarArt, panelBack } from "./ui.js";
+import { TOUCH } from "./touch.js";
 import { ButtonState } from "./uifx.js";
 
 const KEY = "tsuki.welcomed";
-const PLATE = { w: 200, h: 62, x: 56, pitch: 201, y: 29 };   // the game's panel buttons, 220 wide there (ui.js QUICK_BAR)
+const PLATE = { w: 220, h: 62, x: 82, pitch: 221, y: 29 };   // the game's own eight panel buttons, at their size and places (ui.js QUICK_BAR)
 const FADE = { in: 0.024, out: 0.02, to: 1.2 };              // Config's fade in, and the title's black as it leaves
 const ART = ["TITLE_PARTS_JA/title_bg1", "TITLE_PARTS_JA/title_titlelog", "DISP_PARTS_JA/menuBG01_upscale", "DIALOG_PARTS_JA/dialog_BG", "CONF_PARTS_JA/config_innerbg", "MODEPNL_PARTS_JA/modepanel_window", "MENU_PARTS_JA/underline"];
 
@@ -78,8 +79,8 @@ export const SECTIONS = [
     ["h", "The browser side"],
     "The port is stepped on a virtual clock, one 60 Hz frame at a time, and compared with the native frames: positions, alpha, colour, letter by letter.",
     ["facts", [["25", "text and script fixes re-run on native frames: 19 matched, 6 corrected"], ["88 / 89", "timed steps under fast forward take the game's number of frames"], ["450+", "automated tests"], ["549", "scripts run end to end by the smoke test"]]],
-  ] },
-  { tab: "EXTRAS", head: "Extras", blocks: [
+    // (what was the Extras plate: what can be added to the address, the fonts, and where to take it further)
+    ["h", "Extras"],
     ["h", "Opening a particular scene"],
     "Add one of these to the address to go straight to a part of the story:",
     ["rows", [
@@ -135,6 +136,11 @@ export const SECTIONS = [
   ] },
 ];
 const LABELS = [...SECTIONS.map((s) => s.tab), "START"];
+// Added to the first section on a touch device (touch.js).
+export const TOUCH_INTRO = [
+  ["h", "Playing by touch"],
+  "Hold the device in landscape. Tap to go on. Swipe down on the picture for the controls (auto, skip, save, the menu), and up for the log. Keep a finger on the picture to fast forward, and tap with two fingers to hide the text. In the menus, tap what you want, drag a list to scroll it, and use the Back button at the bottom right to go back.",
+];
 
 function blockEl(b) {
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
@@ -160,7 +166,11 @@ function blockEl(b) {
 export async function openWelcome(ui) {
   const page = ui.begin("welcome");
   const black = ui.blackout(page, 1);
-  const sheet = await Promise.all([quickBarArt(LABELS.map((label) => ({ label })), PLATE),
+  // A touch device (touch.js): the plates larger, as its control panel has them, in two rows with START last in the second.
+  const T = ui.touch ? TOUCH : null, P = T ? { w: T.bar.w, h: T.bar.h } : PLATE;
+  const spot = (i) => (!T ? [PLATE.x + i * PLATE.pitch, PLATE.y]
+    : [T.bar.x + ((i === LABELS.length - 1 ? 2 * T.bar.cols - 1 : i) % T.bar.cols) * T.bar.pitch, T.welcome.y + (i < T.bar.cols ? 0 : 1) * T.welcome.rowPitch]);
+  const sheet = await Promise.all([quickBarArt(LABELS.map((label) => ({ label })), P),
     ...ART.map((a) => { const i = new Image(); i.src = `/assets/ui/${a}.webp`; return i.decode().catch(() => {}); })]).then(([s]) => s);
   return new Promise((done) => {
     black.remove();
@@ -174,12 +184,14 @@ export async function openWelcome(ui) {
     inner.className = "wl-text";
     list.append(inner);
     page.append(list);
-    ui.scrollBar(page, list, () => list.scrollHeight > list.clientHeight + 1);
+    // (a touch device: the bar in a box that starts under the taller strip of plates, touch.css)
+    const barBox = T ? page.appendChild(Object.assign(document.createElement("div"), { className: "wl-bar" })) : page;
+    ui.scrollBar(barBox, list, () => list.scrollHeight > list.clientHeight + 1);
     ui.helpBar(page, ["Start", "Change page", "Scroll"]);
 
     const bar = document.createElement("div");
-    bar.className = "modepanel";
-    bar.append(sprite("MODEPNL_PARTS_JA", "modepanel_window", 0, 0, 1920, 96));
+    bar.className = T ? "modepanel wl" : "modepanel";
+    if (T) bar.append(...panelBack(T.welcome.height)); else bar.append(sprite("MODEPNL_PARTS_JA", "modepanel_window", 0, 0, 1920, 96));
     page.append(bar);
     page.append(black);   // over all but the bar, which has a level of its own and slides
 
@@ -189,7 +201,8 @@ export async function openWelcome(ui) {
       tab = k;
       const s = SECTIONS[k], head = document.createElement("h2");
       head.textContent = s.head;
-      inner.replaceChildren(head, ...s.blocks.map(blockEl));
+      // (on a touch device the first section also says how it is played: there are no hints to find by resting a pointer)
+      inner.replaceChildren(head, ...(T && k === 0 ? [...s.blocks, ...TOUCH_INTRO] : s.blocks).map(blockEl));
       inner.style.opacity = "0";
       shownAt = 0;
       list.scrollTop = 0;
@@ -211,16 +224,16 @@ export async function openWelcome(ui) {
       const b = document.createElement("button");
       b.className = "qbtn r1";
       b.textContent = label;   // where the art cannot be made
-      b.style.cssText = `left:${PLATE.x + i * PLATE.pitch}px;top:${PLATE.y}px;width:${PLATE.w}px;height:${PLATE.h}px;`;
+      b.style.cssText = `left:${spot(i)[0]}px;top:${spot(i)[1]}px;width:${P.w}px;height:${P.h}px;`;
       const lit = document.createElement("div");
       lit.className = "sp fx-add";
-      lit.style.cssText = `left:0;top:0;width:${PLATE.w}px;height:${PLATE.h}px;opacity:0;`;
+      lit.style.cssText = `left:0;top:0;width:${P.w}px;height:${P.h}px;opacity:0;`;
       b.append(lit);
       b.lit = lit;
       b.st = new ButtonState();
       if (sheet) {
         b.style.backgroundImage = lit.style.backgroundImage = `url("${sheet}")`;
-        lit.style.backgroundPosition = `${-i * PLATE.w}px ${-2 * PLATE.h}px`;
+        lit.style.backgroundPosition = `${-i * P.w}px ${-2 * P.h}px`;
       }
       bar.append(b);
       ui.add(b, () => {
@@ -259,7 +272,7 @@ export async function openWelcome(ui) {
         if (b.row !== row) {
           b.row = row;
           b.className = `qbtn r${row}${sheet ? " art" : ""}`;
-          if (sheet) b.style.backgroundPosition = `${-i * PLATE.w}px ${-row * PLATE.h}px`;
+          if (sheet) b.style.backgroundPosition = `${-i * P.w}px ${-row * P.h}px`;
         }
         b.lit.style.opacity = String(sheet ? b.st.flash : 0);
       });

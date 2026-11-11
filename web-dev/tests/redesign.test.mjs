@@ -133,7 +133,9 @@ test("First visit: the page that takes the click the browser wants before sound,
   store["tsuki.welcomed"] = "1";
   assert.equal(welcomeDue(query("")), false, "once only");
   assert.equal(welcomeDue(query("?welcome")), true, "unless asked for");
-  assert.equal(SECTIONS.length + 1, 9, "eight sections and START, on plates cut a little narrower than the panel's eight");
+  assert.equal(SECTIONS.length + 1, 8, "seven sections and START, on the panel's own eight plates (Extras is part of Testing since 2026-11-10)");
+  assert.ok(SECTIONS.find((s) => s.tab === "TESTING").blocks.some((b) => b[0] === "h" && b[1] === "Extras"));
+  assert.match(source("js/welcome.js"), /const PLATE = \{ w: 220, h: 62, x: 82, pitch: 221, y: 29 \};/);
   for (const s of SECTIONS) { assert.ok(s.tab.length <= 9, s.tab); assert.ok(s.blocks.length > 0, s.tab); }
   const text = source("js/welcome.js"), main = source("js/main.js");
   assert.match(text, /ui\.audio\.start\(\);    \/\/ the click or key the browser wanted/);

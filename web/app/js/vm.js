@@ -246,15 +246,19 @@ export class VM {
   }
 
   async init() {
-    this.index = await (await fetch("/assets/scripts/index.json")).json();
-    this.lines = await (await fetch("/assets/text.json")).json();
-    this.audio.table = await (await fetch("/assets/audio_tables.json")).json();
+    // The tables are asked for together, and read below in their old order: nothing can start before the last of them is in.
+    const asked = Object.fromEntries(["scripts/index", "text", "audio_tables", "images", "effects", "system", "animations", "gallery", "flowchart"]
+      .map((n) => [n, fetch(`/assets/${n}.json`)]));
+    for (const p of Object.values(asked)) p.catch(() => {});   // each is awaited where it is read
+    this.index = await (await asked["scripts/index"]).json();
+    this.lines = await (await asked.text).json();
+    this.audio.table = await (await asked.audio_tables).json();
     this.movies = this.audio.table.movies || {};
-    this.gfx.images = await (await fetch("/assets/images.json")).json();
-    const effects = await fetch("/assets/effects.json");
+    this.gfx.images = await (await asked.images).json();
+    const effects = await asked.effects;
     if (effects.ok) { const e = await effects.json(); this.gfx.effects = e.presets; this.gfx.focusLines = e.focusLines; this.gfx.hazeTable = e.haze || null; }
     else console.warn("Colour effects missing: run web/tools/build_effects.py from the port root");
-    const system = await fetch("/assets/system.json").catch(() => null);
+    const system = await asked.system.catch(() => null);
     if (system?.ok) {
       this.system = await system.json();
       this.audio.seLoops = this.system.seLoops || {};
@@ -286,15 +290,15 @@ export class VM {
         }
       }
     } else console.warn("System tables missing: run web/tools/build_system.py from the port root");
-    const animations = await fetch("/assets/animations.json");
+    const animations = await asked.animations;
     if (animations.ok) this.motions = (await animations.json()).tracks;
     else console.warn("Motion tracks missing: run web/tools/build_animations.py from the port root");
     try { this.globals = JSON.parse(localStorage.getItem("tsuki.globals") || "{}"); } catch { this.globals = {}; }
     this.loadRead();
     await this.loadReadBlocks();
-    const gallery = await fetch("/assets/gallery.json");
+    const gallery = await asked.gallery;
     if (gallery.ok) { this.gallery = await gallery.json(); this.unlocks.install(this.gallery); }
-    const flow = await fetch("/assets/flowchart.json");
+    const flow = await asked.flowchart;
     if (flow.ok) {
       const chart = await flow.json();
       if (chart.version === 2) { this.flowChart = chart; this.flow.install(chart, (i) => this.isRead(i)); }
@@ -386,6 +390,7 @@ export class VM {
     if (!p) {
       p = fetch(`/assets/scripts/${i}.json`).then((r) => r.json());
       this.scripts.set(i, p);
+      p.catch(() => { if (this.scripts.get(i) === p) this.scripts.delete(i); });   // one that failed (read ahead, say) is asked for again when it is wanted
     }
     return p;
   }
@@ -766,9 +771,11 @@ export class VM {
     if (this.waitResolve) { const r = this.waitResolve; this.waitResolve = null; r(); }
   }
 
-  // Fetch what comes next, so that first use does not wait on the conversion.
+  // Fetch what comes next, so that first use does not wait on the conversion. With main.js's look-ahead (preload.js ahead) that is the pictures, the
+  // sounds, the movies and the scripts jumped to; without it (the tests, the smoke test) the next pictures.
   preloadFrom(pc) {
     if (!this.script) return;
+    if (this.ahead) { this.ahead(this.script, pc); return; }
     const ops = this.script.ops;
     let n = 0;
     for (let i = pc; i < ops.length && i < pc + 400 && n < 6; i++) {
@@ -2129,11 +2136,12 @@ export class VM {
   async op_TOMW() {
     if (this.movie) { await this.movie; this.movie = null; }
   }
-  movieFor(n) {
+  // script: the name of the script that plays it (the look-ahead asks about scripts it has not come to).
+  movieFor(n, script = this.script.name) {
     const e = this.movies[n];
     if (!e) { console.warn("no movie for", n); return null; }
     if (typeof e === "string") return e;
-    const route = this.script.name.includes("CIEL") ? "ciel" : "arc";
+    const route = script.includes("CIEL") ? "ciel" : "arc";
     return e[route];
   }
 

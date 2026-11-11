@@ -64,6 +64,16 @@ see [ANIMATIONS.md](web-dev/ANIMATIONS.md) for command coverage and remaining di
 
 The first time the game is opened in a browser, it starts on a page that says what this project is and how it was made. Browsers play no sound until the page has been clicked, so its START button is that click, and the game opens with its sound on. It shows once; `http://localhost:8765/?welcome` opens it again. On later visits sound starts at the first click or key, as browsers require.
 
+## Loading
+
+Nothing waits for the whole game: each file is fetched when it is first used, and the ones that will be needed soonest are fetched before that (`app/js/preload.js`).
+
+- **From the first page on.** While the first page is being read (on later visits, while the logo plays) the game fetches, in this order: what the next screen needs (on a first visit the opening's script, picture and movie; later the logo, the title's art and its movie; the interface sounds and the title's music), then the story's own screen (the text window and its marks, the choices, the questions, the quick bar, the fonts, the first scene's pictures and sounds), then the menus (system menu, log, Save, Load, Config, the speech balloons), then the gallery and flowchart art. At most four of these are read at once, so a file the game asks for itself never queues behind them.
+- **As the story runs.** At every message the script is read ahead: the pictures, sound effects, music and voices of the next 300 commands (about a dozen messages), and from 2,500 commands away the movies and the scripts it can jump to, which are read on from where they start. Voices are left out while skipping or switched off.
+- **Movies.** A movie that is coming is given a player of its own, which starts reading the file as a browser reads any movie. When the movie plays, that player takes the place of the page's, so it starts at once from what has been read. Two are kept ready at most. The title's movie is made ready again whenever the title is about to come back (a story's end, Return to Title, the gallery).
+
+What has not arrived when it is wanted is fetched then, as before.
+
 ## Opening a particular scene
 
 Add these to the address:
@@ -130,7 +140,7 @@ plays it; the screens around it keep the game's art and are driven by one rule:
 | Return to previous scene, jump to next scene | P, N |
 | Quick bar by keys | Up (then Left / Right, Enter; Esc closes) |
 | System menu | Esc |
-| Full screen | F (Esc still opens the menu there, where the browser allows it; hold it to leave) |
+| Full screen | F leaves it and enters it. The game goes full screen by itself at any click or tap, until F (or the quick bar's FULL) has taken it out; F again puts it back. Esc still opens the menu there, where the browser allows it |
 | Save, Load, Config | none until you give them one |
 
 In every menu: the arrows move, Enter or Space chooses, Esc or Backspace goes back, Tab changes the config's page
@@ -146,7 +156,7 @@ newest. The wheel, the scroll bar and Page Up / Page Down scroll it, and scrolli
 on a line (or Up / Down and Enter) asks "Quick Jump?" (starting on No) and goes back to that line; a line with a voice
 has a speaker mark at its left, and a click on it (or V on the cursor's line) plays the voice again.
 
-In the config a click on a slider's bar puts the knob there, and it can be dragged; minus and plus step 1 (50 for the
+The config's System page has its words at one size, 28 px, on every device: the translated art had the rows' names, the choices, the toggles and the samples at five different sizes, so the three pictures that carry them are drawn again as the game starts (`app/js/confart.js`). In the config a click on a slider's bar puts the knob there, and it can be dragged; minus and plus step 1 (50 for the
 auto mode waits) and repeat when held; holding Enter on a slider, Left / Right step it; the wheel or a drag scrolls
 the page. In the CG viewer a click or Left / Right change the picture, Enter toggles fill and fit, Up / Down, + / - or
 the wheel zoom, dragging moves the picture and Home resets it. In the Music Player a click on the position bar moves
@@ -163,6 +173,38 @@ one-second fade, without the 0.35 s stop the game makes after it.
 A controller still works as a second way to play: A advance and choose, B cancel or stop skipping, Y system menu,
 X log, up the quick bar, down advance, R skip, L auto (the config's page after / before in the menus), ZR fast forward
 while held, ZL rewind. The right stick moves the cursor in the menus as the D-pad does and the left stick scrolls.
+
+## Playing on a phone or a tablet
+
+On a device played by touch the same game has a touch interface. It is used when the browser reports that the first pointer is a finger that cannot hover (`(hover: none) and (pointer: coarse)`): phones and tablets. A laptop with a touch screen, a narrow desktop window and a tablet with a mouse attached keep the mouse and keyboard interface, which is unchanged. Add `?touch=1` to the address to force the touch interface, or `?touch=0` to force the other. It is decided once, as the page loads.
+
+**Landscape only.** Held upright, the game shows a screen asking for the device to be turned, and everything is held under it (the story's clocks, sound, movies, the screens' own motion) until it is. The picture is the same 1920 x 1080 stage, fitted inside the screen's safe area: on a phone wider than 16:9 it stands in the middle with black beside it, clear of a notch and of the home bar. As on a desktop, any tap takes the game to the full screen until the control panel's FULL plate has taken it out; where the browser lets a page do so, landscape is locked there. The page itself does not scroll, zoom or select: pull to refresh, double-tap and pinch zoom and the long-press menu are off. Sound starts at the first touch.
+
+**The story.**
+
+| | |
+|---|---|
+| Advance text | Tap |
+| Control panel | Swipe down on the picture, or tap its top edge |
+| Log | Swipe up |
+| Fast forward while held | Keep a finger on the picture (everything, or only read text when Fast forward is "Read") |
+| Hide text | Tap with two fingers (any tap shows it again) |
+| Pass a movie | Tap (it asks first where a click does) |
+
+The control panel is the quick bar at a finger's size: the same fifteen buttons, the game's own plates at one and a half times their size in three rows of five, each with its name under it. A tap on a plate does it and sends the panel up; a tap anywhere else, or a swipe up, only sends it up. The first time a story starts, a band across the top names the gestures until the panel has been pulled down once.
+
+A choice takes two taps, as the game's own touch screen did: the first lights the row, a tap on the lit row takes it. The rows are the story's own, close together on a phone, and a choice is not lightly undone. Yes / No questions are drawn larger and answer at one tap.
+
+**The menus.** Whatever is pressed lights up, and its tap chooses it. Lists move under the finger. Back is the game's own touch Back button, which slides in at the bottom right of every screen that has a way back (on a question it is No). There is no hint bar along the bottom on a touch device.
+
+- **Title.** The logo is smaller and the rows twice their size under it.
+- **System menu, Save, Load.** The column's rows stand further apart. Save rows are a finger's size as they are.
+- **Config.** Drawn larger across the whole width, without the column (Back returns to it). A slider follows a finger that moves along it, and a tap on its bar puts the knob there; a finger that moves up or down scrolls the page instead, wherever it started. Minus and plus step at a tap and repeat when held. The Controls page lists these gestures in place of the keys.
+- **Log.** Tap a line for Quick Jump, the speaker mark at its left to hear its voice again. Pulling on up past the newest line closes it.
+- **Gallery.** In the CG viewer a tap or a swipe to the left goes to the next picture and a swipe to the right to the one before; two fingers zoom, up to four times the fitted size, and one moves a picture that has been made larger. The viewer's Back button leaves two seconds after the last touch and returns at the next. The Music Player's rows, titles and buttons are larger. In the flowchart a tap on a scene shows it at the right, and a tap on the scene shown opens it.
+- **First page.** Its eight plates stand in two rows and its text is larger, with a paragraph on playing by touch.
+
+All of it is made from the game's own interface art: the Back button, the panel's plates and strip, the notice window and the auto mode's ring on the rotate screen, the speaker mark in the log. Story playback is the same on every device. Not tried on a real phone yet: it was built and checked in Chrome's touch emulation at 667 x 375, 844 x 390, 932 x 430 and 1024 x 768. Safari on an iPhone or iPad has the limits given at the top (AV1 video).
 
 ## Skipping and rewinding
 
@@ -219,7 +261,10 @@ notice, and New Game goes straight to the story.
 - `tools/build_ui.py`: the game's interface art (and the film grain static; `build_ui.py "$PWD" NOISE_PARTS` adds just that; `PARTS`, the start-up notice and cautions from `parts.hed`, likewise)
 - `app/js/ui.js`: the game's screens, drawn with that art
 - `app/js/welcome.js`: the first visit's page and its text
+- `app/js/preload.js`: what is fetched before it is asked for: the start-up list and the script look-ahead (see Loading)
+- `app/js/confart.js`: the config's System page with its words at one size
 - `app/js/keys.js`: the keyboard map, shown and changed on the config's Controls page
+- `app/js/touch.js`, `app/touch.css`: the touch interface for phones and tablets: which devices get it, the stage in the safe area, the story's gestures, the Back button, the rotate screen (see Playing on a phone or a tablet)
 - `app/js/chapters.js`: the chapters' days and names, as text
 - `app/js/touchfx.js`: the ring drawn where the screen is clicked
 - `app/js/reflow.js`: takes out the English patch's forced line breaks, so the text box wraps the lines itself

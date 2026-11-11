@@ -1,0 +1,109 @@
+/* touch.css - a phone or a tablet, played by touch in landscape (js/touch.js sets html.touch; nothing here applies without it).
+   The measures are js/touch.js TOUCH's, in the stage's 1920 x 1080 pixels. */
+
+/* its paddings are the safe area's insets, read by touch.js to fit the stage beside a notch and above the home bar */
+#touch-safe { position: fixed; left: 0; top: 0; width: 0; height: 0; visibility: hidden; pointer-events: none;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
+#rotate, #touch-back, #touch-hint { display: none; }
+
+/* The page stands still: no pull to refresh, no double-tap or pinch zoom, no selection, no long-press sheet, no tap highlight.
+   The lists that scroll by themselves take a finger's vertical drag. */
+html.touch, html.touch body { position: fixed; inset: 0; width: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; touch-action: none;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+html.touch #stage, html.touch #stage * { -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
+html.touch #stage { touch-action: none; }
+html.touch .slotlist, html.touch .logscroll { touch-action: pan-y; }
+/* No hint bar along the bottom on a touch device (the user's request, 2026-11-10): there are no keys to name, and Back has its button.
+   The log, which ended at the bar, runs to the bottom. */
+html.touch .helpbar, html.touch .fc-help { display: none; }
+html.touch .logscroll { height: 1080px; }
+html.touch #stage img { -webkit-user-drag: none; }
+
+/* ---- portrait: the rotate screen (touch.js), laid out 900 x 1300 and scaled to the window ---------------------------- */
+html.touch.turn #rotate { display: block; position: fixed; inset: 0; z-index: 1000; overflow: hidden; background: #02060f url("/assets/ui/DISP_PARTS_JA/menuBG01_upscale.webp") center / cover no-repeat; }
+html.touch.turn #stage { visibility: hidden; }
+.rt-box { position: absolute; left: 50%; top: 50%; width: 900px; height: 1300px; transform-origin: 50% 50%; }
+.rt-logo { position: absolute; left: 240px; top: 70px; width: 420px; height: 486px; background: url("/assets/ui/TITLE_PARTS_JA/title_titlelog.webp") 0 0 / 100% 100% no-repeat; }
+.rt-win { position: absolute; left: 38px; top: 640px; width: 824px; height: 416px; background: url("/assets/ui/DIALOG_PARTS_JA/dialog_win.webp") 0 0 no-repeat; }
+.rt-q { position: absolute; left: 0; top: 84px; width: 824px; text-align: center; font: 500 46px/64px Georgia, serif; color: #fff; }
+.rt-sub { position: absolute; left: 0; top: 156px; width: 824px; text-align: center; font: 400 30px/44px Georgia, serif; color: #bfeeff; }
+/* the auto mode's ring (mode_ring_1), turning as it does over the story */
+.rt-ring { position: absolute; left: 356px; top: 226px; width: 112px; height: 112px; background: url("/assets/ui/DISP_PARTS_JA/mode_ring_1.webp") 0 0 / 100% 100% no-repeat; animation: spin 2s linear infinite; }
+
+/* ---- the Back button (native 0x4a410): over the windows, under the touch ring; touch.js slides it ------------------- */
+html.touch #touch-back { display: block; position: absolute; z-index: 40; padding: 0; border: 0; background-color: transparent; background-repeat: no-repeat; outline: none; visibility: hidden; transform: translateX(280px); }
+
+/* ---- the hint over a story's first screen: the caption's band (mode_help), the story's face -------------------------- */
+html.touch #touch-hint { position: absolute; left: 240px; top: 20px; width: 1440px; height: 64px; opacity: 0; pointer-events: none; z-index: 4; }
+.th-band { position: absolute; inset: 0; background: url("/assets/ui/DISP_PARTS_JA/mode_help.webp") 0 0 / 100% 100% no-repeat; opacity: .7; }
+.th-text { position: absolute; inset: 0; text-align: center; white-space: nowrap; color: #fff; font: 28px/62px var(--story-font); }
+
+/* ---- the control panel: the quick bar at a finger's size (ui.js buildPanel) ----------------------------------------
+   The mode panel's strip, its lower edge kept under the rest stretched (.tp-a, .tp-b), coming down as the bar does. The
+   plates are the game's, uncut, drawn at 1.5; a press counts all the way to the next plate and down over the name. */
+html.touch .modepanel.tp { height: 486px; transform: translateY(-494px); }
+html.touch .modepanel.tp.on { transform: none; }
+.tp-a, .tp-b { position: absolute; left: 0; width: 1920px; pointer-events: none; background: url("/assets/ui/MODEPNL_PARTS_JA/modepanel_window.webp") no-repeat; }
+.modepanel.tp .qbtn, .modepanel.wl .qbtn { transform: scale(1.5); transform-origin: 0 0; overflow: visible; }
+.modepanel.tp .qbtn::before { content: ""; position: absolute; left: -14px; right: -14px; top: -10px; bottom: -28px; }
+.modepanel.wl .qbtn::before { content: ""; position: absolute; left: -14px; right: -14px; top: -7px; bottom: -8px; }
+.qname { position: absolute; left: -14px; right: -14px; top: 65px; text-align: center; white-space: nowrap; text-transform: none; letter-spacing: .3px; pointer-events: none;
+  font: 400 17px/22px var(--story-font); color: #e8f1fb; text-shadow: 0 1px 3px rgba(0, 0, 0, .85); }
+.qbtn.r0 .qname { color: rgba(232, 241, 251, .38); }
+
+/* ---- Yes / No and notices: the window at 1.5 about the stage's centre; the system's buttons take a press above and below */
+html.touch #sysui .dialog { transform: scale(1.5); transform-origin: 960px 540px; }
+html.touch #sysui .dialog:not(.story) .spbtn::before { content: ""; position: absolute; left: -4px; right: -4px; top: -22px; bottom: -22px; }
+
+/* ---- the title: the logo smaller and higher, the rows at twice their size under it (ui.js titleMenu) ------------------ */
+html.touch .tbox { position: absolute; inset: 0; pointer-events: none; }
+html.touch .tbox .title-btn { pointer-events: auto; }
+html.touch .t-logo { transform-origin: 960px 72px; transform: translateY(-48px) scale(.7); }
+html.touch .t-rows { transform-origin: 960px 720px; transform: translateY(-222px) scale(2); }
+/* (the light is added over the page itself: the same change about the same point, from its own corner at (720, 552)) */
+html.touch .t-lumi { transform-origin: 240px -480px; transform: translateY(-48px) scale(.7); }
+/* (the maker's line to the bottom left: the rows now stand where it was, and the title's movie has its own mark at the right) */
+html.touch .t-copy { transform: translate(-790px, 10px); }
+
+/* ---- the system menu's column: rows further apart (ui.js column), each taking a press up to the next ------------------ */
+html.touch .menucol::before { content: ""; position: absolute; left: -24px; right: -10px; top: -21px; bottom: -21px; }
+
+/* ---- the config: no column, the screen at 1.27 about (1763, 96) so it takes the width; the page's window ends where it
+   did, so it is shorter in the page's own pixels; the scroll bar keeps its height. Small widgets take a press around them. */
+html.touch .colbox.conf { display: none; }
+html.touch .conffg { transform-origin: 1763px 96px; transform: scale(1.27); }
+html.touch .confscroll { height: 706px; }
+html.touch .conf-bar { position: absolute; inset: 0; pointer-events: none; transform-origin: 0 96px; transform: scaleY(.7874); }
+html.touch .conf-bar > .scrollstrip { pointer-events: auto; }
+html.touch .confbtn::before, html.touch .conftrack::before { content: ""; position: absolute; left: -12px; right: -12px; top: -14px; bottom: -14px; }
+.touchnote { position: absolute; font: 22px var(--gallery-font), system-ui, sans-serif; letter-spacing: .4px; color: rgba(255, 255, 255, .85); white-space: nowrap; pointer-events: none; }
+
+/* ---- the log: a line's voice mark is the game's own speaker (voice_icon), lit while pressed --------------------------- */
+html.touch .logvoice { width: 84px; height: 80px; margin: -2px 0 0 -104px; border: 0; border-radius: 0; opacity: 1; background: url("/assets/ui/DISP_PARTS_JA/voice_icon.webp") 0 0 no-repeat; }
+html.touch .logvoice:hover { border: 0; box-shadow: none; }
+html.touch .logvoice:active { background-position: -84px 0; }
+html.touch .logvoice::before { content: ""; position: absolute; left: -34px; right: -14px; top: 0; bottom: 0; }
+/* (a line takes a tap over its whole row's height, not only where its letters are) */
+html.touch .logrec.jump { padding: 14px 0; }
+
+/* ---- the gallery: the Music Player's bars take a press above and below ---------------------------------------------- */
+/* the Music Player's titles larger in their wider rows */
+html.touch .gl-track { font-size: 40px; letter-spacing: 2px; overflow: hidden; }
+html.touch .gl-control, html.touch .gl-control-flash { transform: scale(1.25); transform-origin: 0 0; }
+html.touch .gl-slider::before { content: ""; position: absolute; left: 0; right: 0; top: -26px; bottom: -26px; }
+
+/* ---- the first-visit page: the plates in two rows (welcome.js), the reading column under them, larger letters ---------- */
+html.touch .modepanel.wl { height: 262px; transform: translateY(-270px); }
+html.touch .modepanel.wl.on { transform: none; }
+html.touch .wl-scroll { top: 262px; height: 818px; }
+html.touch .wl-bar { position: absolute; inset: 0; pointer-events: none; transform-origin: 0 993px; transform: scaleY(.81); }
+html.touch .wl-bar > .scrollstrip { pointer-events: auto; }
+html.touch .wl-text { padding: 30px 110px 150px; font-size: 40px; line-height: 60px; }
+html.touch .wl-text p { margin-bottom: 30px; }
+html.touch .wl-text h2 { font-size: 64px; line-height: 78px; }
+html.touch .wl-text h3 { font-size: 46px; line-height: 58px; }
+html.touch .wl-text .wl-note { font-size: 34px; line-height: 46px; }
+html.touch .wl-num { font-size: 56px; line-height: 62px; }
+html.touch .wl-what { font-size: 30px; line-height: 40px; }
+html.touch .wl-name { font-size: 38px; line-height: 48px; }
+html.touch .wl-rows { grid-template-columns: 560px 1fr; }
