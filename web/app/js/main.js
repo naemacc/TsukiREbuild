@@ -153,8 +153,12 @@ function stopPaintingMovie(v) {
   if (moviePic) moviePic.style.display = "none";
   v.style.opacity = "";
 }
+// Not in Firefox on Android: there a movie's frames, decoded by the device, come out black when drawn to a canvas (only the sound was left, 2026-11-10),
+// and the flashes this was made for were a Mac's. The element is drawn as it is.
+const paintsNothing = /Android/i.test(navigator.userAgent || "");
 function paintMovie(v) {
   stopPaintingMovie(v);   // nothing of the last movie
+  if (paintsNothing) return;
   if (!moviePic) {
     moviePic = document.createElement("canvas");
     moviePic.id = "movie-pic";

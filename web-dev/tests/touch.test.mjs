@@ -778,6 +778,11 @@ test("the game goes full screen at any click or tap, on every device, until the 
   assert.doesNotMatch(source("js/touch.js"), /panelWas = !!touch\.ui\?\.panelOpen;\n\s+fullscreen\(\);/, "one place asks: main.js");
 });
 
+test("Firefox on Android draws a movie's own element: painted to a canvas its frames were black", () => {
+  const main = source("js/main.js");
+  assert.match(main, /const paintsNothing = \/Android\/i\.test\(navigator\.userAgent \|\| ""\);\nfunction paintMovie\(v\) \{\n  stopPaintingMovie\(v\);   \/\/ nothing of the last movie\n  if \(paintsNothing\) return;/);
+});
+
 test("the first-visit page on a touch device: the eight plates in two full rows of four with START last, and how to play by touch", async () => {
   const { SECTIONS, TOUCH_INTRO } = await import("../../web/app/js/welcome.js");
   const w = source("js/welcome.js"), B = TOUCH.bar, W = TOUCH.welcome;
