@@ -1289,12 +1289,8 @@ save data"): what the file is, and two of the panel's plates, EXPORT SAVES and I
 finger's size on a touch device). By touch the five tab plates are three over two, ABOUT, GITHUB, DOWNLOAD over SAVE DATA, PLAY ONLINE, each row
 centred, on the game's stage and on the upright one (the user: "on touch put 3 tabs on top and the 2 play online and save data in second line";
 `touch.js` TOUCH.home / homeUpright). The page names the format ("the Nintendo Switch game's own save format"), lists what the browser holds now
-(`savefile.js` loadedData: scenes, pictures and music as the game's own screens count them, the saves made here, the file kept from the last
-import and its slots), and has a third plate, REMOVE DATA: after the same Yes / No question it takes the saves and progress out of the browser
-(`removeSaves`) and the kept file with them, and loads the page again; the settings, volumes and key bindings stay (the user: "show the data
-that's loaded on that page and an option to remove it"). The file is the original game's own `savedata000` (the user, 2026-11-12: "i should be able to
-import files like this and export should be compatible too"). `app/js/gamesave.js` reads and writes it; `app/js/savefile.js` is the
-browser's side.
+(`savefile.js` loadedData: scenes, pictures and music as the game's own screens count them, the saves made here, whether a file is loaded), and
+has a third plate, REMOVE DATA.
 
 **The file** (0xa8e30: one buffer of 0x3e7000 bytes): the system data, 0x1740 bytes at 0, then 140 records of 0x7140 bytes at
 0x1800 + 0x7200 n (0xb6710 / 0xb67a0; 0-99 the list, 100-138 automatic, 139 quick). The system data as 0x4ec60 writes it and 0x4ea30
@@ -1305,25 +1301,31 @@ rows taken of each choice at +0x1624, 0x118 bytes (0x83e50), which the port has 
 count at +4, the 0x3aa8 snapshot at +8, the first 0x3688 bytes of a history record at +0x3ab0, the date at +0x7138 (year, month, day,
 hour, minute, second). The game's first config (0x46b080) read through the map gives exactly the port's own defaults.
 
-- **Import** replaces the settings, volumes, globals, flowchart, gallery and read marks with the file's, asking first in the game's
-  Yes / No window where the game has been played, and keeps the file itself in the browser's database. Then the page loads again
-  (everything was read from storage when it loaded) and comes back on SAVE DATA, where the list shows what was loaded. `main.js`'s pagehide does
-  not write the page's own read marks and gallery over it (`savesReplaced`).
-- **Export** writes the system data from the port's state over the file last imported, so what the port has no copy of (the choices
+- **Import** loads the file's settings, volumes, globals, flowchart, gallery and read marks over the browser's own, which are put aside
+  first (`tsuki.own`: each name's stored value), and keeps the file itself in the browser's database. It asks nothing, since nothing is
+  lost. Then the page loads again (everything was read from storage when it loaded) and comes back on SAVE DATA, where the list shows
+  what is loaded. `main.js`'s pagehide does not write the page's own read marks and gallery over it (`savesReplaced`). A second file
+  over the first leaves what is aside alone.
+- **Remove** (the user, 2026-11-12: "Remove data should just remove the external file that got loaded and then your own save should
+  work") takes the imported file out: after a question in the game's Yes / No window, starting on No, the names an import wrote go back
+  to what was put aside, the kept file is dropped, and the page loads again. With no file loaded it does nothing and says so. The saves
+  made in the port are never touched by either.
+- **Export** writes the system data from the port's state, with a file loaded over that file, so what the port has no copy of (the choices
   taken, config fields with no setting, the records) comes out as it went in, and no progress the file had is taken away (as the
   game's own merge, 0x4ea30). With no file imported before it starts from the game's first config and empty records.
 - **Global variables are their numbers**: `G70`, as one script spells it (13_01_02_CIEL13_7B), is `G070` (`vm.js` globalKey). The two
   were different variables in the port before.
-- **Not done (TODO item 161): the records.** They are not read into the port's saves nor written from them. A record is the engine's
-  state at a checkpoint: the script's byte position (+8 / +0x10 of the snapshot), the two 0x19b8-byte layer state blocks (+0x50,
-  +0x1a08), the sound slots, the story variables (the lists 0x5baf0 gives back), the page's text. Reading one needs each of those
-  mapped to the port's own save, and writing one the reverse, exact enough for the game's restore (0x5baf0). The Android and desktop
-  apps have no opening page, so no Export or Import there yet.
+- **The records are left alone** (the user, 2026-11-12: "no need for save slot"). The file's 140 records are neither read into the
+  port's saves nor written from them; with a file loaded they go out again untouched. A record is the engine's state at a checkpoint
+  (the script's byte position, two 0x19b8-byte layer state blocks, the sound slots, the story variables), which would have to be mapped
+  both ways to the port's own save. The Android and desktop apps have no opening page, so no Export or Import there.
 
 Checked with the 100% save the user gave (`~/Downloads/savedata000`, the reference save's SHA-256): read, it has 556 scenes started,
 553 completed, 630 lines (as `decode_save.py`), 2,716 pictures, 116 music numbers, both movies; in Chrome (Playwright) imported into an
 empty browser the gallery lists all 458 entries, 1,977 pictures and 95 of 95 songs, and the Export made after it is the same file, byte
-for byte. Tests: `tests/savefile.test.mjs` (15; the one that reads the real save runs where the game's data is).
+for byte. Over a browser with progress of its own (2 scenes, text speed 50, one save) the file loaded shows 495 of 495 scenes and its own text
+speed; removed, the browser's flowchart, globals and settings are the strings they were, and the save is still there. Tests:
+`tests/savefile.test.mjs` (13; the one that reads the real save runs where the game's data is).
 
 Also removed that day, at the user's word: the flowchart's Unlock All (one unpushed commit, kept on the local branch
 `shelved/unlock-all`) and the Japanese language option (never committed; set aside in the working folder's `web-dev/shelved/`). A

@@ -89,13 +89,6 @@ export function isGameSave(bytes) {
   return bytes instanceof Uint8Array && bytes.length === GAME.size && u16(bytes, 0) === GAME.hasSystem;
 }
 
-// The records in use, by number (0-99 the list's slots, 100-138 automatic, 139 the quick save).
-export function usedRecords(bytes) {
-  const out = [];
-  for (let n = 0; n < GAME.slots; n++) if (u16(bytes, GAME.records + n * GAME.stride) === GAME.used) out.push(n);
-  return out;
-}
-
 // The system data of a save, as the port keeps each part.
 //   globals    { G005: 63, ... }: every global that is not zero, but for the flowchart's words
 //   flow       { started, completed, secondary }: scene and line numbers (flowchart-model.js "tsuki.flow.v2")

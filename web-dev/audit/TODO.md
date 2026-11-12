@@ -8,11 +8,11 @@ Regenerated on 2026-11-10: every item still open, in the order to do them. Finis
 |---|---:|
 | 1. Story: differences a player can meet | 5 |
 | 2. Story: checks that could find more | 7 |
-| 3. The web app | 2 |
+| 3. The web app | 1 |
 | 4. Story: exactness while skipping, in the stored files, or in rare cases | 9 |
 | 5. Mouse and keyboard: leftovers | 6 |
 | 6. The game's look, screen by screen | 45 |
-| **Total** | **74** |
+| **Total** | **73** |
 
 **How it's ranked.** The story comes first, as it has since the redesign: what is drawn and heard on the story screen,
 which scene plays, what a save resumes and what unlocks. Inside a group, what a player meets most often comes first,
@@ -78,12 +78,6 @@ checked in the code (marked *code*); the others can lag it, so re-read the code 
   WebGL2, AVIF and Ogg Opus. Also pointer events and the keyboard lock in full screen, a real controller since the change
   to actions (was 154), and a real mouse wheel in the log: the fix of 2026-11-10 relies on the browser's scroll anchoring
   and was tried with simulated wheel events (a browser without anchoring takes the older code path).
-- [ ] **161. Save records to and from the game's save file.** Import and Export on the opening page (2026-11-12, `app/js/gamesave.js`) carry the
-  settings and all progress of a `savedata000`, but not its 140 records: they are kept and written back untouched, not listed in the port, and the
-  port's own saves are not written into the file. A record's snapshot (0x3aa8 bytes, read by 0x5baf0) has to be mapped both ways to the port's save:
-  the script's byte position to the port's command number (needs the positions kept when the scripts are converted), the two layer state blocks
-  (0x19b8 bytes each: about 80 arrays of 40), the sound slots, the story variables, the page's text. The 13 records of the reference save and
-  records made in the native sandbox are the check: a record written from the port's state at the same point should equal the game's bytes.
 
 ## 4. Story: exactness while skipping, in the stored files, or in rare cases
 
