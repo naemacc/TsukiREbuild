@@ -60,6 +60,7 @@ html.touch #sysui .dialog:not(.story) .spbtn::before { content: ""; position: ab
    stretched over the stage's whole height. Without this the window lay off the right edge, its Yes out of reach. */
 html.touch.upright #sysui .dialog { inset: auto; left: 50%; top: 50%; width: 1920px; height: 1080px; margin: -540px 0 0 -960px; transform: scale(1.2); transform-origin: 960px 540px; }
 html.touch.upright #sysui .dialog > .sp:first-child { transform: scaleY(2.6); }
+html.touch.upright #sysui .dialog::before { content: ""; position: absolute; inset: -1600px 0; }   /* (and nothing under it can be tapped: the plates above the window) */
 
 /* ---- the title: the logo smaller and higher, the rows at twice their size under it (ui.js titleMenu) ------------------ */
 html.touch .tbox { position: absolute; inset: 0; pointer-events: none; }

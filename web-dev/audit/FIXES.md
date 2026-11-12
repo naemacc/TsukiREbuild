@@ -1358,3 +1358,9 @@ touch, so it lay off the right edge with Yes out of reach; REMOVE DATA's questio
 layout in the upright stage's middle at 1.2 (824 -> 989 of the 1080) and stretches its backdrop over the stage's height. In Chrome at
 390 x 844, 360 x 880, 320 x 568 and 768 x 1024 the window and both buttons are inside the screen and centred, and a tap on No closes it;
 landscape is as it was.
+
+**The tabs followed the question's cursor** (the user: "moving cursor around on dialog box is moving it on the top tabs too"). The Yes /
+No window has items of its own, No 0 and Yes 1, and the opening page lit its plates by the same cursor number, so ABOUT lit with No and
+GITHUB with Yes. The page now lights a plate only while its own items are the current ones (`home.js` cursor). Held upright the window
+also covers the plates above it, so they cannot be tapped while it is up. In Chrome: moving between No and Yes by pointer and by arrows
+leaves the strip as it was; after No the page's own cursor lights its plates again.

@@ -289,6 +289,11 @@ test("the opening page's SAVE DATA tab: the Nintendo format named, what is loade
   assert.match(home, /SAVE_PLATES\.forEach\(\(s, i\) => row\.append\(savePlate\(s, i\)\)\);\n\s*row\.append\(savePlate\(FULL_PLATE, 0, fullSheet, P\.w \+ FULL_PLATE\.wider\)\);/, "in the row, after REMOVE DATA");
   assert.match(home, /ui\.dialog\(SAVE_TEXT\.askFull, \(back\) => \{[\s\S]{0,260}load\(sys, bytes, \{ label: SAVE_TEXT\.full, keepSettings: true, note: SAVE_TEXT\.fullLoaded \}\);\n\s*\}, \(back\) => \{ back\(\); ui\.sel = NONE; \}, \{ startNo: true, three: true \}\);/,
     "it warns and asks in the game's window, starting on No, and loads the progress alone");
+  // while a question is up the cursor is on its Yes / No, not on the page's plates: they are lit only by the page's own cursor
+  assert.match(home, /const own = ui\.items, cursor = \(\) => \(ui\.items === own \? ui\.sel : NONE\);/);
+  assert.match(home, /const on = i === cursor\(\);\n\s*b\.st\.step\(dt, on\);\n\s*const row = b\.st\.state === 4 \|\| i === tab \? 3 : on \? 2 : 1;/);
+  assert.doesNotMatch(home, /i === ui\.sel/);
+  assert.match(source("touch.css"), /html\.touch\.upright #sysui \.dialog::before \{ content: ""; position: absolute; inset: -1600px 0; \}/, "held upright, nothing under the window can be tapped");
   for (const part of ["savesBlock", "dataBlock"]) {
     assert.match(home, new RegExp(`const ${part} = \\(\\) => \\{`), `${part} is there`);
     assert.match(home, new RegExp(`return ${part}\\(\\);`), `${part} is drawn`);

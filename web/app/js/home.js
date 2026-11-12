@@ -425,6 +425,9 @@ export async function openHome(ui, { started = null } = {}) {
     });
     show(NONE);
     ui.sel = NONE;      // no plate lit: the keys' cursor comes in with the first arrow, Tab or pointer
+    // The plates are this page's items. A question over the page (the Yes / No window) has items of its own, and while it is up the cursor is
+    // on those: its number says nothing about the plates then (it lit ABOUT for No and GITHUB for Yes).
+    const own = ui.items, cursor = () => (ui.items === own ? ui.sel : NONE);
     // (after an import the page comes back on SAVE DATA, saying what was loaded)
     try {
       const note = sessionStorage.getItem(NOTE);
@@ -456,8 +459,9 @@ export async function openHome(ui, { started = null } = {}) {
 
     ui.animate((dt) => {
       plates.forEach((b, i) => {
-        b.st.step(dt, i === ui.sel);
-        const row = b.st.state === 4 || i === tab ? 3 : i === ui.sel ? 2 : 1;
+        const on = i === cursor();
+        b.st.step(dt, on);
+        const row = b.st.state === 4 || i === tab ? 3 : on ? 2 : 1;
         if (b.row !== row) {
           b.row = row;
           b.className = `qbtn r${row}${sheet ? " art" : ""}`;
