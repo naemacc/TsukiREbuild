@@ -26,12 +26,17 @@ export const KEYS = {
 // the note the opening page leaves itself across the reload after an import (session storage).
 export const LOCAL = ["tsuki.keys", "tsuki.voiceSamples", "tsuki.welcomed", "tsuki.touch.hint"];
 export const NOTE = "tsuki.home.loaded";
-// The browser's own settings and progress while an imported file is loaded: { name: the stored value, or null where there was none }.
+// The browser's own settings and progress while an imported file (or the 100% save) is loaded: { name: the stored value, or null where there was
+// none }, and under "label" what is loaded, for the page to say.
 export const OWN = "tsuki.own";
 // What an import writes, and so what is put aside and put back.
 export const IMPORTED = ["tsuki.settings", "tsuki.volumes", "tsuki.globals", "tsuki.flow.v2", "tsuki.unlocks.v1", "tsuki.readBlocks", "tsuki.read"];
 // Is an imported file loaded?
 export function hasImported(storage = globalThis.localStorage) { try { return !!storage.getItem(OWN); } catch { return false; } }
+// What is loaded, as the import named it ("savedata000", "The 100% save"), or null with nothing loaded.
+export function importedLabel(storage = globalThis.localStorage) {
+  try { const own = JSON.parse(storage.getItem(OWN) ?? "null"); return own ? own.label || FILE_NAME : null; } catch { return null; }
+}
 
 let replaced = false;
 // True once an import has been written: the page is about to load again, and nothing it still holds in memory may be saved over the file (main.js's
@@ -81,13 +86,17 @@ export function readSaves(bytes) {
 
 // The file's parts over the browser's own, which are put aside first unless a file is loaded already (then they are aside, and the earlier file's
 // parts are what is replaced). If the browser will not take them (no room, storage refused) everything is put back as it was and the error thrown.
-export function importSaves(sys, storage = globalThis.localStorage) {
+//   label:        what is being loaded, kept for the page to say
+//   keepSettings: the progress alone; the settings and volumes stay the browser's (the 100% save: it is somebody else's game, not their config)
+export function importSaves(sys, storage = globalThis.localStorage, { label = FILE_NAME, keepSettings = false } = {}) {
   const before = Object.fromEntries(IMPORTED.map((k) => [k, storage.getItem(k)])), aside = storage.getItem(OWN);
   const put = (k, v) => { if (v === null || v === undefined) storage.removeItem(k); else storage.setItem(k, v); };
   try {
-    if (!aside) put(OWN, JSON.stringify(before));
-    put("tsuki.settings", JSON.stringify({ ...json(storage, "tsuki.settings", {}), ...sys.settings }));
-    put("tsuki.volumes", JSON.stringify({ ...json(storage, "tsuki.volumes", {}), ...sys.volumes }));
+    put(OWN, JSON.stringify({ ...(aside ? JSON.parse(aside) : before), label }));
+    if (!keepSettings) {
+      put("tsuki.settings", JSON.stringify({ ...json(storage, "tsuki.settings", {}), ...sys.settings }));
+      put("tsuki.volumes", JSON.stringify({ ...json(storage, "tsuki.volumes", {}), ...sys.volumes }));
+    }
     put("tsuki.globals", JSON.stringify(sys.globals));
     // (migrated, endingsInferred: the file's bits are the game's own, so nothing is to be worked out from older read history)
     put("tsuki.flow.v2", JSON.stringify({ ...sys.flow, migrated: true, endingsInferred: true }));
@@ -140,7 +149,7 @@ export function loadedData(storage = globalThis.localStorage, { chart = null, ga
   const total = kinds.reduce((n, k) => n + k[0], 0);
   if (kinds.length === 1) facts.push([String(total), `${kinds[0][2]}${total === 1 ? "" : "s"} made here`]);
   else facts.push([String(total), kinds.length ? `saves made here: ${kinds.map(([n, how]) => `${n} ${how}`).join(", ")}` : "saves made here"]);
-  return { facts, file: loaded ? `${FILE_NAME} is loaded: these are its own. Your own are put aside until it is removed.` : null };
+  return { facts, file: loaded ? `${importedLabel(storage)} is loaded: these are its own. Your own are put aside until it is removed.` : null };
 }
 
 // ---- the file last imported, kept whole (4 MB: more than local storage has room for) ---------------------------------------------------------

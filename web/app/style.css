@@ -197,6 +197,7 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 .dialog-q { position: absolute; left: 548px; top: 437px; width: 824px; text-align: center; font: 500 40px/64px Georgia, "Gelasio Bundled", serif; color: #fff; white-space: pre-line; }
 /* A notice's text sits at y 214 of 448, where the question's sits at 184 (0x48540 against 0x4ae90). */
 .dialog.notice .dialog-q { top: 509.3px; }
+.dialog.three .dialog-q { top: 428px; font-size: 34px; line-height: 54px; }   /* (three lines over the buttons: the 100% save's warning, home.js) */
 /* SELS and SELA (0x85900 / 0x85e40): the window at x 321 of 640, its question drawn smaller (scale 0.37 x 0.46 of the font's size, against the system question's 0.6 x 0.7) at y 224 - 42.31 s, s the window's scale, centred on the screen. */
 .dialog.story .dialog-win { left: 551px; }
 .dialog.story .dialog-q { font-size: 30px; line-height: normal; top: 437px; transform-origin: 412px 103px; }

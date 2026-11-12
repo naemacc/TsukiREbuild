@@ -103,6 +103,7 @@ html.touch .hm-link { font-size: 44px; line-height: 56px; }
 html.touch .hm-press { width: 708px; height: 132px; }
 /* Export and Import on SAVE DATA (home.js savesBlock): the plates at a finger's size, as the strip's are (1.5), and the line under them larger */
 html.touch .hm-save-row .qbtn { transform: scale(1.5); transform-origin: 50% 0; margin: 0 55px 31px; overflow: visible; }
+html.touch .hm-save-row .qbtn.wide { margin: 0 75px 31px; }   /* (the wider plate: half of what the 1.5 adds, each side) */
 html.touch .wl-text .hm-save-status { font-size: 34px; line-height: 46px; }
 /* held upright (touch.js place: html.upright, the stage 1080 wide and as tall as the window): the title's picture covering it, Config's
    panel down its length 40 from the sides, the panel's strip with its rounded ends kept over the same two rows of plates, the column

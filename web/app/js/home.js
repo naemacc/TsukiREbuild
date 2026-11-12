@@ -12,6 +12,7 @@ import { ButtonState, pressPulse } from "./uifx.js";
 import { SECTIONS, TOUCH_INTRO, blockEl } from "./welcome.js";
 import { FILE_NAME, NOTE, dropBase, exportSaves, hasImported, importSaves, keepBase, loadBase, loadedData, readSaves, removeImported } from "./savefile.js";
 import { GAME } from "./gamesave.js";
+import { fullSaveFile } from "./fullsave.js";
 
 export const GITHUB = "https://github.com/waifwu/TsukiREbuild";
 // The downloads: the whole game as an app that needs no connection (web-dev/android, web-dev/desktop), with the size each system shows for its file.
@@ -31,7 +32,7 @@ export function homeDue(query, host = globalThis.location?.hostname || "") {
 }
 
 // The tabs: a plate, and the sections its page shows, each a heading and blocks as welcome.js draws them, plus ["link", text, address, file name if a
-// download], ["data"], what the browser holds now, ["saves"], SAVE DATA's Export, Import and Remove plates, and ["press"], the prompt that starts the game.
+// download], ["data"], what the browser holds now, ["saves"], SAVE DATA's plates, and ["press"], the prompt that starts the game.
 export const TABS = [
   { plate: "ABOUT", sections: SECTIONS.map(({ head, blocks }) => ({ head, blocks })) },
   { plate: "GITHUB", sections: [{ head: "The source, on GitHub", blocks: [
@@ -91,7 +92,8 @@ export const TABS = [
     ["rows", [
       ["Export", "Saves the settings and progress shown above as savedata000: the flowchart, the gallery, what has been read."],
       ["Import", "Loads the settings and progress of a savedata000 here. Your own are put aside, not lost."],
-      ["Remove", "Takes the imported file out again, and your own settings and progress are back as they were. The saves you make here are yours throughout."],
+      ["Remove", "Takes the imported file, or the 100% save, out again, and your own settings and progress are back as they were. The saves you make here are yours throughout."],
+      ["100% save", "Loads a finished game's progress, with everything open. It warns and asks first; your own progress is put aside, and your settings stay."],
     ]],
   ] }] },
   { plate: "PLAY ONLINE", sections: [{ head: "Play here, in the browser", blocks: [
@@ -136,13 +138,20 @@ export const ABOUT = 0, PLAY = TABS.length - 1, SAVE = PLAY - 1, NONE = -1;
 // and progress over the browser's own, which are put aside; Remove takes the file out again, after a question in the game's Yes / No window, and the
 // browser's own are back. Both load the page again, back on SAVE DATA.
 export const SAVE_PLATES = [{ act: "export", plate: "EXPORT SAVES" }, { act: "import", plate: "IMPORT SAVES" }, { act: "remove", plate: "REMOVE DATA" }];
+// The 100% save's plate, next to REMOVE DATA: the same plate made `wider` than the others, for its longer words. Its warning is the question it asks
+// when pressed (SAVE_TEXT.askFull).
+export const FULL_PLATE = { act: "full", plate: "LOAD 100% SAVE", wider: 80 };
 export const SAVE_TEXT = {
   keys: "Keys: E exports, I imports.",
   now: "In this browser now",
   empty: "No save data in this browser yet.",
-  nothing: "Nothing to remove: no imported file is loaded.",
-  askRemove: "Remove the imported save file?\nYour own save data comes back.",
-  removed: "Removed the imported file. Your own save data is back.",
+  nothing: "Nothing to remove: no imported file or 100% save is loaded.",
+  askRemove: "Remove the loaded save data?\nYour own save data comes back.",
+  removed: "Removed. Your own save data is back.",
+  // the 100% save (fullsave.js): its name on the page, the warning and question when its plate is pressed (three lines), the line after
+  full: "The 100% save",
+  askFull: "Not recommended.\nOnly do this if you have finished the game.\nLoad the 100% save?",
+  fullLoaded: "Loaded the 100% save.",
   none: "Nothing to export yet: the game has not been played in this browser.",
   exported: (name) => `Saved as ${name}.`,
   loaded: (name) => `Loaded ${name}.`,   // (what it holds is in the list above the plates)
@@ -168,7 +177,8 @@ export async function openHome(ui, { started = null } = {}) {
     const L = upright() ? TOUCH.homeUpright : TOUCH.home, [row, count] = rowOf(L, i);
     return [Math.round((L.w - (L.pitch * (count - 1) + shown)) / 2) + (i % L.cols) * L.pitch, L.y + row * L.rowPitch];
   };
-  const [sheet, saveSheet] = await Promise.all([quickBarArt(TABS.map((t) => ({ label: t.plate })), P), quickBarArt(SAVE_PLATES.map((t) => ({ label: t.plate })), P),
+  const [sheet, saveSheet, fullSheet] = await Promise.all([quickBarArt(TABS.map((t) => ({ label: t.plate })), P), quickBarArt(SAVE_PLATES.map((t) => ({ label: t.plate })), P),
+    quickBarArt([{ label: FULL_PLATE.plate }], { w: P.w + FULL_PLATE.wider, h: P.h }),
     ...ART.map((a) => { const i = new Image(); i.src = `/assets/ui/${a}.webp`; return i.decode().catch(() => {}); })]);
   return new Promise((done) => {
     black.remove();
@@ -215,11 +225,11 @@ export async function openHome(ui, { started = null } = {}) {
     };
     // The file's parts in the browser's place and the file itself kept, then the page again: everything the game read when it loaded is read anew,
     // and the page comes back here.
-    const load = async (sys, bytes) => {
-      try { importSaves(sys); } catch (e) { say(e.message, true); return; }
+    const load = async (sys, bytes, { note = SAVE_TEXT.loaded(FILE_NAME), ...how } = {}) => {
+      try { importSaves(sys, localStorage, how); } catch (e) { say(e.message, true); return; }
       leaving = true;
       ui.sound(6);
-      try { sessionStorage.setItem(NOTE, SAVE_TEXT.loaded(FILE_NAME)); } catch { /* it opens on its first page */ }
+      try { sessionStorage.setItem(NOTE, note); } catch { /* it opens on its first page */ }
       await keepBase(bytes);
       ui.fadeBlack(black, 1, FADE.out * 2, () => location.reload());
     };
@@ -258,7 +268,20 @@ export async function openHome(ui, { started = null } = {}) {
         ui.fadeBlack(black, 1, FADE.out * 2, () => location.reload());
       }, (back) => { back(); ui.sel = NONE; }, { startNo: true });
     };
-    const saveActs = { export: exportNow, import: importPick, remove: removeNow };
+    // Load 100% save: a finished game's progress (fullsave.js), loaded as an imported file is but for the settings, which stay the player's. Pressed,
+    // it warns and asks in the game's Yes / No window, starting on No: it is not recommended, and only for those who have finished the game.
+    const fullNow = () => {
+      if (leaving) return;
+      ui.audio.start();
+      ui.sound(1);
+      ui.dialog(SAVE_TEXT.askFull, (back) => {
+        back();
+        let bytes, sys;
+        try { bytes = fullSaveFile(); sys = readSaves(bytes); } catch (e) { say(e.message, true); return; }
+        load(sys, bytes, { label: SAVE_TEXT.full, keepSettings: true, note: SAVE_TEXT.fullLoaded });
+      }, (back) => { back(); ui.sel = NONE; }, { startNo: true, three: true });
+    };
+    const saveActs = { export: exportNow, import: importPick, remove: removeNow, full: fullNow };
     // What the browser holds now (savefile.js loadedData): four figures side by side across the page, as the page's other figures are (welcome.js
     // "facts"), counted as the game's own screens count them, and under them whether an imported file is loaded.
     const dataBlock = () => {
@@ -272,25 +295,29 @@ export async function openHome(ui, { started = null } = {}) {
       if (data.file) box.append(el("p", "hm-data-file", data.file));
       return box;
     };
+    // One of the panel's plates for the page: s its act and words, i its column of the sheet `art`, w its width. In the art's rows: 1 normal, 2
+    // under the pointer, 3 pressed.
+    const savePlate = (s, i, art = saveSheet, w = P.w) => {
+      const b = el("button", "qbtn hm-save-plate", s.plate);
+      b.style.cssText = `width:${w}px;height:${P.h}px;`;
+      const paint = (r) => {
+        b.className = `qbtn hm-save-plate r${r}${art ? " art" : ""}${w > P.w ? " wide" : ""}`;
+        if (art) { b.style.backgroundImage = `url("${art}")`; b.style.backgroundPosition = `${-i * w}px ${-r * P.h}px`; }
+      };
+      paint(1);
+      b.addEventListener("pointerenter", (e) => { if (e.pointerType !== "touch") paint(2); });
+      b.addEventListener("pointerleave", () => paint(1));
+      b.addEventListener("pointerdown", () => paint(3));
+      b.addEventListener("pointerup", (e) => paint(e.pointerType === "touch" ? 1 : 2));
+      b.addEventListener("pointercancel", () => paint(1));
+      b.addEventListener("click", (e) => { e.stopPropagation(); saveActs[s.act](); });
+      return b;
+    };
     const savesBlock = () => {
       const box = el("div", "hm-saves");
       const row = el("div", "hm-save-row");
-      for (const [i, s] of SAVE_PLATES.entries()) {
-        const b = el("button", "qbtn hm-save-plate", s.plate);
-        b.style.cssText = `width:${P.w}px;height:${P.h}px;`;
-        const paint = (r) => {
-          b.className = `qbtn hm-save-plate r${r}${saveSheet ? " art" : ""}`;
-          if (saveSheet) { b.style.backgroundImage = `url("${saveSheet}")`; b.style.backgroundPosition = `${-i * P.w}px ${-r * P.h}px`; }
-        };
-        paint(1);
-        b.addEventListener("pointerenter", (e) => { if (e.pointerType !== "touch") paint(2); });
-        b.addEventListener("pointerleave", () => paint(1));
-        b.addEventListener("pointerdown", () => paint(3));
-        b.addEventListener("pointerup", (e) => paint(e.pointerType === "touch" ? 1 : 2));
-        b.addEventListener("pointercancel", () => paint(1));
-        b.addEventListener("click", (e) => { e.stopPropagation(); saveActs[s.act](); });
-        row.append(b);
-      }
+      SAVE_PLATES.forEach((s, i) => row.append(savePlate(s, i)));
+      row.append(savePlate(FULL_PLATE, 0, fullSheet, P.w + FULL_PLATE.wider));   // next to REMOVE DATA
       status = el("p", `hm-save-status${said?.bad ? " bad" : ""}`, said?.text ?? "");
       status.setAttribute("role", "status");
       box.append(row);

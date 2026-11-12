@@ -5,8 +5,9 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 
 const { GAME, FLOW_BITS, DEFAULT_CONFIG, configToPort, portToConfig, globalName, isGameSave, readSystem, writeSystem } = await import("../../web/app/js/gamesave.js");
-const { FILE_NAME, KEYS, LOCAL, NOTE, OWN, IMPORTED, hasImported, loadedData, removeImported, exportSaves, hasProgress, importSaves, portState, readSaves, savesReplaced } = await import("../../web/app/js/savefile.js");
-const { TABS, PLAY, SAVE, SAVE_PLATES, SAVE_TEXT } = await import("../../web/app/js/home.js");
+const { FILE_NAME, KEYS, LOCAL, NOTE, OWN, IMPORTED, hasImported, importedLabel, loadedData, removeImported, exportSaves, hasProgress, importSaves, portState, readSaves, savesReplaced } = await import("../../web/app/js/savefile.js");
+const { TABS, PLAY, SAVE, SAVE_PLATES, FULL_PLATE, SAVE_TEXT } = await import("../../web/app/js/home.js");
+const { fullSaveFile } = await import("../../web/app/js/fullsave.js");
 const source = (name) => readFileSync(new URL(`../../web/app/${name}`, import.meta.url), "utf8");
 
 function memory(init = {}) {
@@ -155,8 +156,9 @@ test("Import: the file's settings and progress over the browser's own, which are
   for (const [k, v] of Object.entries(rest)) assert.equal(there.getItem(k), v, `${k}: the saves made here, the keys and the pages shown are not touched`);
   // the browser's own, aside: each name an import writes, with what was there (null where there was nothing)
   const own = JSON.parse(there.getItem(OWN));
-  assert.deepEqual(Object.keys(own).sort(), [...IMPORTED].sort());
-  assert.deepEqual(own, { ...mine, "tsuki.unlocks.v1": null, "tsuki.readBlocks": null });
+  assert.deepEqual(Object.keys(own).sort(), [...IMPORTED, "label"].sort());
+  assert.deepEqual(own, { ...mine, "tsuki.unlocks.v1": null, "tsuki.readBlocks": null, label: "savedata000" }, "and what is loaded, for the page to say");
+  assert.equal(importedLabel(there), "savedata000");
   // a second file over the first: what is aside stays the browser's own, not the first file's
   importSaves({ ...sys, globals: { G002: 77 } }, there);
   assert.deepEqual(JSON.parse(there.getItem(OWN)), own);
@@ -167,6 +169,7 @@ test("Import: the file's settings and progress over the browser's own, which are
   assert.equal(removeImported(there), true);
   assert.deepEqual(Object.fromEntries(there.map), { ...mine, ...rest, "tsuki.autosaves": "[{},{}]" });
   assert.equal(hasImported(there), false);
+  assert.equal(importedLabel(there), null);
   assert.equal(removeImported(there), false, "nothing loaded: nothing touched");
   assert.deepEqual(Object.fromEntries(there.map), { ...mine, ...rest, "tsuki.autosaves": "[{},{}]" });
   assert.match(source("js/main.js"), /addEventListener\("pagehide", \(\) => \{ if \(!savesReplaced\(\)\) \{ autosave\(\); vm\.saveRead\(\); vm\.unlocks\.save\(\); \}/);
@@ -222,21 +225,65 @@ test("what the browser holds now, for SAVE DATA's page: four figures counted as 
   assert.match(source("touch.css"), /html\.touch\.upright \.hm-text \.hm-data \.wl-facts \{ grid-template-columns: repeat\(2, 1fr\); \}/);
 });
 
+test("the 100% save: a finished game's progress bundled with the app, loaded over the browser's own without its settings, and removed as a file is", () => {
+  const file = fullSaveFile();
+  assert.equal(file.length, GAME.size);
+  const sys = readSaves(file);
+  assert.deepEqual([sys.flow.started.length, sys.flow.completed.length, sys.flow.secondary.length], [556, 553, 630], "every scene and line of the chart");
+  assert.deepEqual([sys.seen.length, sys.music.length, sys.movies], [2716, 116, ["op1_arc", "op2_ciel"]]);
+  assert.ok(sys.flow.completed.includes(557), "the last Ciel-sensei episode: the gallery lists every picture");
+  // nobody's settings travel with it, and there are no records
+  assert.deepEqual(sys.settings, configToPort(DEFAULT_CONFIG).settings);
+  assert.deepEqual(sys.volumes, configToPort(DEFAULT_CONFIG).volumes);
+  assert.equal(sys.newest, 0);
+  assert.ok(file.subarray(GAME.records).every((b) => b === 0));
+  // loaded: the progress is its own, the settings stay the player's, and the page can say what is loaded
+  const mine = { "tsuki.flow.v2": JSON.stringify({ started: [485], completed: [485] }), "tsuki.settings": JSON.stringify({ textSpeed: 50 }), "tsuki.volumes": JSON.stringify({ bgm: 0.9 }),
+    "tsuki.saves": JSON.stringify({ 1: {} }) };
+  const store = memory(mine);
+  importSaves(sys, store, { label: SAVE_TEXT.full, keepSettings: true });
+  assert.equal(portState(store).flow.completed.length, 553);
+  assert.equal(store.getItem("tsuki.settings"), mine["tsuki.settings"]);
+  assert.equal(store.getItem("tsuki.volumes"), mine["tsuki.volumes"]);
+  assert.equal(importedLabel(store), "The 100% save");
+  assert.match(loadedData(store).file, /^The 100% save is loaded: these are its own\. Your own are put aside until it is removed\.$/);
+  // a file imported over it, then the 100% save again: the label follows, what is aside stays the player's own
+  importSaves(sys, store);
+  assert.equal(importedLabel(store), "savedata000");
+  importSaves(sys, store, { label: SAVE_TEXT.full, keepSettings: true });
+  // Remove takes it out like an imported file: everything as it was
+  assert.equal(removeImported(store), true);
+  assert.deepEqual(Object.fromEntries(store.map), mine);
+  // made by the tool from a 100% save, the config replaced
+  const tool = readFileSync(new URL("../../web-dev/tools/make_fullsave.py", import.meta.url), "utf8");
+  assert.match(tool, /system\[CONFIG:CONFIG \+ CONFIG_SIZE\] = default/);
+});
+
 test("the opening page's SAVE DATA tab: the Nintendo format named, what is loaded now, and three of the panel's plates; Remove asks first, and the page loads again", () => {
   assert.equal(TABS[SAVE].plate, "SAVE DATA");
   const blocks = TABS[SAVE].sections[0].blocks, kinds = blocks.map((b) => (Array.isArray(b) ? b[0] : "text"));
   assert.deepEqual(kinds, ["text", "text", "data", "saves", "rows"]);
-  assert.deepEqual(blocks[4][1].map((r) => r[0]), ["Export", "Import", "Remove"], "what each plate does");
+  assert.equal(TABS[SAVE].sections.length, 1, "the 100% save has no part of its own: its plate is in the row, its warning in its question");
+  assert.deepEqual(blocks[4][1].map((r) => r[0]), ["Export", "Import", "Remove", "100% save"], "what each plate does");
+  assert.match(blocks[4][1][3][1], /It warns and asks first/);
   assert.match(blocks[1], /Export and Import use the Nintendo Switch game's own save format, the file savedata000/);
   assert.match(blocks[4][1][1][1], /put aside, not lost/);
   assert.match(blocks[4][1][2][1], /your own settings and progress are back as they were/);
   assert.ok(!TABS[PLAY].sections[0].blocks.some((b) => b[0] === "saves"), "PLAY ONLINE keeps only its prompt");
   assert.deepEqual(TABS[PLAY].sections[0].blocks.at(-1), ["press"]);
   assert.deepEqual(SAVE_PLATES.map((p) => p.plate), ["EXPORT SAVES", "IMPORT SAVES", "REMOVE DATA"]);
-  const q = SAVE_TEXT.askRemove.split("\n");
-  assert.ok(q.length === 2 && q.every((line) => line.length <= 36), "the question fits the game's window, two lines");
+  assert.deepEqual(FULL_PLATE, { act: "full", plate: "LOAD 100% SAVE", wider: 80 }, "a wider plate of its own: the words do not fit the others' 220");
+  { const q = SAVE_TEXT.askRemove.split("\n"); assert.ok(q.length === 2 && q.every((line) => line.length <= 36), "the question fits the game's window, two lines"); }
+  // the 100% save's warning is its question, shown when its plate is pressed: three lines, set smaller (ui.js dialog three)
+  assert.equal(SAVE_TEXT.askFull, "Not recommended.\nOnly do this if you have finished the game.\nLoad the 100% save?");
+  assert.match(source("js/ui.js"), /box\.className = story \? "dialog story" : three \? "dialog three" : "dialog";/);
+  assert.match(source("style.css"), /\.dialog\.three \.dialog-q \{ top: 428px; font-size: 34px; line-height: 54px; \}/);
   const home = source("js/home.js"), css = source("style.css");
   assert.match(home, /quickBarArt\(SAVE_PLATES\.map/, "the game's own plates, relettered as the tabs are");
+  assert.match(home, /quickBarArt\(\[\{ label: FULL_PLATE\.plate \}\], \{ w: P\.w \+ FULL_PLATE\.wider, h: P\.h \}\)/);
+  assert.match(home, /SAVE_PLATES\.forEach\(\(s, i\) => row\.append\(savePlate\(s, i\)\)\);\n\s*row\.append\(savePlate\(FULL_PLATE, 0, fullSheet, P\.w \+ FULL_PLATE\.wider\)\);/, "in the row, after REMOVE DATA");
+  assert.match(home, /ui\.dialog\(SAVE_TEXT\.askFull, \(back\) => \{[\s\S]{0,260}load\(sys, bytes, \{ label: SAVE_TEXT\.full, keepSettings: true, note: SAVE_TEXT\.fullLoaded \}\);\n\s*\}, \(back\) => \{ back\(\); ui\.sel = NONE; \}, \{ startNo: true, three: true \}\);/,
+    "it warns and asks in the game's window, starting on No, and loads the progress alone");
   for (const part of ["savesBlock", "dataBlock"]) {
     assert.match(home, new RegExp(`const ${part} = \\(\\) => \\{`), `${part} is there`);
     assert.match(home, new RegExp(`return ${part}\\(\\);`), `${part} is drawn`);

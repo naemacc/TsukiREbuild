@@ -1907,14 +1907,15 @@ export class UI {
   // picture: a save's picture shown under the question (Quick Load, 0x89590; the question moves up to y 160 and the
   // buttons down to 261.5 of 448, the picture framed in black from y 200, about 72 x 52 units wide, 0x4ae90), as the
   // question shows only at t = 1.
-  dialog(question, yes, no, { kind = "system", startNo = false, picture = null, saveAsk = false } = {}) {
+  // (three: a question of three lines, the port's own, set a little smaller so that it stands clear of the buttons)
+  dialog(question, yes, no, { kind = "system", startNo = false, picture = null, saveAsk = false, three = false } = {}) {
     if (!this.root.querySelector(".page")) this.begin("dialog");
     const story = kind === "story";
     const prev = { items: this.items, sel: this.sel, backFn: this.backFn, backSound: this.backSound, horizontal: this.horizontal };
     const restore = () => { Object.assign(this, prev); if (prev.sel >= 0) this.select(prev.sel); };
     if (!no) no = (r) => r();
     const box = document.createElement("div");
-    box.className = story ? "dialog story" : "dialog";
+    box.className = story ? "dialog story" : three ? "dialog three" : "dialog";
     const backdrop = sprite("DIALOG_PARTS_JA", "dialog_BG", 0, 0, 1920, 1080);
     const win = document.createElement("div");
     win.className = "dialog-win";

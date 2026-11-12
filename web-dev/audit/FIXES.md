@@ -1332,3 +1332,22 @@ Also removed that day, at the user's word: the flowchart's Unlock All (one unpus
 `shelved/unlock-all`) and the Japanese language option (never committed; set aside in the working folder's `web-dev/shelved/`). A
 flowchart drawn again after a question now takes the pointer at once: with its fade already done nothing gave the pointer back, so
 after No to the rewind question the chart was dead to the wheel, drags and clicks.
+
+## SAVE DATA: Load 100% save, 2026-11-12
+
+The user: "Add my 100% save file in the save data tab as an load 100% save option. show a warning saying its not recommended and only do
+it if you've finished the game. using remove data should remove this file too." Then, of a first version with a part of its own and
+the warning on the page: "no just put it next to remove data button and show the warning when someone clicks on it".
+
+LOAD 100% SAVE is a fourth plate in SAVE DATA's row, after REMOVE DATA (the panel's plate made 80 wider for the words, `home.js`
+FULL_PLATE). Pressed, it shows its warning as the question of the game's Yes / No window, starting on No: "Not recommended. / Only do
+this if you have finished the game. / Load the 100% save?" (three lines, set a little smaller: `ui.js` dialog `three`). On Yes it loads
+as an import does: the browser's own progress is put aside (`tsuki.own`, which now also keeps a label of what is loaded, for the page's
+line), and REMOVE DATA takes it out and puts the player's own back. Unlike an import it leaves the settings and volumes alone
+(`importSaves` keepSettings).
+
+The save is `app/js/fullsave.js`, 9 KB: the system data of the 100% reference save (`web-dev/tools/make_fullsave.py <savedata000>`),
+with the game's first config in place of the player's and the record numbers cleared. Read back it has 556 scenes started, 553
+completed, 630 lines, 2,716 pictures, 116 music numbers and both movies. In Chrome over a browser with 2 scenes, text speed 50 and one
+save: loaded, 495 of 495 scenes, 1,977 pictures, 95 songs, text speed still 50, the save still there; removed, all as before.
+Tests: `tests/savefile.test.mjs` (14).
