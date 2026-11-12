@@ -55,6 +55,11 @@ html.touch.upright .modepanel.hm .qbtn::before { left: -3px; right: -3px; }
 /* ---- Yes / No and notices: the window at 1.5 about the stage's centre; the system's buttons take a press above and below */
 html.touch #sysui .dialog { transform: scale(1.5); transform-origin: 960px 540px; }
 html.touch #sysui .dialog:not(.story) .spbtn::before { content: ""; position: absolute; left: -4px; right: -4px; top: -22px; bottom: -22px; }
+/* A question over the opening page held upright (html.upright: the stage is 1080 wide and as tall as the window, not the game's 1920 x 1080):
+   the window's own 1920 x 1080 layout set in the stage's middle at 1.2, which the 1080 has room for (824 -> 989), and its backdrop
+   stretched over the stage's whole height. Without this the window lay off the right edge, its Yes out of reach. */
+html.touch.upright #sysui .dialog { inset: auto; left: 50%; top: 50%; width: 1920px; height: 1080px; margin: -540px 0 0 -960px; transform: scale(1.2); transform-origin: 960px 540px; }
+html.touch.upright #sysui .dialog > .sp:first-child { transform: scaleY(2.6); }
 
 /* ---- the title: the logo smaller and higher, the rows at twice their size under it (ui.js titleMenu) ------------------ */
 html.touch .tbox { position: absolute; inset: 0; pointer-events: none; }

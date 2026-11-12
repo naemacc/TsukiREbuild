@@ -278,6 +278,11 @@ test("the opening page's SAVE DATA tab: the Nintendo format named, what is loade
   assert.equal(SAVE_TEXT.askFull, "Not recommended.\nOnly do this if you have finished the game.\nLoad the 100% save?");
   assert.match(source("js/ui.js"), /box\.className = story \? "dialog story" : three \? "dialog three" : "dialog";/);
   assert.match(source("style.css"), /\.dialog\.three \.dialog-q \{ top: 428px; font-size: 34px; line-height: 54px; \}/);
+  // on a phone held upright the stage is 1080 wide, not the game's 1920: the window is set in its middle, small enough to fit (it lay off the right edge)
+  const touchCss = source("touch.css");
+  assert.match(touchCss, /html\.touch\.upright #sysui \.dialog \{ inset: auto; left: 50%; top: 50%; width: 1920px; height: 1080px; margin: -540px 0 0 -960px; transform: scale\(1\.2\); transform-origin: 960px 540px; \}/);
+  assert.ok(824 * 1.2 <= 1080, "the window inside the upright stage");
+  assert.match(touchCss, /html\.touch\.upright #sysui \.dialog > \.sp:first-child \{ transform: scaleY\(2\.6\); \}/, "its backdrop over the stage's whole height");
   const home = source("js/home.js"), css = source("style.css");
   assert.match(home, /quickBarArt\(SAVE_PLATES\.map/, "the game's own plates, relettered as the tabs are");
   assert.match(home, /quickBarArt\(\[\{ label: FULL_PLATE\.plate \}\], \{ w: P\.w \+ FULL_PLATE\.wider, h: P\.h \}\)/);

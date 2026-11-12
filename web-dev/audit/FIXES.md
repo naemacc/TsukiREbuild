@@ -1351,3 +1351,10 @@ with the game's first config in place of the player's and the record numbers cle
 completed, 630 lines, 2,716 pictures, 116 music numbers and both movies. In Chrome over a browser with 2 scenes, text speed 50 and one
 save: loaded, 495 of 495 scenes, 1,977 pictures, 95 songs, text speed still 50, the save still there; removed, all as before.
 Tests: `tests/savefile.test.mjs` (14).
+
+**The question window on a phone held upright** (the user, 2026-11-12: "dialog box doesnt show right on phones"). The opening page held
+upright has a stage 1080 wide and as tall as the window, but the game's Yes / No window is laid out for 1920 x 1080 and scaled 1.5 by
+touch, so it lay off the right edge with Yes out of reach; REMOVE DATA's question had the same fault. `touch.css` now sets the window's
+layout in the upright stage's middle at 1.2 (824 -> 989 of the 1080) and stretches its backdrop over the stage's height. In Chrome at
+390 x 844, 360 x 880, 320 x 568 and 768 x 1024 the window and both buttons are inside the screen and centred, and a tap on No closes it;
+landscape is as it was.
