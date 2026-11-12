@@ -788,19 +788,21 @@ test("Firefox on Android draws a movie's own element: painted to a canvas its fr
   assert.match(main, /const paintsNothing = \/Android\/i\.test\(navigator\.userAgent \|\| ""\);\nfunction paintMovie\(v\) \{\n  stopPaintingMovie\(v\);   \/\/ nothing of the last movie\n  if \(paintsNothing\) return;/);
 });
 
-test("the opening page on a touch device: its four plates in one row in the strip's middle, and how to play by touch under PLAY ONLINE's prompt", async () => {
+test("the opening page on a touch device: its five plates three over two in the strip's middle, and how to play by touch under PLAY ONLINE's prompt", async () => {
   const { TOUCH_INTRO } = await import("../../web/app/js/welcome.js");
   const { TABS, PLAY } = await import("../../web/app/js/home.js");
   const h = source("js/home.js"), B = TOUCH.bar, H = TOUCH.home;
-  assert.equal(TABS.length, 4);
+  assert.equal(TABS.length, 5);
+  assert.equal(H.cols, 3, "three plates over two");
   assert.match(h, /const blocks = T && k === PLAY \? \[\.\.\.kept, \.\.\.TOUCH_INTRO\] : kept;/);
   assert.match(h, /const accel = T \? "on" : glAccel\(\);/, "no hardware acceleration notice by touch");
   assert.deepEqual(TABS[PLAY].sections.at(-1).blocks.at(-1), ["press"], "the prompt before the notes");
   assert.equal(TOUCH_INTRO[0][0], "h");
   assert.match(TOUCH_INTRO[1], /Swipe down .* up for the log.* fast forward.* two fingers.* Back button/);
-  const width = H.pitch * (TABS.length - 1) + B.w * B.scale, x0 = Math.round((1920 - width) / 2);
+  const width = H.pitch * (H.cols - 1) + B.w * B.scale, x0 = Math.round((1920 - width) / 2);
   assert.ok(x0 > 0 && H.pitch > B.w * B.scale, "inside the strip, no plate over the next");
-  assert.ok(H.y + B.h * B.scale <= H.height);
-  assert.match(source("touch.css"), /html\.touch \.hm-scroll \{ top: 150px; height: 930px; \}/);
-  assert.match(source("touch.css"), /html\.touch \.modepanel\.hm \{ height: 150px;/);
+  assert.ok(H.y + H.rowPitch + B.h * B.scale <= H.height);
+  assert.match(source("touch.css"), /html\.touch \.hm-scroll \{ top: 266px; height: 814px; \}/);
+  assert.match(source("touch.css"), /html\.touch \.modepanel\.hm \{ height: 266px;/);
+  assert.equal(H.height, 266);
 });

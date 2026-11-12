@@ -22,7 +22,7 @@ The Tsukihime remake, *Tsukihime -A piece of blue glass moon-*, rebuilt to play 
 
 Open **[arcueid.date](https://arcueid.date/)** in Chrome or Firefox, on a computer, a phone or a tablet. Nothing is installed: the game's files arrive as you play, and saves stay in the browser.
 
-The site opens on a page with four tabs: **ABOUT** (what this is and how it was made), **GITHUB**, **DOWNLOAD** (the apps below), and **PLAY ONLINE**, whose PRESS ANY BUTTON starts the game.
+The site opens on a page with five tabs: **ABOUT** (what this is and how it was made), **GITHUB**, **DOWNLOAD** (the apps below), **SAVE DATA** (your saves to and from the game's own save file), and **PLAY ONLINE**, whose PRESS ANY BUTTON starts the game.
 
 **It does not work in Safari.** The movies are AV1 video, which Safari plays only on Apple's newest hardware (it has no decoder of its own), and the game has not been tried there.
 
@@ -106,7 +106,7 @@ The chapter in the system menu's header, on each save row and down the flowchart
 
 A device played by touch gets a touch interface: one whose first pointer is a finger that cannot hover (`(hover: none) and (pointer: coarse)`), which means phones and tablets. A laptop with a touch screen, a narrow desktop window and a tablet with a mouse attached keep the mouse and keyboard interface, which is unchanged. `?touch=1` in the address forces the touch interface and `?touch=0` the other; it is decided once, as the page loads.
 
-**The opening page** works held either way: held upright it has a layout of its own, its four plates in two rows over a taller column. **The game plays in landscape.** Once PLAY ONLINE has started it, a phone held upright shows a screen asking for it to be turned, and everything is held under it (the story's clocks, sound, movies, the screens' own motion) until it is. The picture is the game's 1920 x 1080 stage, fitted inside the screen's safe area: on a phone wider than 16:9 it stands in the middle with black beside it, clear of a notch and of the home bar. The game goes full screen when it is started, and where the browser lets a page do so, landscape is locked there. The page itself does not scroll, zoom or select: pull to refresh, double-tap and pinch zoom and the long-press menu are off.
+**The opening page** works held either way: held upright it has a layout of its own, over a taller column. By touch its five plates are in two rows either way: ABOUT, GITHUB and DOWNLOAD over SAVE DATA and PLAY ONLINE. **The game plays in landscape.** Once PLAY ONLINE has started it, a phone held upright shows a screen asking for it to be turned, and everything is held under it (the story's clocks, sound, movies, the screens' own motion) until it is. The picture is the game's 1920 x 1080 stage, fitted inside the screen's safe area: on a phone wider than 16:9 it stands in the middle with black beside it, clear of a notch and of the home bar. The game goes full screen when it is started, and where the browser lets a page do so, landscape is locked there. The page itself does not scroll, zoom or select: pull to refresh, double-tap and pinch zoom and the long-press menu are off.
 
 | On the story | |
 |---|---|
@@ -139,12 +139,13 @@ A controller works as a second way to play: A advances and chooses, B cancels or
 
 ### The opening page
 
-The game opens on the same page every time, for everyone (`app/js/home.js`). It is built from the game's art: the mode panel's strip with four of its plates relettered (ABOUT, GITHUB, DOWNLOAD, PLAY ONLINE), over Config's inner panel. Each plate shows its own page:
+The game opens on the same page every time, for everyone (`app/js/home.js`). It is built from the game's art: the mode panel's strip with five of its plates relettered (ABOUT, GITHUB, DOWNLOAD, SAVE DATA, PLAY ONLINE), over Config's inner panel. Each plate shows its own page:
 
 - **ABOUT**: what this project is and how it was made, from decompiling the game to testing the port against it (the sections are in `app/js/welcome.js`).
 - **GITHUB**: what is in the repository, and a link to it.
 - **DOWNLOAD**: the game as an app that needs no connection. Windows and Android each have what the app needs, how to install it, and its download; macOS and Linux have the steps to build the same app from the source.
-- **PLAY ONLINE**: what the browser version needs, and the title's PRESS ANY BUTTON. A click or tap on that page, or Enter, starts the game. Browsers play no sound until the page has been clicked, so this press is that click, and the game opens with its sound on. On a touch device the page also says how to play by touch. Above the prompt are EXPORT SAVES and IMPORT SAVES (see [Saves](#saves)).
+- **SAVE DATA**: what the save file is, and two plates, EXPORT SAVES and IMPORT SAVES (see [Saves](#saves)).
+- **PLAY ONLINE**: what the browser version needs, and the title's PRESS ANY BUTTON. A click or tap on that page, or Enter, starts the game. Browsers play no sound until the page has been clicked, so this press is that click, and the game opens with its sound on. On a touch device the page also says how to play by touch.
 
 It opens with no tab chosen, showing the game's logo and a line naming the plates, so a stray tap starts nothing. It is skipped only inside the Android and desktop apps, which are the game itself, and for an address that opens a scene (`?script=...`).
 
@@ -154,7 +155,7 @@ It opens with no tab chosen, showing the game's logo and a line naming the plate
 
 Saves and progress are kept in the browser, so clearing its site data removes them, and another browser starts empty. A save of an ordinary scene is about 13 KB; the browser allows about 5 MB in all.
 
-**Export and import.** PLAY ONLINE on the opening page has two plates, EXPORT SAVES and IMPORT SAVES (the E and I keys). The file is the original game's own save, `savedata000` (4,091,904 bytes; `app/js/gamesave.js` has its layout, read from the game's code): Import loads a save of the original game here, in place of what the browser has, asking first where the game has been played; Export writes a `savedata000` that the original game reads. What goes across so far is the settings and all progress: the flowchart, the pictures and music of the gallery, the opening movies, what has been read, and every global variable. **The 140 save records do not go across yet**: an imported file's records are kept and come out again untouched in the next Export (a file imported and exported is the same file, byte for byte), but they are not in the port's Load list, and saves made in the port are not written into the file (TODO item 161). The key bindings stay with the browser (`app/js/savefile.js`).
+**Export and import.** The opening page's SAVE DATA tab has two plates, EXPORT SAVES and IMPORT SAVES (the E and I keys). The file is the original game's own save, `savedata000` (4,091,904 bytes; `app/js/gamesave.js` has its layout, read from the game's code): Import loads a save of the original game here, in place of what the browser has, asking first where the game has been played; Export writes a `savedata000` that the original game reads. What goes across so far is the settings and all progress: the flowchart, the pictures and music of the gallery, the opening movies, what has been read, and every global variable. **The 140 save records do not go across yet**: an imported file's records are kept and come out again untouched in the next Export (a file imported and exported is the same file, byte for byte), but they are not in the port's Load list, and saves made in the port are not written into the file (TODO item 161). The key bindings stay with the browser (`app/js/savefile.js`).
 
 On the very first start (before the prologue has played) the game opens straight on the opening movie, which asks before it can be passed ("Skip intro video?"); the title, its cautions and the story follow. After that it starts with the logos and the notice, and New Game goes straight to the story.
 

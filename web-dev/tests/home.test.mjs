@@ -1,9 +1,10 @@
-// The opening page (web/app/js/home.js): it shows for everyone on every visit, its four tabs, where their links lead, and that the game starts from PLAY ONLINE.
+// The opening page (web/app/js/home.js): it shows for everyone on every visit, its five tabs, where their links lead, and that the game starts from PLAY ONLINE.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { TOUCH } from "../../web/app/js/touch.js";
 
-const { homeDue, TABS, ABOUT, PLAY, NONE, NONE_LINE, GITHUB, APK, DESKTOP } = await import("../../web/app/js/home.js");
+const { homeDue, TABS, ABOUT, PLAY, SAVE, NONE, NONE_LINE, GITHUB, APK, DESKTOP } = await import("../../web/app/js/home.js");
 const { SECTIONS } = await import("../../web/app/js/welcome.js");
 const source = (name) => readFileSync(new URL(`../../web/app/${name}`, import.meta.url), "utf8");
 const q = (s) => new URLSearchParams(s);
@@ -21,12 +22,13 @@ test("only the Android and desktop apps, which are the game itself, and an addre
   for (const s of ["script=00_02", "script=89&pc=500", "script=04_00_ARC04_3&label=LBL_008&mute"]) assert.equal(homeDue(q(s), "arcueid.date"), false, s);
 });
 
-test("four tabs: ABOUT, GITHUB, DOWNLOAD, PLAY ONLINE, each a page of its own", () => {
-  assert.deepEqual(TABS.map((t) => t.plate), ["ABOUT", "GITHUB", "DOWNLOAD", "PLAY ONLINE"]);
+test("five tabs: ABOUT, GITHUB, DOWNLOAD, SAVE DATA, PLAY ONLINE, each a page of its own", () => {
+  assert.deepEqual(TABS.map((t) => t.plate), ["ABOUT", "GITHUB", "DOWNLOAD", "SAVE DATA", "PLAY ONLINE"]);
   assert.equal(ABOUT, 0);
-  assert.equal(PLAY, 3);
+  assert.equal(SAVE, 3, "SAVE DATA is the plate left of PLAY ONLINE");
+  assert.equal(PLAY, 4);
   assert.equal(TABS[ABOUT].sections.length, SECTIONS.length, "everything the first-visit page said");
-  for (const k of [1, 3]) assert.equal(TABS[k].sections.length, 1, TABS[k].plate);
+  for (const k of [1, SAVE, PLAY]) assert.equal(TABS[k].sections.length, 1, TABS[k].plate);
   assert.deepEqual(TABS[2].sections.map((s) => s.head), ["Download the game", "Windows", "Android", "macOS and Linux"], "what the app is, the two downloads, then how the other two are built");
 });
 
@@ -49,8 +51,8 @@ test("GitHub's page links the repository, DOWNLOAD's the four apps, PLAY ONLINE'
   const build = JSON.stringify(TABS[2].sections[3].blocks);
   for (const word of ["git clone --depth 1 https://github.com/waifwu/TsukiREbuild", "web-dev/desktop/build.sh mac", "web-dev/desktop/build.sh linux", "Tsukihime-mac-universal.dmg", "Tsukihime-linux-x86_64.AppImage"]) assert.ok(build.includes(word), word);
   assert.equal(DESKTOP.size, "2.9 GB", "the 2,885,339,917-byte zip (2026-11-11)");
-  assert.ok(blocks(3).some((b) => b[0] === "press"));
-  assert.ok(!blocks(1).some((b) => b[0] === "press") && !blocks(2).some((b) => b[0] === "press"), "only PLAY ONLINE starts the game");
+  assert.ok(blocks(PLAY).some((b) => b[0] === "press"));
+  for (const k of [0, 1, 2, SAVE]) assert.ok(!blocks(k).some((b) => b[0] === "press"), `${TABS[k].plate}: only PLAY ONLINE starts the game`);
 });
 
 test("it opens with no tab chosen and no plate lit, so a stray tap starts nothing; on PLAY ONLINE's page a choice or a click starts the game", () => {
@@ -58,7 +60,7 @@ test("it opens with no tab chosen and no plate lit, so a stray tap starts nothin
   assert.match(main, /if \(homeDue\(q\)\) await openHome\(ui, \{ started: gameStarted \}\);/);
   assert.match(home, /show\(NONE\);\n    ui\.sel = NONE;/);
   assert.equal(NONE, -1);
-  assert.match(NONE_LINE, /ABOUT, GITHUB, DOWNLOAD, or PLAY ONLINE/);
+  assert.match(NONE_LINE, /ABOUT, GITHUB, DOWNLOAD, SAVE DATA, or PLAY ONLINE/);
   assert.match(home, /if \(tab === PLAY && !e\.target\.closest\("a"\)\) start\(\);/, "taps start the game only on PLAY ONLINE's page");
   assert.match(home, /if \(i === PLAY && tab === PLAY\) \{ start\(\); return; \}/);
   assert.match(home, /list\.addEventListener\("click", \(e\) => \{ if \(tab === PLAY && !e\.target\.closest\("a"\)\) start\(\); \}\);/);
@@ -84,7 +86,17 @@ test("on a phone held upright the opening page has a layout of its own and no ro
   assert.match(main, /let homeUp = fullHeld;/);
   assert.match(main, /touch\.upright = \(\) => homeUp;/);
   assert.match(main, /homeUp = false;\n  touch\.reorient\?\.\(\);[^\n]*\n  fitStage\(\);/, "the rotate screen once the page has gone");
-  assert.match(home, /T && upright\(\) \? \[ux0 \+ \(i % U\.cols\) \* pitch, y \+ Math\.floor\(i \/ U\.cols\) \* U\.rowPitch\]/, "two rows of two plates");
+  // by touch the five plates are three over two, each row centred, on the game's stage and on the upright one
+  assert.match(home, /const L = upright\(\) \? TOUCH\.homeUpright : TOUCH\.home, \[row, count\] = rowOf\(L, i\);/);
+  assert.match(home, /return \[Math\.round\(\(L\.w - \(L\.pitch \* \(count - 1\) \+ shown\)\) \/ 2\) \+ \(i % L\.cols\) \* L\.pitch, L\.y \+ row \* L\.rowPitch\];/);
+  const shown = TOUCH.bar.w * TOUCH.bar.scale, tall = TOUCH.bar.h * TOUCH.bar.scale;
+  for (const L of [TOUCH.home, TOUCH.homeUpright]) {
+    assert.equal(L.cols, 3, "ABOUT, GITHUB, DOWNLOAD over SAVE DATA, PLAY ONLINE");
+    assert.equal(Math.ceil(TABS.length / L.cols), 2);
+    assert.ok(L.pitch > shown, "no plate over the next");
+    assert.ok(L.pitch * (L.cols - 1) + shown <= L.w, "a row inside the stage");
+    assert.ok(L.rowPitch > tall && L.y + L.rowPitch + tall <= L.height, "the two rows inside the strip");
+  }
   assert.match(home, /addEventListener\("resize", place\);/, "laid out again when the phone is turned");
   assert.match(css, /html\.touch\.upright \.hm-scroll \{ left: 40px; top: 262px; width: 1000px; height: calc\(100% - 262px\); \}/);
   assert.match(css, /border-image: url\("\/assets\/ui\/MODEPNL_PARTS_JA\/modepanel_window\.webp"\) 0 40 8 40 fill stretch;/, "the game's strip, its ends kept");

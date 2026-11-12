@@ -1284,8 +1284,11 @@ fault there. Tests: `tests/item123.test.mjs` (9).
 
 ## Saves as a file: Export and Import on the opening page (TODO item 135), 2026-11-12
 
-PLAY ONLINE has two more of the panel's plates above its prompt, EXPORT SAVES and IMPORT SAVES (`app/js/home.js` savesBlock, keys E and I;
-at a finger's size on a touch device). The file is the original game's own `savedata000` (the user, 2026-11-12: "i should be able to
+The opening page has a fifth tab, SAVE DATA, left of PLAY ONLINE (the user, 2026-11-12: "put this in a new tab left side of play online called
+save data"): what the file is, and two of the panel's plates, EXPORT SAVES and IMPORT SAVES (`app/js/home.js` savesBlock, keys E and I; at a
+finger's size on a touch device). By touch the five tab plates are three over two, ABOUT, GITHUB, DOWNLOAD over SAVE DATA, PLAY ONLINE, each row
+centred, on the game's stage and on the upright one (the user: "on touch put 3 tabs on top and the 2 play online and save data in second line";
+`touch.js` TOUCH.home / homeUpright). The file is the original game's own `savedata000` (the user, 2026-11-12: "i should be able to
 import files like this and export should be compatible too"). `app/js/gamesave.js` reads and writes it; `app/js/savefile.js` is the
 browser's side.
 
@@ -1300,7 +1303,7 @@ hour, minute, second). The game's first config (0x46b080) read through the map g
 
 - **Import** replaces the settings, volumes, globals, flowchart, gallery and read marks with the file's, asking first in the game's
   Yes / No window where the game has been played, and keeps the file itself in the browser's database. Then the page loads again
-  (everything was read from storage when it loaded) and comes back on PLAY ONLINE saying what was loaded. `main.js`'s pagehide does
+  (everything was read from storage when it loaded) and comes back on SAVE DATA saying what was loaded. `main.js`'s pagehide does
   not write the page's own read marks and gallery over it (`savesReplaced`).
 - **Export** writes the system data from the port's state over the file last imported, so what the port has no copy of (the choices
   taken, config fields with no setting, the records) comes out as it went in, and no progress the file had is taken away (as the

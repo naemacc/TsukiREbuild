@@ -6,7 +6,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 
 const { GAME, FLOW_BITS, DEFAULT_CONFIG, configToPort, portToConfig, globalName, isGameSave, readSystem, writeSystem } = await import("../../web/app/js/gamesave.js");
 const { FILE_NAME, KEYS, LOCAL, NOTE, describe, recordsLine, exportSaves, hasProgress, importSaves, portState, readSaves, savesReplaced } = await import("../../web/app/js/savefile.js");
-const { TABS, PLAY, SAVE_PLATES, SAVE_TEXT } = await import("../../web/app/js/home.js");
+const { TABS, PLAY, SAVE, SAVE_PLATES, SAVE_TEXT } = await import("../../web/app/js/home.js");
 const source = (name) => readFileSync(new URL(`../../web/app/${name}`, import.meta.url), "utf8");
 
 function memory(init = {}) {
@@ -180,12 +180,16 @@ test("what a file holds, in a few words", () => {
   assert.deepEqual(readSaves(file).records, [0, 99, 139]);
 });
 
-test("the opening page: two of the panel's plates on PLAY ONLINE, above the prompt; Import asks before it replaces progress, keeps the file, and loads the page again", () => {
-  const blocks = TABS[PLAY].sections[0].blocks.map((b) => (Array.isArray(b) ? b[0] : "text"));
-  assert.deepEqual(blocks.slice(-2), ["saves", "press"]);
+test("the opening page's SAVE DATA tab: what the file is, and two of the panel's plates; Import asks before it replaces progress, keeps the file, and loads the page again", () => {
+  assert.equal(TABS[SAVE].plate, "SAVE DATA");
+  const blocks = TABS[SAVE].sections[0].blocks, kinds = blocks.map((b) => (Array.isArray(b) ? b[0] : "text"));
+  assert.deepEqual(kinds, ["text", "text", "rows", "saves"]);
+  assert.deepEqual(blocks[2][1].map((r) => r[0]), ["Export", "Import", "Save slots"], "what each plate does, and what does not go across yet (TODO item 161)");
+  assert.match(blocks[1], /savedata000/);
+  assert.ok(!TABS[PLAY].sections[0].blocks.some((b) => b[0] === "saves"), "PLAY ONLINE keeps only its prompt");
+  assert.deepEqual(TABS[PLAY].sections[0].blocks.at(-1), ["press"]);
   assert.deepEqual(SAVE_PLATES.map((p) => p.plate), ["EXPORT SAVES", "IMPORT SAVES"]);
   assert.ok(SAVE_TEXT.ask.split("\n").every((line) => line.length <= 36), "the question fits the game's window, two lines");
-  assert.match(SAVE_TEXT.note, /savedata000/);
   const home = source("js/home.js"), css = source("style.css");
   assert.match(home, /quickBarArt\(SAVE_PLATES\.map/, "the game's own plates, relettered as the tabs are");
   assert.match(home, /if \(!hasProgress\(\)\) \{ load\(sys, bytes\); return; \}\n\s*ui\.dialog\(SAVE_TEXT\.ask, [^\n]*\{ startNo: true \}\);/, "asked in the game's Yes / No window, starting on No");
@@ -193,7 +197,9 @@ test("the opening page: two of the panel's plates on PLAY ONLINE, above the prom
   assert.match(home, /exportSaves\(localStorage, await loadBase\(\), /, "an Export starts from the file last imported");
   assert.match(home, /a\.download = FILE_NAME;/);
   assert.match(home, /bytes = f\.size === GAME\.size \? new Uint8Array\(await f\.arrayBuffer\(\)\) : null;/, "a file of another size is not read");
-  assert.match(home, /box\.addEventListener\("click", \(e\) => e\.stopPropagation\(\)\);/, "a click here does not start the game");
+  assert.match(home, /show\(SAVE\); ui\.select\(SAVE\); \}/, "back on SAVE DATA after the reload");
+  assert.match(home, /\(k === "e" \|\| k === "E"\) && tab === SAVE &&/);
+  assert.match(home, /\(k === "i" \|\| k === "I"\) && tab === SAVE &&/);
   assert.match(css, /\.hm-save-row \{ display: flex; justify-content: center;/);
 });
 

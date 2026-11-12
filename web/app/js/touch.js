@@ -49,12 +49,13 @@ export const TOUCH = {
   // The names under the control panel's plates, by the quick bar's ids.
   names: { prevScene: "Previous scene", rewind: "Previous message", auto: "Auto mode", skip: "Skip read text", nextScene: "Next scene", quickSave: "Quick save",
     quickLoad: "Quick load", voice: "Replay voice", log: "Log", hide: "Hide text", save: "Save", load: "Load", config: "Config", fullscreen: "Full screen", menu: "System menu" },
-  // The opening page's four plates (home.js): the panel's, at its size, in one row `pitch` apart, centred; the reading
+  // The opening page's five plates (home.js): the panel's, at its size, three in a first row (ABOUT, GITHUB, DOWNLOAD) and two in a second
+  // (SAVE DATA, PLAY ONLINE; the user, 2026-11-12), `pitch` apart, rows `rowPitch` apart, each row centred on the stage `w` wide. The reading
   // column starts under the strip, `height` high.
-  home: { pitch: 465, y: 28, height: 150 },
-  // ... and held upright (the stage `w` wide and as tall as the window, touch.place): the plates in `cols` columns, rows
-  // `rowPitch` apart, in a strip `height` high; the reading column `inset` from the sides.
-  homeUpright: { w: 1080, cols: 2, rowPitch: 116, height: 262, inset: 40 },
+  home: { w: 1920, cols: 3, pitch: 465, y: 28, rowPitch: 116, height: 266 },
+  // ... and held upright (the stage `w` wide and as tall as the window, touch.place): the same two rows, closer together, in a strip
+  // `height` high; the reading column `inset` from the sides.
+  homeUpright: { w: 1080, cols: 3, pitch: 340, y: 28, rowPitch: 116, height: 262, inset: 40 },
   // The hint over a story's first screen: stays this many frames; kept in the browser once the panel has been pulled down.
   hint: { frames: 420, rate: 0.05, key: "tsuki.touch.hint" },
 };

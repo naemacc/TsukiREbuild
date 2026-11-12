@@ -397,16 +397,15 @@ div.fc-node { pointer-events: none; cursor: default; }
 .hm-text > .hm-logo:first-child { margin: 120px auto 44px; }   /* (the page before a plate is chosen: the logo, and a line under it) */
 .hm-tall { display: none; }   /* (the opening page's parts for a phone held upright: touch.css html.upright) */
 .wl-text .wl-rows.hm-rows { grid-template-columns: max-content 1fr; gap: 14px 44px; }
-.hm-press { display: block; width: 472px; height: 88px; margin: 36px auto 24px; padding: 0; border: 0; cursor: pointer; background: url("/assets/ui/TITLE_PARTS_JA/press_start.webp") 0 0 / 100% 100% no-repeat; }
-/* Export and Import on PLAY ONLINE (home.js savesBlock): two of the panel's own plates side by side over the prompt, a line on what they do, and one
+.hm-press { display: block; width: 472px; height: 88px; margin: 64px auto 24px; padding: 0; border: 0; cursor: pointer; background: url("/assets/ui/TITLE_PARTS_JA/press_start.webp") 0 0 / 100% 100% no-repeat; }
+/* Export and Import on SAVE DATA (home.js savesBlock): two of the panel's own plates side by side under the page's words, their keys, and a line
    that says what was done. */
-.hm-saves { margin: 40px 0 0; text-align: center; cursor: default; }
-.wl-text .hm-saves h3 { margin: 0 0 16px; }
+.hm-saves { margin: 48px 0 0; text-align: center; }
 .hm-save-row { display: flex; justify-content: center; gap: 28px; }
 .hm-save-row .qbtn { position: relative; flex: none; }
 .wl-text .hm-save-note { margin: 18px 0 0; font-size: 24px; line-height: 34px; color: #c9d8e6; }
 .wl-text .hm-save-status:empty { display: none; }
-.wl-text .hm-save-status { margin: 10px 0 0; font-size: 26px; line-height: 34px; color: #bfeeff; text-shadow: 0 0 9px rgba(110, 195, 255, .75), 0 1px 3px rgba(0, 0, 0, .85); }
+.wl-text .hm-save-status { margin: 18px 0 0; font-size: 28px; line-height: 38px; color: #bfeeff; text-shadow: 0 0 9px rgba(110, 195, 255, .75), 0 1px 3px rgba(0, 0, 0, .85); }
 .wl-text .hm-save-status.bad { color: #ffd27a; text-shadow: 0 0 9px rgba(255, 170, 60, .7), 0 1px 3px rgba(0, 0, 0, .85); }
 .hm-notice { margin: 0 0 40px; padding: 26px 40px 10px; background: url("/assets/ui/MENU_PARTS_JA/underline.webp") 0 0 / 100% 16px no-repeat, url("/assets/ui/MENU_PARTS_JA/underline.webp") 0 100% / 100% 16px no-repeat, rgba(0, 12, 26, .55); }
 .wl-text .hm-notice h3 { margin: 6px 0 14px; font-size: 44px; line-height: 56px; color: #fff; text-align: center; text-shadow: 0 0 5px rgba(112, 255, 255, .95), 0 0 14px rgba(112, 255, 255, .8), 0 0 28px rgba(64, 200, 255, .55), 0 1px 3px rgba(0, 0, 0, .85); }
