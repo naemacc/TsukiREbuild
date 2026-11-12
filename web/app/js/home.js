@@ -38,7 +38,7 @@ export const TABS = [
     "Everything this was made with is in one repository: the engine rewritten in JavaScript and WebGL2, the tools that turned the game's files into what this page plays, the tests, and the notes on how each part was checked against the game itself.",
     ["rows", [
       ["web/app", "The game: its engine, its interface and its styles."],
-      ["web/server.py", "Plays it on your own computer, with nothing to install: python3 web/server.py, then open localhost:8765."],
+      ["web/server.py", "Plays it on your own computer, with nothing to install: python3 web/server.py, then open localhost:8765. The game's own files are not in the repository; python3 web-dev/tools/fetch_assets.py brings them from this site, once."],
       ["web-dev/tools", "The conversions from a game dump, and the checks on what they made."],
       ["web-dev/tests", "The automated tests: node --test web-dev/tests/*.test.mjs"],
       ["web-dev/audit", "The map of all 5,984 functions in the game's executable, and what is left to do."],
@@ -73,11 +73,11 @@ export const TABS = [
       download(APK),
     ] },
     { head: "macOS and Linux", blocks: [
-      "There is no download for these yet. The app is the same one, and one command builds it from the source, with the game's files already in the repository.",
+      "There is no download for these yet. The app is the same one, built from the source; the game's own files are not in the repository, and one command fetches them from this site.",
       ["rows", [
-        ["Needs", "Git, Node.js with npm, and about 20 GB free while it builds. A Mac with macOS 13 or newer for the Mac app; the Linux one is for 64-bit (x86) systems."],
-        ["1. Get the source", "git clone --depth 1 https://github.com/waifwu/TsukiREbuild"],
-        ["2. Build", "In that folder: web-dev/desktop/build.sh mac, or web-dev/desktop/build.sh linux. The first run fetches Electron."],
+        ["Needs", "Git, Python 3, Node.js with npm, and about 20 GB free while it builds. A Mac with macOS 13 or newer for the Mac app; the Linux one is for 64-bit (x86) systems."],
+        ["1. Get the source", "git clone --depth 1 https://github.com/waifwu/TsukiREbuild, then in that folder: python3 web-dev/tools/fetch_assets.py, which downloads the game's files (2.8 GB)."],
+        ["2. Build", "web-dev/desktop/build.sh mac, or web-dev/desktop/build.sh linux. The first run fetches Electron."],
         ["3. Play", "The app is in web-dev/desktop/out: Tsukihime-mac-universal.dmg (open it, drag Tsukihime to Applications), or Tsukihime-linux-x86_64.AppImage (chmod +x, then open it)."],
       ]],
       ["link", "How the desktop app is built", `${GITHUB}/tree/main/web-dev/desktop`],

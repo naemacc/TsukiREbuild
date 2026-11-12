@@ -15,6 +15,8 @@ for a in "$@"; do
     esac
 done
 [ ${#args[@]} -gt 0 ] || args=(--mac --win --linux)
+# The game's files are not in the repository: fetch_assets.py brings them from the site into web/assets, once.
+[ -f "../../web/assets/text.json" ] || { echo "the game's files are not in web/assets: run python3 web-dev/tools/fetch_assets.py first" >&2; exit 1; }
 [ -d node_modules/electron-builder ] || npm install
 npx electron-builder "${args[@]}"
 ls -lh out/Tsukihime-* | awk '{print $5, $9}'

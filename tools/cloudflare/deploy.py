@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Sync the tracked game assets and the app to R2, and publish the frontend to Cloudflare Pages.
+"""Sync the app to R2 and publish the frontend to Cloudflare Pages; with --assets, sync the game's assets to R2 from a folder.
+
+The game's own files (web/assets: pictures, music, voices, movies, scripts, tables) are not in the repository. They are in the bucket,
+under assets/, and a deployment leaves them alone: it stores the app, and never deletes anything. To change them, run this with
+--assets on a machine that has them (see main), which also writes the list of them the repository does keep, web-dev/assets-manifest.txt
+(web-dev/tools/fetch_assets.py brings the files back from the site by that list).
 
 Two ways in serve the same files:
   https://arcueid.date            the R2 bucket itself, attached to the domain and behind Cloudflare's cache: the app's files at the
@@ -130,6 +135,8 @@ def tracked_files(directory):
     files = [Path(os.fsdecode(name)) for name in output.split(b"\0") if name]
     if not files:
         raise RuntimeError(f"No tracked files found in {directory}")
+    if directory == "web/app" and subprocess.check_output(["git", "ls-files", "--", "web/assets"], cwd=ROOT).strip():
+        raise RuntimeError("web/assets is tracked again: the game's files stay out of the repository (web/.gitignore)")
     for path in files:
         if (ROOT / path).is_symlink() or not (ROOT / path).is_file():
             raise RuntimeError(f"Expected a regular file: {path}")
@@ -165,7 +172,38 @@ def cloudflare(method, path, token, body=None, content_type="application/json", 
         time.sleep(2 ** attempt)
 
 
-def sync_assets(client, bucket):
+# The game's assets in a folder, as the objects a deployment would store: every file but the loose voices and sound effects (the site plays
+# them from the packs, web-dev/tools/build_packs.py) and hidden files.
+LOOSE = ("voice", "se")
+
+
+def asset_objects(folder):
+    folder = Path(folder).resolve()
+    if not (folder / "scripts").is_dir() or not (folder / "pack").is_dir():
+        raise RuntimeError(f"{folder} does not look like web/assets (no scripts/ or pack/)")
+    objects = []
+    for path in sorted(folder.rglob("*")):
+        rel = path.relative_to(folder)
+        if path.is_file() and not path.is_symlink() and rel.parts[0] not in LOOSE and not any(part.startswith(".") for part in rel.parts):
+            objects.append(("assets/" + rel.as_posix(), path, None))
+    return objects
+
+
+def write_manifest(objects):
+    """web-dev/assets-manifest.txt: "md5 size path" for each asset, by path (fetch_assets.py reads it)."""
+    lines = []
+    for key, path, _ in sorted(objects):
+        digest = hashlib.md5()
+        with path.open("rb") as source:
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                digest.update(chunk)
+        lines.append(f"{digest.hexdigest()} {path.stat().st_size} {key[len('assets/'):]}")
+    (ROOT / "web-dev/assets-manifest.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"Wrote web-dev/assets-manifest.txt ({len(lines)} files): commit it with the change", flush=True)
+
+
+def sync_assets(client, bucket, assets=None):
+    """The app (assets None), or the game's assets from the folder `assets`, into the bucket. Nothing is ever deleted."""
     remote = {}
     for page in client.get_paginator("list_objects_v2").paginate(Bucket=bucket):
         for item in page.get("Contents", []):
@@ -221,15 +259,45 @@ def sync_assets(client, bucket):
         print(f"Uploaded {key}", flush=True)
         return 1
 
+    def restamp_stored(key):
+        # an object this run has no file for (the game's assets, in a deployment of the app): the same bytes, with their lifetime and
+        # type as the rule now has them and the checksum they were stored with
+        kept = client.head_object(Bucket=bucket, Key=key).get("Metadata", {})
+        client.copy_object(
+            Bucket=bucket,
+            Key=key,
+            CopySource={"Bucket": bucket, "Key": key},
+            MetadataDirective="REPLACE",
+            ContentType=content_type(Path(key)),
+            CacheControl=cache_control(key),
+            Metadata=kept,
+            StorageClass="STANDARD",
+        )
+
+    if assets is not None:
+        # The game's assets alone, from a folder: new and changed files go up, and the list of them is written for the repository.
+        objects = asset_objects(assets)
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            uploaded = sum(pool.map(upload, objects))
+        write_manifest(objects)
+        print(f"R2: uploaded {uploaded} new or modified assets, skipped {len(objects) - uploaded} unchanged", flush=True)
+        return
+
     # Retain previous objects for open browser sessions and deployment rollbacks.
-    objects, index, version = site_objects(tracked_files("web/assets") + tracked_files("web/app"))
+    objects, index, version = site_objects(tracked_files("web/app"))
     with ThreadPoolExecutor(max_workers=8) as pool:
         uploaded = sum(pool.map(upload, objects))
+        if restamp:
+            mine = {key for key, _, _ in objects}
+            stored_assets = [key for key in remote if key.startswith("assets/") and key not in mine]
+            list(pool.map(restamp_stored, stored_assets))
+            print(f"R2: {len(stored_assets)} stored assets given their lifetime and type again", flush=True)
     uploaded += upload(index)   # last: the page a player gets only once every file it names is there
     print(f"R2: the page loads the app from v/{version}/", flush=True)
     if restamp:
         client.put_object(Bucket=bucket, Key=POLICY_KEY, Body=POLICY.encode(), ContentType="text/plain", CacheControl=SHORT)
-    print(f"R2: uploaded {uploaded} new or modified files, skipped {len(objects) + 1 - uploaded} unchanged files", flush=True)
+    in_bucket = sum(1 for key in remote if key.startswith("assets/"))
+    print(f"R2: uploaded {uploaded} new or modified files, skipped {len(objects) + 1 - uploaded} unchanged files; {in_bucket} assets in the bucket, left as they are", flush=True)
 
 
 def frontend_assets(account, project, token):
@@ -308,14 +376,13 @@ def deploy(account, project, token, manifest):
 
 
 def stage(directory):
-    """Write the app's objects as a deployment would store them into a folder, keys as paths, with assets/ a link to web/assets, to try
-    the site locally (python3 -m http.server)."""
-    objects, index, version = site_objects(tracked_files("web/assets") + tracked_files("web/app"))
+    """Write the app's objects as a deployment would store them into a folder, keys as paths, with assets/ a link to web/assets (where
+    fetch_assets.py puts the game's files), to try the site locally (python3 -m http.server)."""
+    objects, index, version = site_objects(tracked_files("web/app"))
     out = Path(directory).resolve()
     out.mkdir(parents=True, exist_ok=True)
     if not (out / "assets").exists():
         (out / "assets").symlink_to(ROOT / "web/assets")
-    objects = [o for o in objects if not o[0].startswith("assets/")]
     for key, path, data in objects + [index]:
         target = out / key
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -324,25 +391,36 @@ def stage(directory):
 
 
 def main():
+    """deploy.py                 the app to the bucket and to Pages (what a push to main runs)
+    deploy.py --stage DIR     the app as it would be stored, into a folder
+    deploy.py --assets DIR    the game's assets from DIR (a web/assets) to the bucket, and the manifest written. For whoever has the
+                              files: with CLOUDFLARE_ACCOUNT_ID and either the deployment's token pair or R2 keys of their own
+                              (R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and, for temporary ones, R2_SESSION_TOKEN)."""
     if len(sys.argv) == 3 and sys.argv[1] == "--stage":
         return stage(sys.argv[2])
+    assets = sys.argv[2] if len(sys.argv) == 3 and sys.argv[1] == "--assets" else None
+    if len(sys.argv) > 1 and assets is None:
+        raise SystemExit(main.__doc__)
     import boto3
     from botocore.config import Config
 
-    names = ("CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN_ID")
+    own_keys = bool(os.environ.get("R2_ACCESS_KEY_ID") and os.environ.get("R2_SECRET_ACCESS_KEY"))
+    names = ("CLOUDFLARE_ACCOUNT_ID",) if assets is not None and own_keys else ("CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN_ID")
     for name in names:
         if not os.environ.get(name):
             raise RuntimeError(f"Missing required environment variable {name}")
     account = os.environ["CLOUDFLARE_ACCOUNT_ID"]
-    token = os.environ["CLOUDFLARE_API_TOKEN"]
+    token = os.environ.get("CLOUDFLARE_API_TOKEN", "")
     project = os.environ.get("CLOUDFLARE_PAGES_PROJECT", "tsukirebuild")
     bucket = os.environ.get("CLOUDFLARE_R2_BUCKET", "tsukirebuild-assets")
+    keys = dict(aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"], aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
+                aws_session_token=os.environ.get("R2_SESSION_TOKEN") or None) if assets is not None and own_keys else dict(
+        aws_access_key_id=os.environ["CLOUDFLARE_API_TOKEN_ID"], aws_secret_access_key=hashlib.sha256(token.encode()).hexdigest())
     client = boto3.client(
         "s3",
         endpoint_url=f"https://{account}.r2.cloudflarestorage.com",
         region_name="auto",
-        aws_access_key_id=os.environ["CLOUDFLARE_API_TOKEN_ID"],
-        aws_secret_access_key=hashlib.sha256(token.encode()).hexdigest(),
+        **keys,
         config=Config(
             retries={"mode": "standard", "total_max_attempts": 5},
             max_pool_connections=8,
@@ -350,6 +428,8 @@ def main():
             response_checksum_validation="when_required",
         ),
     )
+    if assets is not None:
+        return sync_assets(client, bucket, assets)
     sync_assets(client, bucket)
     manifest = frontend_assets(account, project, token)
     deploy(account, project, token, manifest)

@@ -18,6 +18,9 @@ for a in "$@"; do
     esac
 done
 
+# The game's files are not in the repository: fetch_assets.py brings them from the site into web/assets, once.
+[ -f "$web/assets/text.json" ] || { echo "the game's files are not in web/assets: run python3 web-dev/tools/fetch_assets.py first" >&2; exit 1; }
+
 sdk="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 bt="$sdk/build-tools/$(ls "$sdk/build-tools" | sort -V | tail -1)"
 jar="$sdk/platforms/android-36/android.jar"

@@ -7,6 +7,8 @@ web-dev/desktop/build.sh              # all three, into web-dev/desktop/out
 web-dev/desktop/build.sh mac          # or any of: mac win linux
 ```
 
+The game's files are not in the repository: `python3 web-dev/tools/fetch_assets.py` brings them from the site into `web/assets` first, once (the build stops and says so when they are missing).
+
 | File | Size | For | To play |
 | --- | --- | --- | --- |
 | `Tsukihime-mac-universal.dmg` | 3.0 GB | macOS 13 or newer, Apple silicon and Intel | Open it, drag Tsukihime to Applications |

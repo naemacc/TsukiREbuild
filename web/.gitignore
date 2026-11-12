@@ -2,7 +2,6 @@
 __pycache__/
 *.pyc
 
-# The voices and sound effects are in the repository as packs alone (assets/pack, web-dev/tools/build_packs.py):
-# the loose files the packs are made from stay out.
-assets/voice/
-assets/se/
+# The game's own files (pictures, music, voices, movies, scripts, tables) are not in the repository: the site serves them, and
+# web-dev/tools/fetch_assets.py brings them here from it (web-dev/assets-manifest.txt lists them).
+assets/

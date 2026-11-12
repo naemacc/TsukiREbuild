@@ -8,6 +8,8 @@ web-dev/android/build_apk.sh --debug    # the page can be inspected from chrome:
 web-dev/android/build_apk.sh --install  # also installs it (adb install -r: saves are kept)
 ```
 
+The game's files are not in the repository: `python3 web-dev/tools/fetch_assets.py` brings them from the site into `web/assets` first, once (the build stops and says so when they are missing).
+
 It needs the Android SDK (`ANDROID_HOME`, default `~/Library/Android/sdk`) with platform android-36 and build-tools 35 or newer, plus a JDK. It does not use Gradle. With more than one device connected, set `ANDROID_SERIAL`. A 2.8 GB APK installs over USB in about 80 s.
 
 ## How it works

@@ -6,6 +6,9 @@ import { existsSync, readFileSync } from "node:fs";
 const { ART, GL_ART, Preloader, RANK } = await import("../../web/app/js/preload.js");
 const { VM } = await import("../../web/app/js/vm.js");
 const asset = (path) => new URL(`../../web/assets/${path}`, import.meta.url);
+// The media are not in the repository: whether the site has a picture is asked of the list of its files (web-dev/assets-manifest.txt), which also
+// holds where only the scripts and tables were fetched (fetch_assets.py --tables).
+const listed = new Set(readFileSync(new URL("../../web-dev/assets-manifest.txt", import.meta.url), "utf8").split("\n").filter(Boolean).map((l) => l.split(" ").slice(2).join(" ")));
 const json = (path) => JSON.parse(readFileSync(asset(path), "utf8"));
 const source = (name) => readFileSync(new URL(`../../web/app/${name}`, import.meta.url), "utf8");
 const index = json("scripts/index.json"), tables = json("audio_tables.json"), images = json("images.json"), system = json("system.json");
@@ -35,11 +38,11 @@ function world({ lanes = 4, vm: extra = {} } = {}) {
 }
 const settle = async (pre) => { for (let k = 0; k < 5; k++) { await new Promise((r) => setTimeout(r, 5)); await pre.idle(); } };
 
-test("every interface picture on the start-up list is in web/assets/ui, none twice in a group", () => {
+test("every interface picture on the start-up list is one of the site's files (assets/ui), none twice in a group", () => {
   const windows = system.windows.styles.map((s) => `DISP_PARTS_JA/${s[0]}`);
   for (const [group, list] of [...Object.entries(ART), ...Object.entries(GL_ART), ["windows", windows]]) {
     assert.equal(new Set(list).size, list.length, group);
-    for (const p of list) assert.ok(existsSync(asset(`ui/${p}.webp`)), `${group}: ${p}`);
+    for (const p of list) assert.ok(listed.has(`ui/${p}.webp`), `${group}: ${p}`);
   }
   // the screens named in the request: the title, the text window and its marks, the choices and questions, the menus
   for (const p of ["TITLE_PARTS_JA/titlemenu", "PARTS/caution2_1920x1080"]) assert.ok(ART.title.includes(p), p);
@@ -182,7 +185,7 @@ test("a movie on a route's script is that route's; the chapter titles and the fi
   grain.pre.near(["STNS", "3", "0"], { rank: RANK.story });
   await settle(grain.pre);
   assert.deepEqual(grain.asked, ["gl NOISE_PARTS/noisehd1"]);
-  assert.ok(existsSync(asset("ui/NOISE_PARTS/noisehd1.webp")));
+  assert.ok(listed.has("ui/NOISE_PARTS/noisehd1.webp"));
   assert.equal(asked.filter((s) => s.startsWith("gl ")).length, 0);
 });
 

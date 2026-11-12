@@ -62,7 +62,7 @@ It needs Git, Node.js with npm, and about 20 GB free while it builds; the first 
 python3 web/server.py 8765
 ```
 
-Then open http://localhost:8765. It needs Python 3, with no packages, and the `web` folder: everything the game uses is in `web/assets/` (2.7 GB). Nothing else in the repository is read, nor the game's own files, so that folder can be moved by itself. The browser needs WebGL2, AVIF, Opus and AV1 video; Chrome and Firefox have them all.
+Then open http://localhost:8765. It needs Python 3, with no packages, and the `web` folder: everything the game uses is in `web/assets/` (2.8 GB). **Those files are not in the repository**, since they are the game's own: `python3 web-dev/tools/fetch_assets.py` brings them from the site, once (see [The game's files](#the-games-files)). Nothing else in the repository is read, so the `web` folder can be moved by itself. The browser needs WebGL2, AVIF, Opus and AV1 video; Chrome and Firefox have them all.
 
 ## Controls
 
@@ -184,7 +184,7 @@ Nothing waits for the whole game: each file is fetched when it is first used, an
 - **From the opening page on.** While the opening page is up (on later visits, while the logo plays) the game fetches, in this order: what the next screen needs (on a first visit the opening's script, picture and movie; later the logo, the title's art and its movie; the interface sounds and the title's music), then the story's own screen (the text window and its marks, the choices, the questions, the quick bar, the fonts, the first scene's pictures and sounds), then the menus (system menu, log, Save, Load, Config, the speech balloons), then the gallery and flowchart art. At most four of these are read at once, so a file the game asks for itself never queues behind them.
 - **As the story runs.** At every message the script is read ahead: the pictures, sound effects, music and voices of the next 300 commands (about a dozen messages), and from 2,500 commands away the movies and the scripts it can jump to, which are read on from where they start. Voices are left out while skipping or switched off.
 - **Movies.** A movie that is coming is given a player of its own, which starts reading the file as a browser reads any movie. When the movie plays, that player takes the place of the page's, so it starts at once from what has been read. Two are kept ready at most. The title's movie is made ready again whenever the title is about to come back (a story's end, Return to Title, the gallery).
-- **Sounds in packs.** The 16,460 voices, 1,284 sound effects and 9 interface sounds are also kept in 658 packs of about 1.5 MB (`assets/pack`, made by `tools/build_packs.py`): the files end to end as they are, in the order the story first uses them, so the pack with a line's voice has the next lines' too. The game asks for the pack and cuts each sound from it, which is about 27 times fewer requests than a file a sound. A pack is named by a hash of its content, so a browser can keep it for good; `assets/pack/index.json` names the index in use. Music and movies are not packed. Where there are no packs, or a pack cannot be read, each sound is read from its own file. The repository carries the voices and sound effects as packs alone; the loose files, which `build_packs.py` makes the packs from, come from `convert_all.py` and stay with whoever builds the assets.
+- **Sounds in packs.** The 16,460 voices, 1,284 sound effects and 9 interface sounds are also kept in 658 packs of about 1.5 MB (`assets/pack`, made by `tools/build_packs.py`): the files end to end as they are, in the order the story first uses them, so the pack with a line's voice has the next lines' too. The game asks for the pack and cuts each sound from it, which is about 27 times fewer requests than a file a sound. A pack is named by a hash of its content, so a browser can keep it for good; `assets/pack/index.json` names the index in use. Music and movies are not packed. Where there are no packs, or a pack cannot be read, each sound is read from its own file. The site carries the voices and sound effects as packs alone; the loose files, which `build_packs.py` makes the packs from, come from `convert_all.py` and stay with whoever builds the assets.
 - **After PLAY ONLINE.** On a first visit, pressing PRESS ANY BUTTON brings the game's "Loading" window with a count, until what the next screen and the story's first screen use has been read and the first movie can start. It is not shown when that is so already, and it never holds longer than 20 seconds.
 
 What has not arrived when it is wanted is fetched then.
@@ -227,7 +227,7 @@ Script names start with the day, then 00 for Arcueid's route or 01 for Ciel's: `
 
 | Folder | What is in it |
 |---|---|
-| `web/` | The game as served: `app/` (engine, interface, styles, fonts), `assets/` (the game's converted files) and `server.py`. It runs by itself. |
+| `web/` | The game as served: `app/` (engine, interface, styles, fonts), `assets/` (the game's converted files: not in the repository, see below) and `server.py`. It runs by itself. |
 | `web-dev/` | What makes and checks it: `tools/` (conversions from a game dump), `tests/`, `smoketest/`, `audit/` (the parity audit and the function map), `android/` (the Android app), `desktop/` (the Windows, macOS and Linux app) |
 | `web-research/` | The first size research and its tools ([FINDINGS.md](web-research/FINDINGS.md)) |
 | `tools/cloudflare/` | The deployment ([below](#deployment)) |
@@ -260,11 +260,24 @@ Tests, with Node.js and no packages: `node --test web-dev/tests/*.test.mjs`. Eve
 
 - `build_core.py`: scripts, dialogue and tables; `build_images.py`: how large each image needs storing
 - `convert.py`, `convert_all.py`: images to AVIF, voices and music to Ogg Opus without re-encoding, sound effects to Opus, the movies' pictures to AV1 with their sound copied, the balloon font copied
+- `fetch_assets.py`: brings the game's files from the site into `web/assets` (`web-dev/assets-manifest.txt` lists them)
 - `needed.py`, `check_assets.py`: what the game can ask for, and whether it is all there; `build_packs.py`: the voices and sounds in packs
 - `build_ui.py`: the game's interface art (and the film grain static; `build_ui.py "$PWD" NOISE_PARTS` adds just that; `PARTS`, the start-up notice and cautions from `parts.hed`, likewise)
 - `build_animations.py`, `build_effects.py`: the game's motion tracks and colour effect presets
 - `build_gallery.py`, `build_flowchart.py`, `native_flowchart.py`, `build_system.py`, `build_sounds.py`: the gallery, flowchart and system tables, and the interface's own sounds
 - `decode_save.py`: reads a save of the original game and prints its progress as the web version keeps it
+
+### The game's files
+
+The game's own files, converted for the browser (pictures, music, voices, movies, scripts, tables: 10,517 files, 2.8 GB), are **not in this repository**. They are copyrighted, and the site serves them from its own storage. What the repository keeps is the list of them, `web-dev/assets-manifest.txt`: each file's MD5, size and path under `web/assets`.
+
+```bash
+python3 web-dev/tools/fetch_assets.py            # everything, from the site into web/assets
+python3 web-dev/tools/fetch_assets.py --tables   # only the scripts and tables (about 42 MB): enough for the tests
+python3 web-dev/tools/fetch_assets.py --check    # downloads nothing; says what is missing or different
+```
+
+A file already there with the listed size and MD5 is left alone, so a run that was stopped goes on where it was. `web/assets/` is ignored by git. The local server, the tests (`--tables` is enough) and the app builds need the files; each says so when they are missing. The other way to get them is to make them from your own copy of the game, below.
 
 ### Making the assets again
 
@@ -312,7 +325,7 @@ Each object is stored with its lifetime: 30 days for the game's media (`assets/v
 
 **The earlier address.** [tsukirebuild.pages.dev](https://tsukirebuild.pages.dev/) is a Cloudflare Pages project that forwards to the domain, path and query kept (a `_redirects` file written by the deployment). Its Worker (`web/cloudflare/worker.js`) still answers `/assets/*` from the bucket there. Saves are kept by the browser for each address separately, so progress made at the Pages address does not appear on the domain.
 
-**The deployment** compares file checksums and uploads new or modified files to the bucket, then publishes the Pages project. Previous objects are kept for open browser sessions and rollbacks; nothing is deleted from the bucket. GitHub stores its credential in the encrypted repository secret `CLOUDFLARE_API_TOKEN` and the token's ID in the repository variable `CLOUDFLARE_API_TOKEN_ID`. The credential needs account-level `Pages Write` and `Workers R2 Storage Bucket Item Write` scoped to `tsukirebuild-assets`; update both values when rotating it.
+**The deployment** stores the app: it compares file checksums and uploads new or modified app files to the bucket, then publishes the Pages project. Previous objects are kept for open browser sessions and rollbacks; nothing is deleted from the bucket. **The game's files are not part of it**: they are in the bucket under `assets/` and a deployment leaves them alone (it refuses to run if `web/assets` is tracked again). To change them, whoever has the files runs `python3 tools/cloudflare/deploy.py --assets web/assets` with R2 credentials: it uploads new and changed assets, deletes nothing, and writes `web-dev/assets-manifest.txt` again, to be committed. GitHub stores its credential in the encrypted repository secret `CLOUDFLARE_API_TOKEN` and the token's ID in the repository variable `CLOUDFLARE_API_TOKEN_ID`. The credential needs account-level `Pages Write` and `Workers R2 Storage Bucket Item Write` scoped to `tsukirebuild-assets`; update both values when rotating it.
 
 ## Credits
 

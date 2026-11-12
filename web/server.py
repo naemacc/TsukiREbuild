@@ -2,7 +2,8 @@
 """server.py [port]: the local web version. Listens on this machine only.
 
 Serves web/app and web/assets, with byte ranges for the movies. It needs nothing but Python's standard library and this folder:
-everything the game uses is in web/assets (web-dev/tools/convert_all.py makes it, once, from the dump).
+everything the game uses is in web/assets. Those files are not in the repository: web-dev/tools/fetch_assets.py brings them from the
+site, once (or web-dev/tools/convert_all.py makes them from a dump of the game).
 """
 import http.server
 import mimetypes
@@ -108,6 +109,9 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
 
 
 if __name__ == "__main__":
+    if not os.path.isfile(os.path.join(ASSETS, "text.json")):
+        sys.exit("The game's files are not in web/assets (they are not part of the repository).\n"
+                 "Fetch them once from the site:  python3 web-dev/tools/fetch_assets.py")
     srv = Server(("127.0.0.1", PORT), Handler)
     print(f"http://localhost:{PORT}", flush=True)
     srv.serve_forever()
