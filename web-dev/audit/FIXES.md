@@ -1288,7 +1288,11 @@ The opening page has a fifth tab, SAVE DATA, left of PLAY ONLINE (the user, 2026
 save data"): what the file is, and two of the panel's plates, EXPORT SAVES and IMPORT SAVES (`app/js/home.js` savesBlock, keys E and I; at a
 finger's size on a touch device). By touch the five tab plates are three over two, ABOUT, GITHUB, DOWNLOAD over SAVE DATA, PLAY ONLINE, each row
 centred, on the game's stage and on the upright one (the user: "on touch put 3 tabs on top and the 2 play online and save data in second line";
-`touch.js` TOUCH.home / homeUpright). The file is the original game's own `savedata000` (the user, 2026-11-12: "i should be able to
+`touch.js` TOUCH.home / homeUpright). The page names the format ("the Nintendo Switch game's own save format"), lists what the browser holds now
+(`savefile.js` loadedData: scenes, pictures and music as the game's own screens count them, the saves made here, the file kept from the last
+import and its slots), and has a third plate, REMOVE DATA: after the same Yes / No question it takes the saves and progress out of the browser
+(`removeSaves`) and the kept file with them, and loads the page again; the settings, volumes and key bindings stay (the user: "show the data
+that's loaded on that page and an option to remove it"). The file is the original game's own `savedata000` (the user, 2026-11-12: "i should be able to
 import files like this and export should be compatible too"). `app/js/gamesave.js` reads and writes it; `app/js/savefile.js` is the
 browser's side.
 
@@ -1303,7 +1307,7 @@ hour, minute, second). The game's first config (0x46b080) read through the map g
 
 - **Import** replaces the settings, volumes, globals, flowchart, gallery and read marks with the file's, asking first in the game's
   Yes / No window where the game has been played, and keeps the file itself in the browser's database. Then the page loads again
-  (everything was read from storage when it loaded) and comes back on SAVE DATA saying what was loaded. `main.js`'s pagehide does
+  (everything was read from storage when it loaded) and comes back on SAVE DATA, where the list shows what was loaded. `main.js`'s pagehide does
   not write the page's own read marks and gallery over it (`savesReplaced`).
 - **Export** writes the system data from the port's state over the file last imported, so what the port has no copy of (the choices
   taken, config fields with no setting, the records) comes out as it went in, and no progress the file had is taken away (as the
@@ -1319,7 +1323,7 @@ hour, minute, second). The game's first config (0x46b080) read through the map g
 Checked with the 100% save the user gave (`~/Downloads/savedata000`, the reference save's SHA-256): read, it has 556 scenes started,
 553 completed, 630 lines (as `decode_save.py`), 2,716 pictures, 116 music numbers, both movies; in Chrome (Playwright) imported into an
 empty browser the gallery lists all 458 entries, 1,977 pictures and 95 of 95 songs, and the Export made after it is the same file, byte
-for byte. Tests: `tests/savefile.test.mjs` (13; the one that reads the real save runs where the game's data is).
+for byte. Tests: `tests/savefile.test.mjs` (15; the one that reads the real save runs where the game's data is).
 
 Also removed that day, at the user's word: the flowchart's Unlock All (one unpushed commit, kept on the local branch
 `shelved/unlock-all`) and the Japanese language option (never committed; set aside in the working folder's `web-dev/shelved/`). A

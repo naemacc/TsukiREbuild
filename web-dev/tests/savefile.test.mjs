@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 
 const { GAME, FLOW_BITS, DEFAULT_CONFIG, configToPort, portToConfig, globalName, isGameSave, readSystem, writeSystem } = await import("../../web/app/js/gamesave.js");
-const { FILE_NAME, KEYS, LOCAL, NOTE, describe, recordsLine, exportSaves, hasProgress, importSaves, portState, readSaves, savesReplaced } = await import("../../web/app/js/savefile.js");
+const { FILE_NAME, KEYS, LOCAL, NOTE, REMOVED, recordsLine, loadedData, removeSaves, exportSaves, hasProgress, importSaves, portState, readSaves, savesReplaced } = await import("../../web/app/js/savefile.js");
 const { TABS, PLAY, SAVE, SAVE_PLATES, SAVE_TEXT } = await import("../../web/app/js/home.js");
 const source = (name) => readFileSync(new URL(`../../web/app/${name}`, import.meta.url), "utf8");
 
@@ -169,9 +169,7 @@ test("a browser that will not store the file keeps what it had", () => {
   assert.deepEqual(Object.fromEntries(store.map), before);
 });
 
-test("what a file holds, in a few words", () => {
-  assert.equal(describe({ flow: { completed: [1, 2] }, seen: [1], music: [1, 2, 3] }), "2 scenes completed, 1 picture, 3 songs");
-  // the file's save records are counted, and the player told they are not loaded yet (TODO item 161)
+test("the file's save records are counted, and the player told they are not loaded yet (TODO item 161)", () => {
   assert.equal(recordsLine({ records: [] }), "");
   assert.match(recordsLine({ records: [3] }), /^ Its 1 save cannot be loaded here yet; it stays in the file/);
   assert.match(recordsLine({ records: [73, 74, 139] }), /^ Its 3 saves cannot be loaded here yet; they stay in the file/);
@@ -180,16 +178,43 @@ test("what a file holds, in a few words", () => {
   assert.deepEqual(readSaves(file).records, [0, 99, 139]);
 });
 
-test("the opening page's SAVE DATA tab: what the file is, and two of the panel's plates; Import asks before it replaces progress, keeps the file, and loads the page again", () => {
+test("what the browser holds now, for SAVE DATA's page: counted as the game's own screens count, with the saves made here and the kept file", () => {
+  assert.deepEqual(loadedData(memory()), [], "nothing: the page says there is no save data");
+  const chart = { groups: [{ parts: [{ flag: 1 }, { flag: 2 }, { flag: 0 }, { flag: 3 }] }, { parts: [{ flag: 485 }, { flag: 2 }] }] };
+  const gallery = { seen: { IMG0007: 9 }, cg: [{ gate: 0, variants: [{ image: "A", bits: [0] }, { image: "B", bits: [5] }] }, { gate: 0, variants: [{ image: "C", bits: [9] }] }],
+    music: [{ music: 1 }, { music: 3, also: [95] }, { music: 4 }] };
+  const some = stored({ ...STATE, flow: { ...STATE.flow, completed: [1] } });
+  const store = memory({ ...some, "tsuki.saves": JSON.stringify({ 0: {}, 7: {} }), "tsuki.autosaves": "[{}]", "tsuki.quicksave": "{}" });
+  assert.deepEqual(loadedData(store, { chart, gallery }), [["Scenes", "1 of 4 completed"], ["Pictures", "2 of 3"], ["Music", "2 of 3"], ["Saves made here", "2 saves, 1 automatic save, a quick save"]]);
+  // (with the last Ciel-sensei episode complete the gallery lists every picture: unlocks.js COMPLETION_SCENE)
+  assert.deepEqual(loadedData(memory(stored()), { chart, gallery })[1], ["Pictures", "3 of 3"]);
+  assert.deepEqual(loadedData(memory(stored())), [["Scenes", "2 completed"], ["Pictures", "4"], ["Music", "4"], ["Saves made here", "None"]], "without the game's tables, the bare counts");
+  // the file kept from the last import, and its save slots
+  const base = new Uint8Array(GAME.size); base.set(writeSystem(STATE));
+  for (const n of [73, 74]) { base[GAME.records + n * GAME.stride] = 0xf2; base[GAME.records + n * GAME.stride + 1] = 3; }
+  assert.deepEqual(loadedData(memory(stored()), {}, base).at(-1), ["Imported file", "savedata000, kept for Export, with its 2 save slots"]);
+  assert.deepEqual(loadedData(memory(), {}, base).map((r) => r[0]), ["Scenes", "Pictures", "Music", "Saves made here", "Imported file"], "a kept file alone is still something to show, and to remove");
+});
+
+test("Remove: the saves and progress out of the browser; the settings, the keys and the pages shown stay", () => {
+  const store = memory({ ...stored(), "tsuki.saves": "{}", "tsuki.autosaves": "[]", "tsuki.quicksave": "{}", "tsuki.read": "AQID", "tsuki.keys": "{}", "tsuki.welcomed": "1", "tsuki.voiceSamples": "{}" });
+  removeSaves(store);
+  assert.deepEqual([...store.map.keys()].sort(), ["tsuki.keys", "tsuki.settings", "tsuki.voiceSamples", "tsuki.volumes", "tsuki.welcomed"]);
+  assert.equal(hasProgress(store), false);
+  assert.equal(savesReplaced(), true);
+  assert.deepEqual([...REMOVED].sort(), Object.keys(KEYS).filter((k) => KEYS[k] !== "config").sort(), "every name that is saves or progress");
+});
+
+test("the opening page's SAVE DATA tab: the Nintendo format named, what is loaded now, and three of the panel's plates; Import and Remove ask first, and the page loads again", () => {
   assert.equal(TABS[SAVE].plate, "SAVE DATA");
   const blocks = TABS[SAVE].sections[0].blocks, kinds = blocks.map((b) => (Array.isArray(b) ? b[0] : "text"));
-  assert.deepEqual(kinds, ["text", "text", "rows", "saves"]);
-  assert.deepEqual(blocks[2][1].map((r) => r[0]), ["Export", "Import", "Save slots"], "what each plate does, and what does not go across yet (TODO item 161)");
-  assert.match(blocks[1], /savedata000/);
+  assert.deepEqual(kinds, ["text", "text", "data", "saves", "rows"]);
+  assert.deepEqual(blocks[4][1].map((r) => r[0]), ["Export", "Import", "Remove", "Save slots"], "what each plate does, and what does not go across yet (TODO item 161)");
+  assert.match(blocks[1], /Export and Import use the Nintendo Switch game's own save format, the file savedata000/);
   assert.ok(!TABS[PLAY].sections[0].blocks.some((b) => b[0] === "saves"), "PLAY ONLINE keeps only its prompt");
   assert.deepEqual(TABS[PLAY].sections[0].blocks.at(-1), ["press"]);
-  assert.deepEqual(SAVE_PLATES.map((p) => p.plate), ["EXPORT SAVES", "IMPORT SAVES"]);
-  assert.ok(SAVE_TEXT.ask.split("\n").every((line) => line.length <= 36), "the question fits the game's window, two lines");
+  assert.deepEqual(SAVE_PLATES.map((p) => p.plate), ["EXPORT SAVES", "IMPORT SAVES", "REMOVE DATA"]);
+  for (const q of [SAVE_TEXT.ask, SAVE_TEXT.askRemove]) assert.ok(q.split("\n").length === 2 && q.split("\n").every((line) => line.length <= 36), "the question fits the game's window, two lines");
   const home = source("js/home.js"), css = source("style.css");
   assert.match(home, /quickBarArt\(SAVE_PLATES\.map/, "the game's own plates, relettered as the tabs are");
   assert.match(home, /if \(!hasProgress\(\)\) \{ load\(sys, bytes\); return; \}\n\s*ui\.dialog\(SAVE_TEXT\.ask, [^\n]*\{ startNo: true \}\);/, "asked in the game's Yes / No window, starting on No");
@@ -200,7 +225,11 @@ test("the opening page's SAVE DATA tab: what the file is, and two of the panel's
   assert.match(home, /show\(SAVE\); ui\.select\(SAVE\); \}/, "back on SAVE DATA after the reload");
   assert.match(home, /\(k === "e" \|\| k === "E"\) && tab === SAVE &&/);
   assert.match(home, /\(k === "i" \|\| k === "I"\) && tab === SAVE &&/);
-  assert.match(css, /\.hm-save-row \{ display: flex; justify-content: center;/);
+  assert.match(home, /ui\.dialog\(SAVE_TEXT\.askRemove, async \(back\) => \{\n\s*back\(\);\n\s*try \{ removeSaves\(\); \}/, "Remove asks in the same window");
+  assert.match(home, /\}, \(back\) => \{ back\(\); ui\.sel = NONE; \}, \{ startNo: true \}\);/, "starting on No");
+  assert.match(home, /await dropBase\(\);\n\s*ui\.fadeBlack\(black, 1, FADE\.out \* 2, \(\) => location\.reload\(\)\);/, "the kept file goes too");
+  assert.match(home, /rows = loadedData\(localStorage, tables, base\);/);
+  assert.match(css, /\.hm-save-row \{ display: flex; flex-wrap: wrap; justify-content: center;/);
 });
 
 // The 100% save shared on the project's server (data/tsuki/reference-saves; with the game's dump, so not in the repository): read, and written back.

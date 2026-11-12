@@ -400,8 +400,11 @@ div.fc-node { pointer-events: none; cursor: default; }
 .hm-press { display: block; width: 472px; height: 88px; margin: 64px auto 24px; padding: 0; border: 0; cursor: pointer; background: url("/assets/ui/TITLE_PARTS_JA/press_start.webp") 0 0 / 100% 100% no-repeat; }
 /* Export and Import on SAVE DATA (home.js savesBlock): two of the panel's own plates side by side under the page's words, their keys, and a line
    that says what was done. */
-.hm-saves { margin: 48px 0 0; text-align: center; }
-.hm-save-row { display: flex; justify-content: center; gap: 28px; }
+.hm-saves { margin: 40px 0 44px; text-align: center; }
+.wl-text .hm-data h3 { margin-top: 28px; }
+.wl-text .hm-data .wl-rows { margin-bottom: 0; }
+.wl-text .hm-data-none { margin: 0; color: #c9d8e6; }
+.hm-save-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 28px; }
 .hm-save-row .qbtn { position: relative; flex: none; }
 .wl-text .hm-save-note { margin: 18px 0 0; font-size: 24px; line-height: 34px; color: #c9d8e6; }
 .wl-text .hm-save-status:empty { display: none; }

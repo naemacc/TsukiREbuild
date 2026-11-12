@@ -10,7 +10,7 @@ import { sprite, quickBarArt, panelBack } from "./ui.js";
 import { TOUCH } from "./touch.js";
 import { ButtonState, pressPulse } from "./uifx.js";
 import { SECTIONS, TOUCH_INTRO, blockEl } from "./welcome.js";
-import { FILE_NAME, NOTE, describe, exportSaves, hasProgress, importSaves, keepBase, loadBase, readSaves, recordsLine } from "./savefile.js";
+import { FILE_NAME, NOTE, dropBase, exportSaves, hasProgress, importSaves, keepBase, loadBase, loadedData, readSaves, recordsLine, removeSaves } from "./savefile.js";
 import { GAME } from "./gamesave.js";
 
 export const GITHUB = "https://github.com/waifwu/TsukiREbuild";
@@ -31,7 +31,7 @@ export function homeDue(query, host = globalThis.location?.hostname || "") {
 }
 
 // The tabs: a plate, and the sections its page shows, each a heading and blocks as welcome.js draws them, plus ["link", text, address, file name if a
-// download], ["saves"], SAVE DATA's Export and Import plates, and ["press"], the prompt that starts the game.
+// download], ["data"], what the browser holds now, ["saves"], SAVE DATA's Export, Import and Remove plates, and ["press"], the prompt that starts the game.
 export const TABS = [
   { plate: "ABOUT", sections: SECTIONS.map(({ head, blocks }) => ({ head, blocks })) },
   { plate: "GITHUB", sections: [{ head: "The source, on GitHub", blocks: [
@@ -83,15 +83,17 @@ export const TABS = [
       ["link", "How the desktop app is built", `${GITHUB}/tree/main/web-dev/desktop`],
     ] },
   ] },
-  { plate: "SAVE DATA", sections: [{ head: "Your save data, as a file", blocks: [
-    "Saves, settings and progress are kept in this browser: clearing the site's data removes them, and another browser or device starts with none. Here they can be saved as a file, and loaded from one.",
-    "The file is the game's own save, savedata000, so it goes both ways: the original game reads what Export writes, and a save of the original game can be loaded here.",
+  { plate: "SAVE DATA", sections: [{ head: "Your save data", blocks: [
+    "Saves, settings and progress are kept in this browser: clearing the site's data removes them, and another browser or device starts with none.",
+    "Export and Import use the Nintendo Switch game's own save format, the file savedata000: the original game reads what Export writes, and a save from the Switch game can be loaded here.",
+    ["data"],
+    ["saves"],
     ["rows", [
       ["Export", "Saves this browser's settings and progress as savedata000: the flowchart, the gallery, what has been read."],
       ["Import", "Loads a savedata000 here, in place of what this browser has. It asks first if the game has been played here."],
+      ["Remove", "Takes the saves and all progress out of this browser, and the imported file with them. It asks first, and cannot be undone: export first to keep a copy. Settings stay."],
       ["Save slots", "Not yet. The slots in an imported file are kept and go out again with the next Export, but cannot be loaded here, and saves made here are not written into the file."],
     ]],
-    ["saves"],
   ] }] },
   { plate: "PLAY ONLINE", sections: [{ head: "Play here, in the browser", blocks: [
     ["gpu"],
@@ -130,16 +132,23 @@ export function glAccel() {
   } catch { return "unsure"; }
 }
 export const ABOUT = 0, PLAY = TABS.length - 1, SAVE = PLAY - 1, NONE = -1;
-// Export and Import, on SAVE DATA's page under its words (savefile.js): two of the panel's plates. The file is the original game's own save, savedata000
+// Export, Import and Remove, on SAVE DATA's page (savefile.js): three of the panel's plates under the list of what the browser holds now. The file is the
+// Nintendo Switch game's own save, savedata000
 // (gamesave.js), so a save goes between the game and this page both ways. Import takes such a file in place of what the browser has, asking first in the
-// game's Yes / No window when the game has been played in this browser, and loads the page again, back on SAVE DATA.
-export const SAVE_PLATES = [{ act: "export", plate: "EXPORT SAVES" }, { act: "import", plate: "IMPORT SAVES" }];
+// game's Yes / No window when the game has been played in this browser, and loads the page again, back on SAVE DATA. Remove takes the saves and progress
+// out of the browser, and the kept file with them, after the same question.
+export const SAVE_PLATES = [{ act: "export", plate: "EXPORT SAVES" }, { act: "import", plate: "IMPORT SAVES" }, { act: "remove", plate: "REMOVE DATA" }];
 export const SAVE_TEXT = {
   keys: "Keys: E exports, I imports.",
+  now: "In this browser now",
+  empty: "No save data in this browser yet.",
+  nothing: "Nothing to remove: there is no save data in this browser.",
+  askRemove: "Remove the save data from this\nbrowser? It cannot be undone.",
+  removed: "Removed the save data from this browser.",
   none: "Nothing to export yet: the game has not been played in this browser.",
   exported: (name) => `Saved as ${name}.`,
   ask: "Load this save file here?\nIt replaces what this browser has.",
-  loaded: (what) => `Loaded: ${what}.`,
+  loaded: (name) => `Loaded ${name}.`,   // (what it held is in the list above the plates)
 };
 // The line under the logo before a plate is chosen.
 export const NONE_LINE = "An unofficial fan rebuild of the Tsukihime remake. Choose a page above: ABOUT, GITHUB, DOWNLOAD, SAVE DATA, or PLAY ONLINE to start the game.";
@@ -213,7 +222,7 @@ export async function openHome(ui, { started = null } = {}) {
       try { importSaves(sys); } catch (e) { say(e.message, true); return; }
       leaving = true;
       ui.sound(6);
-      try { sessionStorage.setItem(NOTE, SAVE_TEXT.loaded(describe(sys)) + recordsLine(sys)); } catch { /* it opens on its first page */ }
+      try { sessionStorage.setItem(NOTE, SAVE_TEXT.loaded(FILE_NAME) + recordsLine(sys)); } catch { /* it opens on its first page */ }
       await keepBase(bytes);
       ui.fadeBlack(black, 1, FADE.out * 2, () => location.reload());
     };
@@ -230,13 +239,46 @@ export async function openHome(ui, { started = null } = {}) {
         sys = readSaves(bytes);
       } catch (e) { say(e.message, true); return; }
       if (leaving) return;
-      say(`${f.name}: ${describe(sys)}.`);
+      say("");
       if (!hasProgress()) { load(sys, bytes); return; }
       ui.dialog(SAVE_TEXT.ask, (back) => { back(); load(sys, bytes); }, (back) => { back(); ui.sel = NONE; say(""); }, { startNo: true });
     });
     page.append(picker);
     const importPick = () => { if (leaving) return; ui.audio.start(); ui.sound(1); picker.click(); };
-    const saveActs = { export: exportNow, import: importPick };
+    // Remove: after the question, the saves and progress out of the browser and the kept file with them, then the page again, as after an import.
+    const removeNow = async () => {
+      if (leaving) return;
+      ui.audio.start();
+      ui.sound(1);
+      if (!hasProgress() && !(await loadBase())) { say(SAVE_TEXT.nothing, true); return; }
+      if (leaving) return;
+      ui.dialog(SAVE_TEXT.askRemove, async (back) => {
+        back();
+        try { removeSaves(); } catch (e) { say(e.message, true); return; }
+        leaving = true;
+        ui.sound(6);
+        try { sessionStorage.setItem(NOTE, SAVE_TEXT.removed); } catch { /* it opens on its first page */ }
+        await dropBase();
+        ui.fadeBlack(black, 1, FADE.out * 2, () => location.reload());
+      }, (back) => { back(); ui.sel = NONE; }, { startNo: true });
+    };
+    const saveActs = { export: exportNow, import: importPick, remove: removeNow };
+    // What the browser holds now (savefile.js loadedData): the counts as the game's own screens give them, the saves made here, and the file kept
+    // from the last import, which is read from the browser's database a moment after the page is shown.
+    const dataBlock = () => {
+      const box = el("div", "hm-data");
+      const tables = { chart: (ui.vm || globalThis.vm)?.flowChart || null, gallery: (ui.vm || globalThis.vm)?.gallery || null };
+      const fill = (base) => {
+        let rows = [];
+        try { rows = loadedData(localStorage, tables, base); } catch { /* storage refused: nothing to list */ }
+        const list = rows.length ? blockEl(["rows", rows]) : el("p", "hm-data-none", SAVE_TEXT.empty);
+        if (rows.length) list.classList.add("hm-rows");
+        box.replaceChildren(el("h3", "", SAVE_TEXT.now), list);
+      };
+      fill(null);
+      loadBase().then((base) => { if (base && box.isConnected) fill(base); });
+      return box;
+    };
     const savesBlock = () => {
       const box = el("div", "hm-saves");
       const row = el("div", "hm-save-row");
@@ -265,6 +307,7 @@ export async function openHome(ui, { started = null } = {}) {
     };
     const block = (b) => {
       if (b[0] === "saves") return savesBlock();
+      if (b[0] === "data") return dataBlock();
       if (b[0] === "press") {
         prompt = el("button", "hm-press");
         prompt.setAttribute("aria-label", "Press any button to start");

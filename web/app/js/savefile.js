@@ -11,6 +11,7 @@
 // Import takes the file in place of what the browser has. The file itself is kept too (in the browser's database, `base`), and an Export starts
 // from it, so that what the port keeps no copy of (the choices taken, config fields with no setting, the save records) comes out as it went in.
 import { GAME, FILE_NAME, isGameSave, readSystem, usedRecords, writeSystem } from "./gamesave.js";
+import { cgLists, musicUnlocked } from "./unlocks.js";
 
 export { FILE_NAME };
 // The names the game's state is kept under here, with what each holds (for the test that every stored name is accounted for).
@@ -67,14 +68,9 @@ export function exportSaves(storage = globalThis.localStorage, base = null, seen
 export function readSaves(bytes) {
   if (!(bytes instanceof Uint8Array) || bytes.length !== GAME.size) throw Error("That is not the game's save file (savedata000).");
   if (!isGameSave(bytes)) throw Error("That save file is empty or damaged; nothing was changed.");
-  return { ...readSystem(bytes), records: usedRecords(bytes) };   // (records: only counted so far, see describe)
+  return { ...readSystem(bytes), records: usedRecords(bytes) };   // (records: only counted so far, see recordsLine)
 }
 
-// What a file holds, in a few words.
-export function describe(sys) {
-  const plural = (k, word) => `${k} ${word}${k === 1 ? "" : "s"}`;
-  return `${plural(sys.flow.completed.length, "scene")} completed, ${plural(sys.seen.length, "picture")}, ${plural(sys.music.length, "song")}`;
-}
 // The file's save records are not read into the port's saves yet (TODO item 161): they stay in the kept file and go out again with an Export. The
 // line that says so after an import, or nothing for a file with none.
 export function recordsLine(sys) {
@@ -104,6 +100,41 @@ export function importSaves(sys, storage = globalThis.localStorage) {
   replaced = true;
 }
 
+// What the browser holds now, for SAVE DATA's page: rows of [name, what], or none when the game has not been played here and no file is kept.
+//   tables: { chart, gallery } (flowchart.json, gallery.json), so that a row can say "of how many", as the game's own screens count them: the
+//           flowchart's scenes, the pictures the CG gallery lists, the Music Player's rows. Without them the rows give the bare counts.
+//   base:   the file last imported, if one is kept
+export function loadedData(storage = globalThis.localStorage, { chart = null, gallery = null } = {}, base = null) {
+  const kept = base && isGameSave(base) ? usedRecords(base).length : -1;
+  if (!hasProgress(storage) && kept < 0) return [];
+  const s = portState(storage, gallery?.seen || null), plural = (k, word) => `${k} ${word}${k === 1 ? "" : "s"}`;
+  const flow = { started: new Set(s.flow.started), completed: new Set(s.flow.completed) };
+  const unlocks = { seen: new Set(s.seen), images: new Set(json(storage, "tsuki.unlocks.v1", {}).images || []), music: new Set(s.music), movies: new Set(s.movies) };
+  const rows = [];
+  const scenes = chart ? [...new Set(chart.groups.flatMap((g) => g.parts).filter((p) => p.flag > 0).map((p) => p.flag))] : null;
+  rows.push(["Scenes", scenes ? `${scenes.filter((n) => flow.completed.has(n)).length} of ${scenes.length} completed` : `${flow.completed.size} completed`]);
+  if (gallery) {
+    const all = gallery.cg.reduce((n, e) => n + e.variants.length, 0);
+    rows.push(["Pictures", `${cgLists(gallery.cg, { unlocks, flow }).flat.length} of ${all}`]);
+    rows.push(["Music", `${gallery.music.filter((t) => musicUnlocked(t, { unlocks, flow })).length} of ${gallery.music.length}`]);
+  } else {
+    rows.push(["Pictures", String(unlocks.seen.size)], ["Music", String(unlocks.music.size)]);
+  }
+  const saves = Object.keys(json(storage, "tsuki.saves", {})).length, autos = json(storage, "tsuki.autosaves", []).length, quick = !!storage.getItem("tsuki.quicksave");
+  const parts = [saves ? plural(saves, "save") : "", autos ? plural(autos, "automatic save") : "", quick ? "a quick save" : ""].filter(Boolean);
+  rows.push(["Saves made here", parts.length ? parts.join(", ") : "None"]);
+  if (kept >= 0) rows.push(["Imported file", `${FILE_NAME}, kept for Export${kept ? `, with its ${plural(kept, "save slot")}` : ""}`]);
+  return rows;
+}
+
+// Remove: the saves and the progress out of the browser, as if the game had never been played here. The settings, volumes and key bindings stay
+// (they are how the player likes the game, not where they are in it); the kept file goes too (dropBase).
+export const REMOVED = ["tsuki.saves", "tsuki.autosaves", "tsuki.quicksave", "tsuki.globals", "tsuki.flow.v2", "tsuki.unlocks.v1", "tsuki.readBlocks", "tsuki.read"];
+export function removeSaves(storage = globalThis.localStorage) {
+  for (const k of REMOVED) storage.removeItem(k);
+  replaced = true;   // (the page loads again, and what it holds in memory must not be written back: main.js pagehide)
+}
+
 // ---- the file last imported, kept whole (4 MB: more than local storage has room for) ---------------------------------------------------------
 const DB = "tsuki.files", STORE = "files";
 function database(idb) {
@@ -119,6 +150,14 @@ export async function keepBase(bytes, idb = globalThis.indexedDB) {
   try {
     const db = await database(idb);
     await new Promise((done, fail) => { const t = db.transaction(STORE, "readwrite"); t.objectStore(STORE).put(bytes, FILE_NAME); t.oncomplete = done; t.onerror = () => fail(t.error); });
+    db.close();
+    return true;
+  } catch { return false; }
+}
+export async function dropBase(idb = globalThis.indexedDB) {
+  try {
+    const db = await database(idb);
+    await new Promise((done, fail) => { const t = db.transaction(STORE, "readwrite"); t.objectStore(STORE).delete(FILE_NAME); t.oncomplete = done; t.onerror = () => fail(t.error); });
     db.close();
     return true;
   } catch { return false; }
