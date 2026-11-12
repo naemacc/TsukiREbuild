@@ -10,6 +10,10 @@ import { splitSample, startLines, startSplit, stopLines, stopSplit } from "./scr
 import { reflow, wrapContext, choiceText } from "./reflow.js";
 import { colourMarks, plain, SOFT } from "./textbox.js";
 
+// A global variable is its number, however a script writes it: "G70" (13_01_02_CIEL13_7B) is G070. Kept under the three-digit name, which is also
+// the one a save file's globals come in as (gamesave.js globalName).
+const globalKey = (k) => (/^G\d+$/.test(k) ? `G${String(Number(k.slice(1))).padStart(3, "0")}` : k);
+
 function num(s) {
   if (s === undefined || s === "") return undefined;
   // The engine reads numbers with strtol (base 10) and its expression tokenizer stops at a "." (0x2d3c -> 0x3160), so
@@ -299,6 +303,8 @@ export class VM {
     if (animations.ok) this.motions = (await animations.json()).tracks;
     else console.warn("Motion tracks missing: run web/tools/build_animations.py from the port root");
     try { this.globals = JSON.parse(localStorage.getItem("tsuki.globals") || "{}"); } catch { this.globals = {}; }
+    // (a global kept under a script's shorter spelling goes to its one name)
+    for (const k of Object.keys(this.globals)) { const to = globalKey(k); if (to !== k) { this.globals[to] ||= this.globals[k]; delete this.globals[k]; } }
     this.loadRead();
     await this.loadReadBlocks();
     const gallery = await asked.gallery;
@@ -409,14 +415,14 @@ export class VM {
   getVar(k) {
     const n = Number(k);
     if (!Number.isNaN(n) && k !== "") return n;
-    if (k[0] === "G") return this.globals[k] || 0;
+    if (k[0] === "G") return this.globals[globalKey(k)] || 0;
     if (k[0] === "C") k = this.lineVar(k);
     return this.vars[k] || 0;
   }
 
   setVar(k, v) {
     if (k[0] === "C") k = this.lineVar(k);
-    if (k[0] === "G") { this.globals[k] = v; this.saveGlobals(); } else this.vars[k] = v;
+    if (k[0] === "G") { this.globals[globalKey(k)] = v; this.saveGlobals(); } else this.vars[k] = v;
     if (WINDOW_VARS.has(k)) this.applyWindow();
   }
 

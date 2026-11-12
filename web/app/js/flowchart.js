@@ -371,7 +371,8 @@ export async function openFlowchart(ui, vm, jump, keep = null, opts = {}) {
   const setAlpha = () => { for (const e of fading) e.style.opacity = String(fx.value); if (!guide) drawHelp(fx.value); };
   setAlpha();
   if (guide) drawHelp(guide.alpha);
-  page.style.pointerEvents = "none";
+  // (the pointer waits for the fade in; drawn again after a question there is none, so it works at once)
+  if (!fx.done) page.style.pointerEvents = "none";
   if (opts.ghost) ui.ghost(opts.ghost, fadeOut());
   let opened = false;
   ui.animate((dt) => {

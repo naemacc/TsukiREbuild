@@ -36,3 +36,13 @@ test("nothing is inferred for a player who has not started anything", () => {
   assert.equal(flow.completed.size, 0);
   assert.equal(flow.secondary.size, 0);
 });
+
+test("a flowchart drawn again after a question takes the pointer at once", async () => {
+  // opts.reopened: the fade in is already done, so nothing would give the pointer back at its end (No to the rewind question left the chart
+  // dead to the wheel, drags and clicks)
+  const { readFileSync } = await import("node:fs");
+  const fc = readFileSync(new URL("../../web/app/js/flowchart.js", import.meta.url), "utf8");
+  assert.match(fc, /if \(opts\.reopened\) fx\.step\(Infinity\);/);
+  assert.match(fc, /if \(!fx\.done\) page\.style\.pointerEvents = "none";/);
+  assert.doesNotMatch(fc, /\n  page\.style\.pointerEvents = "none";\n  if \(opts\.ghost\)/);
+});

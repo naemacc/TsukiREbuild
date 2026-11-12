@@ -9,6 +9,8 @@ import { sprite, quickBarArt, panelBack } from "./ui.js";
 import { TOUCH } from "./touch.js";
 import { ButtonState, pressPulse } from "./uifx.js";
 import { SECTIONS, TOUCH_INTRO, blockEl } from "./welcome.js";
+import { FILE_NAME, NOTE, describe, exportSaves, hasProgress, importSaves, keepBase, loadBase, readSaves, recordsLine } from "./savefile.js";
+import { GAME } from "./gamesave.js";
 
 export const GITHUB = "https://github.com/waifwu/TsukiREbuild";
 // The downloads: the whole game as an app that needs no connection (web-dev/android, web-dev/desktop), with the size each system shows for its file.
@@ -28,7 +30,7 @@ export function homeDue(query, host = globalThis.location?.hostname || "") {
 }
 
 // The tabs: a plate, and the sections its page shows, each a heading and blocks as welcome.js draws them, plus ["link", text, address, file name if a
-// download] and ["press"], the prompt that starts the game.
+// download], ["saves"], Export and Import of the browser's saves, and ["press"], the prompt that starts the game.
 export const TABS = [
   { plate: "ABOUT", sections: SECTIONS.map(({ head, blocks }) => ({ head, blocks })) },
   { plate: "GITHUB", sections: [{ head: "The source, on GitHub", blocks: [
@@ -84,6 +86,7 @@ export const TABS = [
     ["gpu"],
     "Nothing to install. It runs in Chrome or Firefox, on a computer, a phone or a tablet. Not in Safari, which plays the AV1 movies only on Apple's newest hardware.",
     "The game's files arrive as you play: the first screens load while this page is open, and the rest follow. Saves, settings and progress are kept in this browser; clearing the site's data removes them.",
+    ["saves"],
     ["press"],
   ] }] },
 ];
@@ -117,6 +120,19 @@ export function glAccel() {
   } catch { return "unsure"; }
 }
 export const ABOUT = 0, PLAY = TABS.length - 1, NONE = -1;
+// Export and Import, on PLAY ONLINE above its prompt (savefile.js): two of the panel's plates. The file is the original game's own save, savedata000
+// (gamesave.js), so a save goes between the game and this page both ways. Import takes such a file in place of what the browser has, asking first in the
+// game's Yes / No window when the game has been played in this browser, and loads the page again.
+export const SAVE_PLATES = [{ act: "export", plate: "EXPORT SAVES" }, { act: "import", plate: "IMPORT SAVES" }];
+export const SAVE_TEXT = {
+  head: "Your saves, as a file",
+  note: "The file is the game's own save, savedata000: Import loads the original game's progress and settings here, in place of what this browser has, and the original game reads what Export writes.",
+  keys: "Keys: E, I.",
+  none: "Nothing to export yet: the game has not been played in this browser.",
+  exported: (name) => `Saved as ${name}.`,
+  ask: "Load this save file here?\nIt replaces what this browser has.",
+  loaded: (what) => `Loaded: ${what}.`,
+};
 // The line under the logo before a plate is chosen.
 export const NONE_LINE = "An unofficial fan rebuild of the Tsukihime remake. Choose a page above: ABOUT, GITHUB, DOWNLOAD, or PLAY ONLINE to start the game.";
 
@@ -134,8 +150,8 @@ export async function openHome(ui, { started = null } = {}) {
   const U = TOUCH.homeUpright, ux0 = Math.round((U.w - (pitch * (U.cols - 1) + shown)) / 2);
   const upright = () => document.documentElement.classList.contains("upright");
   const spot = (i) => (T && upright() ? [ux0 + (i % U.cols) * pitch, y + Math.floor(i / U.cols) * U.rowPitch] : [x0 + i * pitch, y]);
-  const sheet = await Promise.all([quickBarArt(TABS.map((t) => ({ label: t.plate })), P),
-    ...ART.map((a) => { const i = new Image(); i.src = `/assets/ui/${a}.webp`; return i.decode().catch(() => {}); })]).then(([s]) => s);
+  const [sheet, saveSheet] = await Promise.all([quickBarArt(TABS.map((t) => ({ label: t.plate })), P), quickBarArt(SAVE_PLATES.map((t) => ({ label: t.plate })), P),
+    ...ART.map((a) => { const i = new Image(); i.src = `/assets/ui/${a}.webp`; return i.decode().catch(() => {}); })]);
   return new Promise((done) => {
     black.remove();
     page.classList.add("hm-page");
@@ -161,7 +177,82 @@ export async function openHome(ui, { started = null } = {}) {
 
     const accel = T ? "on" : glAccel();   // ("on" by touch: the notice is not shown there)
     let tab = -1, shownAt = 0, leaving = false, prompt = null, pulse = { alpha: 0, up: true };
+    // ---- Export and Import (savefile.js) ----
+    let status = null, said = null;   // the line under the plates, and what it says (kept while the page is drawn again)
+    const say = (text, bad = false) => { said = { text, bad }; if (status) { status.textContent = text; status.classList.toggle("bad", bad); } };
+    const exportNow = async () => {
+      if (leaving) return;
+      ui.audio.start();
+      ui.sound(1);
+      let file = null;
+      try { file = exportSaves(localStorage, await loadBase(), (ui.vm || globalThis.vm)?.gallery?.seen || null); } catch { /* storage refused: nothing to export */ }
+      if (!file) { say(SAVE_TEXT.none, true); return; }
+      const a = el("a"), href = URL.createObjectURL(new Blob([file], { type: "application/octet-stream" }));
+      a.href = href; a.download = FILE_NAME;
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(href), 60000);
+      say(SAVE_TEXT.exported(FILE_NAME));
+    };
+    // The file's parts in the browser's place and the file itself kept, then the page again: everything the game read when it loaded is read anew,
+    // and the page comes back here.
+    const load = async (sys, bytes) => {
+      try { importSaves(sys); } catch (e) { say(e.message, true); return; }
+      leaving = true;
+      ui.sound(6);
+      try { sessionStorage.setItem(NOTE, SAVE_TEXT.loaded(describe(sys)) + recordsLine(sys)); } catch { /* it opens on its first page */ }
+      await keepBase(bytes);
+      ui.fadeBlack(black, 1, FADE.out * 2, () => location.reload());
+    };
+    const picker = el("input");
+    picker.type = "file"; picker.hidden = true;   // (the game's file has no extension, so any file may be picked; readSaves tells)
+    picker.addEventListener("click", (e) => e.stopPropagation());
+    picker.addEventListener("change", async () => {
+      const f = picker.files?.[0];
+      picker.value = "";   // (the same file can be chosen again)
+      if (!f || leaving) return;
+      let sys, bytes;
+      try {
+        bytes = f.size === GAME.size ? new Uint8Array(await f.arrayBuffer()) : null;   // (a file of another size is not read at all)
+        sys = readSaves(bytes);
+      } catch (e) { say(e.message, true); return; }
+      if (leaving) return;
+      say(`${f.name}: ${describe(sys)}.`);
+      if (!hasProgress()) { load(sys, bytes); return; }
+      ui.dialog(SAVE_TEXT.ask, (back) => { back(); load(sys, bytes); }, (back) => { back(); ui.sel = NONE; say(""); }, { startNo: true });
+    });
+    page.append(picker);
+    const importPick = () => { if (leaving) return; ui.audio.start(); ui.sound(1); picker.click(); };
+    const saveActs = { export: exportNow, import: importPick };
+    const savesBlock = () => {
+      const box = el("div", "hm-saves");
+      box.append(el("h3", "", SAVE_TEXT.head));
+      const row = el("div", "hm-save-row");
+      for (const [i, s] of SAVE_PLATES.entries()) {
+        const b = el("button", "qbtn hm-save-plate", s.plate);
+        b.style.cssText = `width:${P.w}px;height:${P.h}px;`;
+        const paint = (r) => {
+          b.className = `qbtn hm-save-plate r${r}${saveSheet ? " art" : ""}`;
+          if (saveSheet) { b.style.backgroundImage = `url("${saveSheet}")`; b.style.backgroundPosition = `${-i * P.w}px ${-r * P.h}px`; }
+        };
+        paint(1);
+        b.addEventListener("pointerenter", (e) => { if (e.pointerType !== "touch") paint(2); });
+        b.addEventListener("pointerleave", () => paint(1));
+        b.addEventListener("pointerdown", () => paint(3));
+        b.addEventListener("pointerup", (e) => paint(e.pointerType === "touch" ? 1 : 2));
+        b.addEventListener("pointercancel", () => paint(1));
+        b.addEventListener("click", (e) => { e.stopPropagation(); saveActs[s.act](); });
+        row.append(b);
+      }
+      status = el("p", `hm-save-status${said?.bad ? " bad" : ""}`, said?.text ?? "");
+      status.setAttribute("role", "status");
+      box.append(row, el("p", "hm-save-note", T ? SAVE_TEXT.note : `${SAVE_TEXT.note} ${SAVE_TEXT.keys}`), status);
+      box.addEventListener("click", (e) => e.stopPropagation());   // (its page's click starts the game; not from here)
+      return box;
+    };
     const block = (b) => {
+      if (b[0] === "saves") return savesBlock();
       if (b[0] === "press") {
         prompt = el("button", "hm-press");
         prompt.setAttribute("aria-label", "Press any button to start");
@@ -193,6 +284,7 @@ export async function openHome(ui, { started = null } = {}) {
     const show = (k) => {
       tab = k;
       prompt = null;
+      status = null;
       pulse = { alpha: 0, up: true };
       if (k === NONE) {
         inner.replaceChildren(el("div", "wl-logo hm-logo"), el("p", "wl-note hm-lead", NONE_LINE));
@@ -258,6 +350,11 @@ export async function openHome(ui, { started = null } = {}) {
     });
     show(NONE);
     ui.sel = NONE;      // no plate lit: the keys' cursor comes in with the first arrow, Tab or pointer
+    // (after an import the page comes back on PLAY ONLINE, saying what was loaded)
+    try {
+      const note = sessionStorage.getItem(NOTE);
+      if (note) { sessionStorage.removeItem(NOTE); said = { text: note, bad: false }; show(PLAY); ui.select(PLAY); }
+    } catch { /* its first page */ }
 
     ui.keyFn = (e) => {
       const k = e.key;
@@ -271,6 +368,8 @@ export async function openHome(ui, { started = null } = {}) {
       else if (k === "Tab") {
         if (!e.repeat) { const next = tab === NONE ? (e.shiftKey ? TABS.length - 1 : 0) : (tab + (e.shiftKey ? -1 : 1) + TABS.length) % TABS.length; ui.audio.start(); ui.sound(1); show(next); ui.select(next); }
       }
+      else if ((k === "e" || k === "E") && tab === PLAY && !e.ctrlKey && !e.metaKey && !e.altKey) { if (!e.repeat) exportNow(); }
+      else if ((k === "i" || k === "I") && tab === PLAY && !e.ctrlKey && !e.metaKey && !e.altKey) { if (!e.repeat) importPick(); }
       else if (k === "ArrowUp") list.scrollTop -= 120;
       else if (k === "ArrowDown") list.scrollTop += 120;
       else if (k === "PageUp") list.scrollTop -= 760;

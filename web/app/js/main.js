@@ -13,6 +13,7 @@ import { openFlowchart } from "./flowchart.js";
 import { openGallery, preloadGallery } from "./gallery.js";
 import { welcomeDue, markWelcomed } from "./welcome.js";
 import { openHome, homeDue } from "./home.js";
+import { savesReplaced } from "./savefile.js";
 import { Preloader, RANK, movieUrl } from "./preload.js";
 import { REWIND_FIXED, ROUTE_FLAGS, fvar } from "./flowchart-model.js";
 import { CLICK_MARK, STORY_MOVIES, TITLE_MOVIE_LOOP, movieLook, movieQuestion, nextTitleStage, titleMusic as titleTrack, titleVariant } from "./uifx.js";
@@ -509,7 +510,8 @@ document.addEventListener("visibilitychange", () => {
 });
 // Leaving the page while a story runs counts as leaving the story: the automatic save is made, as native makes it on
 // returning to the title (0x4cea0 -> 0x52aa0).
-addEventListener("pagehide", () => { autosave(); vm.saveRead(); vm.unlocks.save(); if (audio.ctx) audio.ctx.close(); });
+// (Not after an import, home.js: the page is loading again to read the file's saves, and what it holds of the old ones must not be written over them.)
+addEventListener("pagehide", () => { if (!savesReplaced()) { autosave(); vm.saveRead(); vm.unlocks.save(); } if (audio.ctx) audio.ctx.close(); });
 // The Android app (web-dev/android) calls this when it goes to the background, where Android may end it without a
 // pagehide: the same saves, with the sound left open for coming back. Nothing on the web calls it.
 globalThis.appSuspend = () => { autosave(); vm.saveRead(); vm.unlocks.save(); };

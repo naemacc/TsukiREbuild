@@ -1281,3 +1281,44 @@ something to copy: the port's order is now the same at every rate and matches th
 its old picture). A real 120 or 144 Hz screen has not been watched (now part of item 136). The menus, dialogs, gallery, flowchart and
 title still animate on the display's time, as interface: item 70 (the title's dust made once a display frame) is the same kind of
 fault there. Tests: `tests/item123.test.mjs` (9).
+
+## Saves as a file: Export and Import on the opening page (TODO item 135), 2026-11-12
+
+PLAY ONLINE has two more of the panel's plates above its prompt, EXPORT SAVES and IMPORT SAVES (`app/js/home.js` savesBlock, keys E and I;
+at a finger's size on a touch device). The file is the original game's own `savedata000` (the user, 2026-11-12: "i should be able to
+import files like this and export should be compatible too"). `app/js/gamesave.js` reads and writes it; `app/js/savefile.js` is the
+browser's side.
+
+**The file** (0xa8e30: one buffer of 0x3e7000 bytes): the system data, 0x1740 bytes at 0, then 140 records of 0x7140 bytes at
+0x1800 + 0x7200 n (0xb6710 / 0xb67a0; 0-99 the list, 100-138 automatic, 139 quick). The system data as 0x4ec60 writes it and 0x4ea30
+reads it: `0x3ed`, 1; the config, 0x68 bytes at +4 (0x2dd20); G0-G499 at +0x6c, with the flowchart's bits among them (started from
+G110, completed from G300, lines from G400) and the opening movies in G005; 0x213 bytes of bits at +0x454, pictures seen (0-0xc7f) and
+music heard from bit 0xc80 by its number (0x64f60 / 0x77740); the read marks at +0x667, 0xfb4 bytes; the newest record at +0x161e; the
+rows taken of each choice at +0x1624, 0x118 bytes (0x83e50), which the port has no use for. A record: `0x3f2` when used, 1 at +2, a
+count at +4, the 0x3aa8 snapshot at +8, the first 0x3688 bytes of a history record at +0x3ab0, the date at +0x7138 (year, month, day,
+hour, minute, second). The game's first config (0x46b080) read through the map gives exactly the port's own defaults.
+
+- **Import** replaces the settings, volumes, globals, flowchart, gallery and read marks with the file's, asking first in the game's
+  Yes / No window where the game has been played, and keeps the file itself in the browser's database. Then the page loads again
+  (everything was read from storage when it loaded) and comes back on PLAY ONLINE saying what was loaded. `main.js`'s pagehide does
+  not write the page's own read marks and gallery over it (`savesReplaced`).
+- **Export** writes the system data from the port's state over the file last imported, so what the port has no copy of (the choices
+  taken, config fields with no setting, the records) comes out as it went in, and no progress the file had is taken away (as the
+  game's own merge, 0x4ea30). With no file imported before it starts from the game's first config and empty records.
+- **Global variables are their numbers**: `G70`, as one script spells it (13_01_02_CIEL13_7B), is `G070` (`vm.js` globalKey). The two
+  were different variables in the port before.
+- **Not done (TODO item 161): the records.** They are not read into the port's saves nor written from them. A record is the engine's
+  state at a checkpoint: the script's byte position (+8 / +0x10 of the snapshot), the two 0x19b8-byte layer state blocks (+0x50,
+  +0x1a08), the sound slots, the story variables (the lists 0x5baf0 gives back), the page's text. Reading one needs each of those
+  mapped to the port's own save, and writing one the reverse, exact enough for the game's restore (0x5baf0). The Android and desktop
+  apps have no opening page, so no Export or Import there yet.
+
+Checked with the 100% save the user gave (`~/Downloads/savedata000`, the reference save's SHA-256): read, it has 556 scenes started,
+553 completed, 630 lines (as `decode_save.py`), 2,716 pictures, 116 music numbers, both movies; in Chrome (Playwright) imported into an
+empty browser the gallery lists all 458 entries, 1,977 pictures and 95 of 95 songs, and the Export made after it is the same file, byte
+for byte. Tests: `tests/savefile.test.mjs` (13; the one that reads the real save runs where the game's data is).
+
+Also removed that day, at the user's word: the flowchart's Unlock All (one unpushed commit, kept on the local branch
+`shelved/unlock-all`) and the Japanese language option (never committed; set aside in the working folder's `web-dev/shelved/`). A
+flowchart drawn again after a question now takes the pointer at once: with its fade already done nothing gave the pointer back, so
+after No to the rewind question the chart was dead to the wheel, drags and clicks.

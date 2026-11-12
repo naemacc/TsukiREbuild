@@ -20,7 +20,7 @@ and known differences come before checks that might find some. Anything you repo
 
 **Numbers.** Items keep their numbers from earlier lists, so "do 58" always means the same thing and the other audit
 files' references hold (where they say "priority 1 of TODO.md" they mean the list of that date, now in the archives). New items
-start at 157. `N2-n` is a finding in [FUNCTION-MAP.md](FUNCTION-MAP.md), with its
+start at 162. `N2-n` is a finding in [FUNCTION-MAP.md](FUNCTION-MAP.md), with its
 evidence in [function-map/](function-map/).
 
 **How sure.** Most findings were read from the game's code and not seen running, so compare each with the game as it
@@ -78,10 +78,12 @@ checked in the code (marked *code*); the others can lag it, so re-read the code 
   WebGL2, AVIF and Ogg Opus. Also pointer events and the keyboard lock in full screen, a real controller since the change
   to actions (was 154), and a real mouse wheel in the log: the fix of 2026-11-10 relies on the browser's scroll anchoring
   and was tried with simulated wheel events (a browser without anchoring takes the older code path).
-- [ ] **135. Saves live only in this browser.** Measured 2026-11-10 in Chrome: one save of an ordinary scene is about
-  13 KB, and 399 of them fit in the 5 MB the browser allows, so all 140 slots should fit with room for the other
-  progress; a scene with many layers is larger, and a browser's "clear site data" removes everything. Add export and
-  import to a file so progress survives that. Moving to IndexedDB is only needed if a real save file gets near the limit.
+- [ ] **161. Save records to and from the game's save file.** Import and Export on the opening page (2026-11-12, `app/js/gamesave.js`) carry the
+  settings and all progress of a `savedata000`, but not its 140 records: they are kept and written back untouched, not listed in the port, and the
+  port's own saves are not written into the file. A record's snapshot (0x3aa8 bytes, read by 0x5baf0) has to be mapped both ways to the port's save:
+  the script's byte position to the port's command number (needs the positions kept when the scripts are converted), the two layer state blocks
+  (0x19b8 bytes each: about 80 arrays of 40), the sound slots, the story variables, the page's text. The 13 records of the reference save and
+  records made in the native sandbox are the check: a record written from the port's state at the same point should equal the game's bytes.
 
 ## 4. Story: exactness while skipping, in the stored files, or in rare cases
 
