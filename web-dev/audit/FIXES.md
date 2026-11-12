@@ -1289,8 +1289,9 @@ save data"): what the file is, and two of the panel's plates, EXPORT SAVES and I
 finger's size on a touch device). By touch the five tab plates are three over two, ABOUT, GITHUB, DOWNLOAD over SAVE DATA, PLAY ONLINE, each row
 centred, on the game's stage and on the upright one (the user: "on touch put 3 tabs on top and the 2 play online and save data in second line";
 `touch.js` TOUCH.home / homeUpright). The page names the format ("the Nintendo Switch game's own save format"), lists what the browser holds now
-(`savefile.js` loadedData: scenes, pictures and music as the game's own screens count them, the saves made here, whether a file is loaded), and
-has a third plate, REMOVE DATA.
+as four figures side by side across the page (`savefile.js` loadedData: scenes completed, pictures and songs as the game's own screens count
+them, the saves made here; two a row on a phone held upright; the user: "make this spread out horizontally theres space"), with a line under
+them when a file is loaded, and has a third plate, REMOVE DATA.
 
 **The file** (0xa8e30: one buffer of 0x3e7000 bytes): the system data, 0x1740 bytes at 0, then 140 records of 0x7140 bytes at
 0x1800 + 0x7200 n (0xb6710 / 0xb67a0; 0-99 the list, 100-138 automatic, 139 quick). The system data as 0x4ec60 writes it and 0x4ea30

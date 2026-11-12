@@ -259,16 +259,17 @@ export async function openHome(ui, { started = null } = {}) {
       }, (back) => { back(); ui.sel = NONE; }, { startNo: true });
     };
     const saveActs = { export: exportNow, import: importPick, remove: removeNow };
-    // What the browser holds now (savefile.js loadedData): the counts as the game's own screens give them, the saves made here, and whether an
-    // imported file is loaded.
+    // What the browser holds now (savefile.js loadedData): four figures side by side across the page, as the page's other figures are (welcome.js
+    // "facts"), counted as the game's own screens count them, and under them whether an imported file is loaded.
     const dataBlock = () => {
       const box = el("div", "hm-data");
       const tables = { chart: (ui.vm || globalThis.vm)?.flowChart || null, gallery: (ui.vm || globalThis.vm)?.gallery || null };
-      let rows = [];
-      try { rows = loadedData(localStorage, tables); } catch { /* storage refused: nothing to list */ }
-      const list = rows.length ? blockEl(["rows", rows]) : el("p", "hm-data-none", SAVE_TEXT.empty);
-      if (rows.length) list.classList.add("hm-rows");
-      box.append(el("h3", "", SAVE_TEXT.now), list);
+      let data = null;
+      try { data = loadedData(localStorage, tables); } catch { /* storage refused: nothing to list */ }
+      box.append(el("h3", "", SAVE_TEXT.now));
+      if (!data) { box.append(el("p", "hm-data-none", SAVE_TEXT.empty)); return box; }
+      box.append(blockEl(["facts", data.facts]));
+      if (data.file) box.append(el("p", "hm-data-file", data.file));
       return box;
     };
     const savesBlock = () => {

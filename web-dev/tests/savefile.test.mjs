@@ -189,25 +189,37 @@ test("a browser that will not store the file keeps what it had, and nothing is p
   assert.equal(hasImported(store), false);
 });
 
-test("what the browser holds now, for SAVE DATA's page: counted as the game's own screens count, with the saves made here and whether a file is loaded", () => {
-  assert.deepEqual(loadedData(memory()), [], "nothing: the page says there is no save data");
+test("what the browser holds now, for SAVE DATA's page: four figures counted as the game's own screens count, and whether a file is loaded", () => {
+  assert.equal(loadedData(memory()), null, "nothing: the page says there is no save data");
   const chart = { groups: [{ parts: [{ flag: 1 }, { flag: 2 }, { flag: 0 }, { flag: 3 }] }, { parts: [{ flag: 485 }, { flag: 2 }] }] };
   const gallery = { seen: { IMG0007: 9 }, cg: [{ gate: 0, variants: [{ image: "A", bits: [0] }, { image: "B", bits: [5] }] }, { gate: 0, variants: [{ image: "C", bits: [9] }] }],
     music: [{ music: 1 }, { music: 3, also: [95] }, { music: 4 }] };
   const some = stored({ ...STATE, flow: { ...STATE.flow, completed: [1] } });
   const store = memory({ ...some, "tsuki.saves": JSON.stringify({ 0: {}, 7: {} }), "tsuki.autosaves": "[{}]", "tsuki.quicksave": "{}" });
-  assert.deepEqual(loadedData(store, { chart, gallery }), [["Scenes", "1 of 4 completed"], ["Pictures", "2 of 3"], ["Music", "2 of 3"], ["Saves made here", "2 saves, 1 automatic save, a quick save"]]);
+  assert.deepEqual(loadedData(store, { chart, gallery }), { facts: [["1 / 4", "scenes completed"], ["2 / 3", "pictures"], ["2 / 3", "songs"],
+    ["4", "saves made here: 2 in the list, 1 automatic, 1 quick"]], file: null });
   // (with the last Ciel-sensei episode complete the gallery lists every picture: unlocks.js COMPLETION_SCENE)
-  assert.deepEqual(loadedData(memory(stored()), { chart, gallery })[1], ["Pictures", "3 of 3"]);
-  assert.deepEqual(loadedData(memory(stored())), [["Scenes", "2 completed"], ["Pictures", "4"], ["Music", "4"], ["Saves made here", "None"]], "without the game's tables, the bare counts");
-  // a file loaded: the counts are its own, and a last row says so, even over a browser that had nothing
+  assert.deepEqual(loadedData(memory(stored()), { chart, gallery }).facts[1], ["3 / 3", "pictures"]);
+  assert.deepEqual(loadedData(memory(stored())).facts, [["2", "scenes completed"], ["4", "pictures"], ["4", "songs"], ["0", "saves made here"]], "without the game's tables, the bare counts");
+  // one kind of save alone is named with its count
+  const only = (extra) => loadedData(memory({ ...stored(), ...extra })).facts[3];
+  assert.deepEqual(only({ "tsuki.autosaves": JSON.stringify(Array(19).fill({})) }), ["19", "automatic saves made here"]);
+  assert.deepEqual(only({ "tsuki.autosaves": "[{}]" }), ["1", "automatic save made here"]);
+  assert.deepEqual(only({ "tsuki.saves": JSON.stringify({ 1: {}, 2: {}, 3: {} }) }), ["3", "saves made here"]);
+  assert.deepEqual(only({ "tsuki.quicksave": "{}" }), ["1", "quick save made here"]);
+  // a file loaded: the figures are its own, and a line says so, even over a browser that had nothing
   const fresh = memory();
   importSaves(readSaves(exportSaves(memory(stored()))), fresh);
-  const rows = loadedData(fresh, { chart, gallery });
-  assert.deepEqual(rows.map((r) => r[0]), ["Scenes", "Pictures", "Music", "Saves made here", "Imported file"]);
-  assert.match(rows.at(-1)[1], /^savedata000 is loaded: .* Your own are put aside until it is removed\.$/);
+  const data = loadedData(fresh, { chart, gallery });
+  assert.equal(data.facts.length, 4);
+  assert.match(data.file, /^savedata000 is loaded: these are its own\. Your own are put aside until it is removed\.$/);
   removeImported(fresh);
-  assert.deepEqual(loadedData(fresh, { chart, gallery }), []);
+  assert.equal(loadedData(fresh, { chart, gallery }), null);
+  // side by side across the page: the page's own figures, four to a row (two on a phone held upright)
+  const home = source("js/home.js");
+  assert.match(home, /box\.append\(blockEl\(\["facts", data\.facts\]\)\);/);
+  assert.match(source("style.css"), /\.wl-text \.hm-data \.wl-facts \{ grid-template-columns: repeat\(4, 1fr\);/);
+  assert.match(source("touch.css"), /html\.touch\.upright \.hm-text \.hm-data \.wl-facts \{ grid-template-columns: repeat\(2, 1fr\); \}/);
 });
 
 test("the opening page's SAVE DATA tab: the Nintendo format named, what is loaded now, and three of the panel's plates; Remove asks first, and the page loads again", () => {
@@ -240,7 +252,7 @@ test("the opening page's SAVE DATA tab: the Nintendo format named, what is loade
   assert.match(home, /if \(!hasImported\(\)\) \{ say\(SAVE_TEXT\.nothing, true\); return; \}\n\s*ui\.dialog\(SAVE_TEXT\.askRemove, async \(back\) => \{\n\s*back\(\);\n\s*try \{ if \(!removeImported\(\)\) return; \}/, "Remove asks in the game's window, only with a file loaded");
   assert.match(home, /\}, \(back\) => \{ back\(\); ui\.sel = NONE; \}, \{ startNo: true \}\);/, "starting on No");
   assert.match(home, /await dropBase\(\);\n\s*ui\.fadeBlack\(black, 1, FADE\.out \* 2, \(\) => location\.reload\(\)\);/, "the kept file goes too");
-  assert.match(home, /rows = loadedData\(localStorage, tables\);/);
+  assert.match(home, /data = loadedData\(localStorage, tables\);/);
   assert.match(css, /\.hm-save-row \{ display: flex; flex-wrap: wrap; justify-content: center;/);
 });
 

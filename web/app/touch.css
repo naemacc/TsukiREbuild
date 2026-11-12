@@ -124,6 +124,8 @@ html.touch.upright .hm-text .wl-rows { grid-template-columns: 1fr; gap: 0; }
 html.touch.upright .hm-text .wl-name { margin-top: 18px; }
 html.touch.upright .hm-text .wl-facts { grid-template-columns: repeat(2, 1fr); }
 html.touch.upright .hm-text .wl-facts.hm-three { grid-template-columns: repeat(3, 1fr); }
+html.touch.upright .hm-text .hm-data .wl-facts { grid-template-columns: repeat(2, 1fr); }   /* (what the browser holds: two figures a row) */
+html.touch .wl-text .hm-data-file { font-size: 32px; line-height: 44px; }
 html.touch.upright .hm-text .wl-what { font-size: 34px; line-height: 46px; }
 html.touch.upright .wl-text .hm-save-status { font-size: 40px; line-height: 54px; }
 html.touch .wl-text { padding: 30px 110px 150px; font-size: 40px; line-height: 60px; }

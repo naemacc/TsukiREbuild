@@ -113,31 +113,34 @@ export function removeImported(storage = globalThis.localStorage) {
   return true;
 }
 
-// What the browser holds now, for SAVE DATA's page: rows of [name, what], or none when the game has not been played here and no file is loaded.
-//   tables: { chart, gallery } (flowchart.json, gallery.json), so that a row can say "of how many", as the game's own screens count them: the
-//           flowchart's scenes, the pictures the CG gallery lists, the Music Player's rows. Without them the rows give the bare counts.
-// With a file loaded the counts are the file's (and what has been played since), and a last row says so.
+// What the browser holds now, for SAVE DATA's page: { facts, file }, or null when the game has not been played here and no file is loaded.
+//   facts:  four figures with what each counts, [figure, what], set side by side across the page: scenes completed, pictures, songs, saves made here
+//   file:   with an imported file loaded, the line that says the figures are its own
+//   tables: { chart, gallery } (flowchart.json, gallery.json), so that a figure can be "of how many", as the game's own screens count them: the
+//           flowchart's scenes, the pictures the CG gallery lists, the Music Player's rows. Without them the figures are the bare counts.
 export function loadedData(storage = globalThis.localStorage, { chart = null, gallery = null } = {}) {
   const loaded = hasImported(storage);
-  if (!hasProgress(storage) && !loaded) return [];
-  const s = portState(storage, gallery?.seen || null), plural = (k, word) => `${k} ${word}${k === 1 ? "" : "s"}`;
+  if (!hasProgress(storage) && !loaded) return null;
+  const s = portState(storage, gallery?.seen || null);
   const flow = { started: new Set(s.flow.started), completed: new Set(s.flow.completed) };
   const unlocks = { seen: new Set(s.seen), images: new Set(json(storage, "tsuki.unlocks.v1", {}).images || []), music: new Set(s.music), movies: new Set(s.movies) };
-  const rows = [];
+  const facts = [];
   const scenes = chart ? [...new Set(chart.groups.flatMap((g) => g.parts).filter((p) => p.flag > 0).map((p) => p.flag))] : null;
-  rows.push(["Scenes", scenes ? `${scenes.filter((n) => flow.completed.has(n)).length} of ${scenes.length} completed` : `${flow.completed.size} completed`]);
+  facts.push([scenes ? `${scenes.filter((n) => flow.completed.has(n)).length} / ${scenes.length}` : String(flow.completed.size), "scenes completed"]);
   if (gallery) {
     const all = gallery.cg.reduce((n, e) => n + e.variants.length, 0);
-    rows.push(["Pictures", `${cgLists(gallery.cg, { unlocks, flow }).flat.length} of ${all}`]);
-    rows.push(["Music", `${gallery.music.filter((t) => musicUnlocked(t, { unlocks, flow })).length} of ${gallery.music.length}`]);
+    facts.push([`${cgLists(gallery.cg, { unlocks, flow }).flat.length} / ${all}`, "pictures"]);
+    facts.push([`${gallery.music.filter((t) => musicUnlocked(t, { unlocks, flow })).length} / ${gallery.music.length}`, "songs"]);
   } else {
-    rows.push(["Pictures", String(unlocks.seen.size)], ["Music", String(unlocks.music.size)]);
+    facts.push([String(unlocks.seen.size), "pictures"], [String(unlocks.music.size), "songs"]);
   }
-  const saves = Object.keys(json(storage, "tsuki.saves", {})).length, autos = json(storage, "tsuki.autosaves", []).length, quick = !!storage.getItem("tsuki.quicksave");
-  const parts = [saves ? plural(saves, "save") : "", autos ? plural(autos, "automatic save") : "", quick ? "a quick save" : ""].filter(Boolean);
-  rows.push(["Saves made here", parts.length ? parts.join(", ") : "None"]);
-  if (loaded) rows.push(["Imported file", `${FILE_NAME} is loaded: the counts above are its own. Your own are put aside until it is removed.`]);
-  return rows;
+  // the saves made here: one kind alone is named with its count; several are added up, and the line under the figure says which
+  const kinds = [[Object.keys(json(storage, "tsuki.saves", {})).length, "in the list", "save"], [json(storage, "tsuki.autosaves", []).length, "automatic", "automatic save"],
+    [storage.getItem("tsuki.quicksave") ? 1 : 0, "quick", "quick save"]].filter(([n]) => n > 0);
+  const total = kinds.reduce((n, k) => n + k[0], 0);
+  if (kinds.length === 1) facts.push([String(total), `${kinds[0][2]}${total === 1 ? "" : "s"} made here`]);
+  else facts.push([String(total), kinds.length ? `saves made here: ${kinds.map(([n, how]) => `${n} ${how}`).join(", ")}` : "saves made here"]);
+  return { facts, file: loaded ? `${FILE_NAME} is loaded: these are its own. Your own are put aside until it is removed.` : null };
 }
 
 // ---- the file last imported, kept whole (4 MB: more than local storage has room for) ---------------------------------------------------------
