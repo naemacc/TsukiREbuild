@@ -1,0 +1,213 @@
+name: Build iOS IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      bundle_assets:
+        description: Put the 2.8 GB of game assets inside the IPA (off = lite IPA that fetches them from arcueid.date as it plays)
+        type: boolean
+        default: true
+      transcode_movies:
+        description: Re-encode movies AV1 -> H.264 (needed for iPhone 14 and older; only with the assets bundled)
+        type: boolean
+        default: true
+      ignore_cache:
+        description: Ignore the saved game files and converted movies, and start from nothing
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  ipa:
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Tools
+        run: |
+          brew install xcodegen
+          df -h /
+
+      # ---- The game's files: kept between runs, so only what is missing or changed is downloaded ----
+      - name: Restore the game files saved by an earlier run
+        id: assets-cache
+        if: ${{ inputs.bundle_assets && !inputs.ignore_cache }}
+        uses: actions/cache/restore@v4
+        with:
+          path: web/assets
+          key: tsuki-assets-v1-${{ github.run_id }}
+          restore-keys: tsuki-assets-v1-
+
+      - name: Note what is there before the check
+        if: ${{ inputs.bundle_assets }}
+        run: |
+          mkdir -p web/assets
+          echo "ASSETS_BEFORE=$(find web/assets -type f | wc -l | tr -d ' ') $(du -sk web/assets | cut -f1)" >> "$GITHUB_ENV"
+
+      - name: Fetch game assets (checks every file, downloads only the missing or changed)
+        if: ${{ inputs.bundle_assets }}
+        run: python -u web-dev/tools/fetch_assets.py
+
+      - name: Did the game files change?
+        id: assets-changed
+        if: ${{ always() && inputs.bundle_assets }}
+        run: |
+          after="$(find web/assets -type f | wc -l | tr -d ' ') $(du -sk web/assets | cut -f1)"
+          if [ "$after" = "$ASSETS_BEFORE" ]; then echo "changed=false" >> "$GITHUB_OUTPUT"; else echo "changed=true" >> "$GITHUB_OUTPUT"; fi
+          echo "before: $ASSETS_BEFORE, after: $after"
+
+      # saved before the movies are converted, so the saved copy keeps the originals
+      - name: Save the game files for the next run
+        if: ${{ always() && inputs.bundle_assets && steps.assets-changed.outputs.changed == 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: web/assets
+          key: tsuki-assets-v1-${{ github.run_id }}
+
+      # ---- The movies: each converted once, and converted again only when its source changes ----
+      - name: Restore the converted movies saved by an earlier run
+        if: ${{ inputs.bundle_assets && inputs.transcode_movies && !inputs.ignore_cache }}
+        uses: actions/cache/restore@v4
+        with:
+          path: movie-h264-cache
+          key: tsuki-movies-h264-v1-${{ github.run_id }}
+          restore-keys: tsuki-movies-h264-v1-
+
+      - name: Re-encode movies to H.264 (only the ones not converted before)
+        id: movies
+        if: ${{ inputs.bundle_assets && inputs.transcode_movies }}
+        run: |
+          SETTINGS="libx264-crf22-medium-yuv420p-v1"
+          CACHE=movie-h264-cache
+          mkdir -p "$CACHE"
+          if [ "$(cat "$CACHE/settings" 2>/dev/null || true)" != "$SETTINGS" ]; then
+            echo "no saved movies for these settings: converting all of them"
+            rm -rf "$CACHE"; mkdir -p "$CACHE"; echo "$SETTINGS" > "$CACHE/settings"
+          fi
+          echo "converted=false" >> "$GITHUB_OUTPUT"
+          du -sh web/assets/movie
+          have_ffmpeg=0; reused=0; made=0
+          for f in web/assets/movie/*.mp4; do
+            name="$(basename "$f")"
+            src_md5="$(md5 -q "$f")"
+            if [ -f "$CACHE/$name" ] && [ "$(cat "$CACHE/$name.md5" 2>/dev/null || true)" = "$src_md5" ]; then
+              echo "== $name: converted before"
+              cp "$CACHE/$name" "$f"
+              reused=$((reused + 1))
+            else
+              if [ "$have_ffmpeg" = 0 ]; then brew install ffmpeg; have_ffmpeg=1; fi
+              echo "== $name: converting"
+              ffmpeg -nostdin -loglevel error -y -i "$f" -map 0 \
+                -c:v libx264 -crf 22 -preset medium -pix_fmt yuv420p \
+                -fps_mode passthrough -c:a copy -movflags +faststart \
+                "$CACHE/$name.tmp.mp4"
+              mv "$CACHE/$name.tmp.mp4" "$CACHE/$name"
+              echo "$src_md5" > "$CACHE/$name.md5"
+              cp "$CACHE/$name" "$f"
+              made=$((made + 1))
+              echo "converted=true" >> "$GITHUB_OUTPUT"
+            fi
+          done
+          echo "converted before: $reused, converted now: $made"
+          du -sh web/assets/movie
+          df -h /
+
+      - name: Save the converted movies for the next run
+        if: ${{ always() && inputs.bundle_assets && inputs.transcode_movies && steps.movies.outputs.converted == 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: movie-h264-cache
+          key: tsuki-movies-h264-v1-${{ github.run_id }}
+
+      - name: Stage the web app (Bun)
+        run: bun web-dev/ios/ios.ts
+
+      - name: Describe what is bundled (for in-app updates)
+        run: python3 web-dev/ios/make_bundled.py web-dev/ios/build/www ${{ inputs.bundle_assets && '1' || '0' }}
+
+      - name: Generate the Xcode project
+        run: cd web-dev/ios && xcodegen generate
+
+      - name: Build (unsigned)
+        run: |
+          xcodebuild -project web-dev/ios/Tsukihime.xcodeproj -scheme Tsukihime \
+            -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+
+      - name: Add the app icon
+        run: |
+          APP=build/Build/Products/Release-iphoneos/Tsukihime.app
+          pip install pillow
+          python - <<'EOF'
+          from PIL import Image
+          import os
+          app = "build/Build/Products/Release-iphoneos/Tsukihime.app"
+          src = Image.open("web/app/apple-touch-icon.png")
+          # iOS icons must be opaque: flatten any transparency onto black
+          bg = Image.new("RGB", src.size, (0, 0, 0))
+          if src.mode in ("RGBA", "LA", "P"):
+              src = src.convert("RGBA")
+              bg.paste(src, mask=src.split()[3])
+          else:
+              bg = src.convert("RGB")
+          sizes = {
+              "AppIcon60x60@2x.png": 120,
+              "AppIcon60x60@3x.png": 180,
+              "AppIcon76x76@2x.png": 152,
+              "AppIcon83.5x83.5@2x.png": 167,
+          }
+          for name, px in sizes.items():
+              bg.resize((px, px), Image.LANCZOS).save(os.path.join(app, name))
+          EOF
+
+          PLIST="$APP/Info.plist"
+          PB=/usr/libexec/PlistBuddy
+          for key in CFBundleIcons CFBundleIcons~ipad; do
+            $PB -c "Delete :$key" "$PLIST" 2>/dev/null || true
+          done
+          $PB -c "Add :CFBundleIcons dict" \
+              -c "Add :CFBundleIcons:CFBundlePrimaryIcon dict" \
+              -c "Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconFiles array" \
+              -c "Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconFiles:0 string AppIcon60x60" \
+              -c "Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName string AppIcon" \
+              "$PLIST"
+          $PB -c "Add :CFBundleIcons~ipad dict" \
+              -c "Add :CFBundleIcons~ipad:CFBundlePrimaryIcon dict" \
+              -c "Add :CFBundleIcons~ipad:CFBundlePrimaryIcon:CFBundleIconFiles array" \
+              -c "Add :CFBundleIcons~ipad:CFBundlePrimaryIcon:CFBundleIconFiles:0 string AppIcon60x60" \
+              -c "Add :CFBundleIcons~ipad:CFBundlePrimaryIcon:CFBundleIconFiles:1 string AppIcon76x76" \
+              -c "Add :CFBundleIcons~ipad:CFBundlePrimaryIcon:CFBundleIconFiles:2 string AppIcon83.5x83.5" \
+              -c "Add :CFBundleIcons~ipad:CFBundlePrimaryIcon:CFBundleIconName string AppIcon" \
+              "$PLIST"
+          $PB -c "Print :CFBundleIcons" "$PLIST"
+          ls -l "$APP"/AppIcon*.png
+
+      - name: Package the IPA
+        run: |
+          mkdir -p dist/Payload
+          cp -R build/Build/Products/Release-iphoneos/Tsukihime.app dist/Payload/
+          if [ -d web/assets ]; then
+            # move, not copy: avoids a second multi-GB copy on the runner
+            mv web/assets dist/Payload/Tsukihime.app/www/assets
+          fi
+          cd dist && zip -0 -qry Tsukihime.ipa Payload && rm -rf Payload
+          ls -lh Tsukihime.ipa
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: Tsukihime-ipa
+          path: dist/Tsukihime.ipa
+          compression-level: 0
+          retention-days: 14
