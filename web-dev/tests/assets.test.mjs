@@ -21,7 +21,7 @@ test("the manifest lists every asset the site serves: an MD5, a size and a path 
   assert.equal(new Set(paths).size, paths.length);
   assert.ok(!paths.some((p) => p.startsWith("voice/") || p.startsWith("se/")), "the site plays those from the packs");
   for (const p of ["text.json", "system.json", "scripts/index.json", "pack/index.json", "gallery.json", "flowchart.json"]) assert.ok(paths.includes(p), p);
-  assert.equal(lines.reduce((n, l) => n + l.size, 0), 2901537455, "2.9 GB");
+  assert.equal(lines.reduce((n, l) => n + l.size, 0), 2901539839, "2.9 GB");
   assert.ok(paths.includes("ja/index.json") && paths.filter((p) => p.startsWith("ja/")).length === 457, "Japanese's own, under ja/");
 });
 

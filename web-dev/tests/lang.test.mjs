@@ -44,6 +44,17 @@ test("a file Japanese has of its own is asked for under ja/, every other where i
   setOwn([]);
 });
 
+test("a corrected file is asked for at an address no browser has kept (REVISED)", () => {
+  setOwn([]);
+  // IMG0316 was corrected after the site served it, so it carries a number; its neighbours do not.
+  assert.equal(asset("/assets/img/IMG0316.avif"), "/assets/img/IMG0316.avif?v=2");
+  assert.equal(asset("/assets/img/IMG0317.avif"), "/assets/img/IMG0317.avif");
+  // the mark follows the file into Japanese's own copy of that path
+  setOwn(["img/IMG0316.avif"]);
+  assert.equal(asset("/assets/img/IMG0316.avif"), "/assets/ja/img/IMG0316.avif?v=2");
+  setOwn([]);
+});
+
 test("ROW is a row break on the page, no letter, and nothing in plain text", () => {
   const line = `「あ${ROW}い<漢|かん>${ROW}<字|じ>」`;
   assert.equal(plain(line), "「あい漢字」");

@@ -31,11 +31,23 @@ export function chooseLang(lang, storage = globalThis.localStorage) {
 let own = new Set();
 export function setOwn(files) { own = new Set(files || []); }
 export const has = (rel) => own.has(rel);
+// A file corrected after the site first served it. The game's own files are stored to be kept for 30 days and never
+// asked about again (`immutable`), which is right for files that never change but leaves a corrected one unseen until
+// a browser's copy expires. Giving it the next number here asks for it at `...?v=<n>` instead, an address no browser
+// has, so everyone has it at once; the stored file keeps its name. Japanese's own copy of the same path is marked too.
+// Only the paths that pass through `asset` are covered: pictures, interface art and movies, not sounds, whose fetches
+// would have to be wrapped here first.
+const REVISED = {
+  "img/IMG0316.avif": 2,   // the tree's cut-out, so the Ciel Day 9 scene has no bright rectangles (GitHub issue 7)
+};
+
 // The address to ask for: a file under /assets/ is the one of the same path under /assets/ja/ when Japanese has it.
 export function asset(url) {
-  if (!own.size || !url.startsWith("/assets/")) return url;
+  if (!url.startsWith("/assets/")) return url;
   const rel = url.slice(8);
-  return own.has(rel) ? `/assets/ja/${rel}` : url;
+  const out = own.size && own.has(rel) ? `/assets/ja/${rel}` : url;
+  const rev = REVISED[rel];
+  return rev ? `${out}${out.includes("?") ? "&" : "?"}v=${rev}` : out;
 }
 
 // Resolved once the list is in (at once in English). A list that does not come leaves the game in the translation's files.
