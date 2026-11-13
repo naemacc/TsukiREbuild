@@ -107,7 +107,7 @@ test("PLAY ONLINE opens on the hardware acceleration notice, with each browser's
   const h = source("js/home.js");
   assert.deepEqual(TABS[PLAY].sections[0].blocks[0], ["gpu"]);
   assert.match(GPU_NOTICE.head, /hardware acceleration/);
-  assert.deepEqual(GPU_NOTICE.rows.map((r) => r[0]), ["Chrome", "Edge", "Firefox"]);
+  assert.deepEqual(GPU_NOTICE.rows.map((r) => r[0]), ["Chrome", "Edge", "Firefox", "Brave"]);
   for (const n of ["ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)", "llvmpipe (LLVM 15.0.7, 256 bits)",
     "ANGLE (Microsoft, Microsoft Basic Render Driver Direct3D11 vs_5_0 ps_5_0, D3D11)"]) assert.ok(SOFTWARE_GL.test(n), n);
   for (const n of ["", "WebKit WebGL", "Mozilla", "Generic Renderer"]) assert.ok(HIDDEN_GL.test(n) && !SOFTWARE_GL.test(n), n);
@@ -116,4 +116,13 @@ test("PLAY ONLINE opens on the hardware acceleration notice, with each browser's
   assert.match(h, /getContext\("webgl2", \{ failIfMajorPerformanceCaveat: true \}\)/);
   assert.match(h, /s\.blocks\.filter\(\(b\) => b\[0\] !== "gpu" \|\| accel !== "on"\)/, "left out where it is on");
   assert.match(h, /if \(accel === "off"\) box\.append/, "says it is off only where it is");
+});
+
+test("with no WebGL 2 at all the page says so, with how to turn it on, instead of staying black", async () => {
+  const { NO_GL, GPU_NOTICE } = await import("../../web/app/js/home.js");
+  const main = source("js/main.js");
+  assert.match(NO_GL.head, /WebGL 2/);
+  assert.deepEqual(NO_GL.rows.slice(0, GPU_NOTICE.rows.length), GPU_NOTICE.rows, "each browser's setting first");
+  assert.ok(NO_GL.rows.some((r) => /brave:\/\/gpu/.test(r[1])) && NO_GL.rows.some((r) => /Override software rendering list/.test(r[1])), "how to check, and the blocklist");
+  assert.match(main, /try \{ return new Renderer\(\$\("gl"\)\); \} catch \(e\) \{ showNoGl\(\$\("ui"\)\); throw e; \}/, "shown where the renderer can't start");
 });

@@ -115,8 +115,27 @@ export const GPU_NOTICE = {
     ["Chrome", "Settings › System › Use graphics acceleration when available, then Relaunch"],
     ["Edge", "Settings › System and performance › Use graphics acceleration when available, then Restart"],
     ["Firefox", "Settings › General › Performance: untick Use recommended performance settings, tick Use hardware acceleration when available, then restart Firefox"],
+    ["Brave", "Settings › System › Use graphics acceleration when available, then Relaunch"],
   ],
 };
+// Where the browser gives no WebGL 2 at all (turned off, or the graphics driver on the browser's blocklist, as Brave and Chrome often have it on Linux, and they
+// no longer fall back to drawing it in software) the game can draw nothing: main.js shows this, on its own, in place of a black screen.
+export const NO_GL = {
+  head: "This browser has WebGL 2 turned off",
+  why: "The game draws everything with WebGL 2, so without it the screen stays black.",
+  rows: [
+    ...GPU_NOTICE.rows,
+    ["Then check", "open chrome://gpu (brave://gpu, edge://gpu; about:support in Firefox): WebGL2 should say Hardware accelerated"],
+    ["Still off?", "the browser has blocked your graphics driver, common on Linux: open chrome://flags (brave://flags), set Override software rendering list to Enabled, then Relaunch"],
+  ],
+};
+export function showNoGl(into) {
+  const page = el("div", "wl-text nogl"), box = el("div", "hm-notice");
+  box.append(el("h3", "", NO_GL.head), el("p", "hm-notice-off", NO_GL.why), blockEl(["rows", NO_GL.rows]));
+  page.append(box);
+  into.replaceChildren(page);
+  into.style.display = "block";
+}
 // The software renderers (Chrome's SwiftShader, Mesa's llvmpipe and softpipe, Windows' Basic Render Driver), and the names a browser gives when it hides its
 // renderer's (Safari's and Firefox's when they resist fingerprinting), which tell nothing.
 export const SOFTWARE_GL = /swiftshader|llvmpipe|softpipe|software|basic render/i, HIDDEN_GL = /^\s*(webkit webgl|mozilla|generic renderer)?\s*$/i;

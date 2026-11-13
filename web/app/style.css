@@ -423,6 +423,9 @@ div.fc-node { pointer-events: none; cursor: default; }
 .wl-text .hm-notice-off { margin: 0 0 14px; text-align: center; color: #ffd27a; text-shadow: 0 0 9px rgba(255, 170, 60, .7), 0 1px 3px rgba(0, 0, 0, .85); }
 .wl-text .hm-notice .wl-rows { grid-template-columns: max-content 1fr; gap: 10px 40px; margin: 0 0 18px; }
 .hm-notice .wl-what { font-size: 28px; line-height: 38px; color: #e8f1fb; }
+/* the notice alone, in the middle of the screen, where there is no WebGL 2 (home.js showNoGl) */
+.wl-text.nogl { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; padding: 0 150px; }
+.wl-text.nogl .hm-notice { margin: 0; }
 .hm-link { display: inline-block; margin: 6px 0 20px; font: 400 34px/44px "PT Sans Narrow", "Ubuntu Condensed", "Arial Narrow", "PT Sans Narrow Bundled", "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: #f2f6f8; text-decoration: underline 1px rgba(191, 238, 255, .55); text-underline-offset: 7px; text-shadow: 0 0 9px rgba(110, 195, 255, .75); }
 .hm-link:hover { color: #fff; text-decoration-color: #bfeeff; text-shadow: 0 0 9px rgba(112, 255, 255, .95), 0 0 18px rgba(64, 200, 255, .6); }
 

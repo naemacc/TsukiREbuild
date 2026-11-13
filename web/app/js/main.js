@@ -12,7 +12,7 @@ import { advanceRandom, textShakePixels } from "./effects.js";
 import { openFlowchart } from "./flowchart.js";
 import { openGallery, preloadGallery } from "./gallery.js";
 import { welcomeDue, markWelcomed } from "./welcome.js";
-import { openHome, homeDue } from "./home.js";
+import { openHome, homeDue, showNoGl } from "./home.js";
 import { JA } from "./lang.js";
 import { savesReplaced } from "./savefile.js";
 import { Preloader, RANK, movieUrl } from "./preload.js";
@@ -61,7 +61,8 @@ addEventListener("pointerdown", (e) => {
   if (x >= 0 && y >= 0 && x < 1920 && y < 1080) touchFx.touch(x, y);
 }, true);
 
-const gfx = new Renderer($("gl"));
+// With no WebGL 2 nothing can be drawn: the page says so, and how to turn it on (home.js NO_GL), and goes no further.
+const gfx = (() => { try { return new Renderer($("gl")); } catch (e) { showNoGl($("ui")); throw e; } })();
 const audio = new Audio();
 const text = new TextBox();
 
