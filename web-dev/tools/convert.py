@@ -78,12 +78,32 @@ def scales():
     return _scales
 
 
+# A sharp picture whose shape exists only in the game's own blurred copies: name -> (copy, its padding left, top).
+# IMG0316 (a tree) is a JPEG with white round it, but the game only ever draws IMG0316_01_01 and _11_04 (09_01_CIEL09_6C,
+# 14_01A_CIEL14A_3 and _4 all blur it), and those have the tree cut out. The port blurs the sharp picture itself, so it
+# takes the copy's alpha, and the copy's colour where that alpha is partial (dark tree, not the JPEG's white-mixed edge),
+# or the white shows as bright rotated rectangles (GitHub issue 7). Checked against all 1,795 blurred copies of opaque
+# sharp pictures in the archives: this is the only one.
+ALPHA_FROM = {"IMG0316": ("IMG0316_01_01", 8, 8)}
+
+
+def borrow_alpha(rom, im, copy, dx, dy):
+    src = np.asarray(load_image(rom, table()[copy]))[dy:dy + im.height, dx:dx + im.width]
+    a = np.array(im)
+    part = src[..., 3] < 255
+    a[part, :3] = src[part, :3]
+    a[..., 3] = src[..., 3]
+    return Image.fromarray(a, "RGBA")
+
+
 def make_img(rom, name, out):
     key = name.upper()
     e = table().get(key)
     if not e:
         return False
     im = load_image(rom, e)
+    if key in ALPHA_FROM:
+        im = borrow_alpha(rom, im, *ALPHA_FROM[key])
     s = scales().get(key, [0, 0, 1.0])[2]
     w, h = max(1, round(im.width * s)), max(1, round(im.height * s))
     # scale with premultiplied alpha, so transparent edges do not bleed dark
