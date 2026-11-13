@@ -118,7 +118,7 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         private var jobs: [Int: Job] = [:]
         private lazy var session: URLSession = {
             let cfg = URLSessionConfiguration.default
-            cfg.urlCache = URLCache(memoryCapacity: 16 << 20, diskCapacity: 256 << 20)   // short-lived files follow their headers
+            cfg.urlCache = URLCache(memoryCapacity: 16 << 20, diskCapacity: 256 << 20, directory: nil)   // short-lived files follow their headers
             let q = OperationQueue(); q.maxConcurrentOperationCount = 1
             return URLSession(configuration: cfg, delegate: self, delegateQueue: q)
         }()
@@ -131,7 +131,7 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
             t.resume()
         }
 
-        private func job(_ t: URLSessionTask) -> Job? { lock.lock(); defer { lock.unlock() }; return jobs[t.taskIdentifier] }
+        private func find(_ t: URLSessionTask) -> Job? { lock.lock(); defer { lock.unlock() }; return jobs[t.taskIdentifier] }
         private func take(_ t: URLSessionTask) -> Job? { lock.lock(); defer { lock.unlock() }; return jobs.removeValue(forKey: t.taskIdentifier) }
         private func update(_ t: URLSessionTask, _ f: (inout Job) -> Void) {
             lock.lock(); defer { lock.unlock() }
@@ -140,7 +140,7 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
 
         func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
                         completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
-            guard let job = job(dataTask), let http = response as? HTTPURLResponse else { completionHandler(.cancel); return }
+            guard let job = find(dataTask), let http = response as? HTTPURLResponse else { completionHandler(.cancel); return }
             var headers = ["Access-Control-Allow-Origin": "*", "Accept-Ranges": "bytes"]
             for k in ["Content-Type", "Content-Range", "Cache-Control", "ETag", "Last-Modified"] {
                 if let v = http.value(forHTTPHeaderField: k) { headers[k] = v }
@@ -161,7 +161,7 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         }
 
         func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-            guard let job = job(dataTask) else { dataTask.cancel(); return }
+            guard let job = find(dataTask) else { dataTask.cancel(); return }
             var alive = true
             DispatchQueue.main.sync {                       // sync = backpressure, as in serve()
                 if self.owner.isActive(job.id) { job.task.didReceive(data) } else { alive = false }

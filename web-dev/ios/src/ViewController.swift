@@ -198,7 +198,7 @@ final class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate
         case "open":
             if let s = args["url"] as? String, let url = URL(string: s),
                ["http", "https"].contains(url.scheme ?? "") {
-                UIApplication.shared.open(url)
+                UIApplication.shared.open(url, options: [:], completionHandler: nil)
             }
             return nil
 
