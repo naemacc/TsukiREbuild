@@ -1,0 +1,39 @@
+name: Tsukihime
+options:
+  bundleIdPrefix: date.arcueid
+  deploymentTarget:
+    iOS: "16.0"
+targets:
+  Tsukihime:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: build/www
+        type: folder
+        buildPhase: resources
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: Tsukihime
+        CFBundleShortVersionString: "1.0.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        UIRequiresFullScreen: true
+        UIStatusBarHidden: true
+        UIViewControllerBasedStatusBarAppearance: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: date.arcueid.tsukihime
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGNING_ALLOWED: "NO"

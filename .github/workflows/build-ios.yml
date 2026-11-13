@@ -1,0 +1,136 @@
+name: Build iOS IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      bundle_assets:
+        description: Put the 2.8 GB of game assets inside the IPA (off = lite IPA)
+        type: boolean
+        default: true
+      transcode_movies:
+        description: Re-encode movies AV1 -> H.264 (needed for iPhone 14 and older)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  ipa:
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Tools
+        run: |
+          brew install xcodegen
+          df -h /
+
+      - name: Fetch game assets
+        if: ${{ inputs.bundle_assets }}
+        run: python -u web-dev/tools/fetch_assets.py
+
+      - name: Re-encode movies to H.264
+        if: ${{ inputs.bundle_assets && inputs.transcode_movies }}
+        run: |
+          brew install ffmpeg
+          du -sh web/assets/movie
+          for f in web/assets/movie/*.mp4; do
+            echo "== $f"
+            ffmpeg -nostdin -loglevel error -y -i "$f" -map 0 \
+              -c:v libx264 -crf 22 -preset medium -pix_fmt yuv420p \
+              -fps_mode passthrough -c:a copy -movflags +faststart \
+              "$f.tmp.mp4"
+            mv "$f.tmp.mp4" "$f"
+          done
+          du -sh web/assets/movie
+          df -h /
+
+      - name: Stage the web app (Bun)
+        run: bun web-dev/ios/ios.ts
+
+      - name: Generate the Xcode project
+        run: cd web-dev/ios && xcodegen generate
+
+      - name: Build (unsigned)
+        run: |
+          xcodebuild -project web-dev/ios/Tsukihime.xcodeproj -scheme Tsukihime \
+            -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+
+      - name: Add the app icon
+        run: |
+          APP=build/Build/Products/Release-iphoneos/Tsukihime.app
+          SRC=web/app/apple-touch-icon.png
+          pip install pillow
+          python - <<'EOF'
+          from PIL import Image
+          import os
+          app = "build/Build/Products/Release-iphoneos/Tsukihime.app"
+          src = Image.open("web/app/apple-touch-icon.png")
+          # iOS icons must be opaque: flatten any transparency onto black
+          bg = Image.new("RGB", src.size, (0, 0, 0))
+          if src.mode in ("RGBA", "LA", "P"):
+              src = src.convert("RGBA")
+              bg.paste(src, mask=src.split()[3])
+          else:
+              bg = src.convert("RGB")
+          sizes = {
+              "AppIcon60x60@2x.png": 120,
+              "AppIcon60x60@3x.png": 180,
+              "AppIcon76x76@2x.png": 152,
+              "AppIcon83.5x83.5@2x.png": 167,
+          }
+          for name, px in sizes.items():
+              bg.resize((px, px), Image.LANCZOS).save(os.path.join(app, name))
+          EOF
+
+          PLIST="$APP/Info.plist"
+          PB=/usr/libexec/PlistBuddy
+          for key in CFBundleIcons CFBundleIcons~ipad; do
+            $PB -c "Delete :$key" "$PLIST" 2>/dev/null || true
+          done
+          $PB -c "Add :CFBundleIcons dict" \
+              -c "Add :CFBundleIcons:CFBundlePrimaryIcon dict" \
+              -c "Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconFiles array" \
+              -c "Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconFiles:0 string AppIcon60x60" \
+              -c "Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName string AppIcon" \
+              "$PLIST"
+          $PB -c "Add :CFBundleIcons~ipad dict" \
+              -c "Add :CFBundleIcons~ipad:CFBundlePrimaryIcon dict" \
+              -c "Add :CFBundleIcons~ipad:CFBundlePrimaryIcon:CFBundleIconFiles array" \
+              -c "Add :CFBundleIcons~ipad:CFBundlePrimaryIcon:CFBundleIconFiles:0 string AppIcon60x60" \
+              -c "Add :CFBundleIcons~ipad:CFBundlePrimaryIcon:CFBundleIconFiles:1 string AppIcon76x76" \
+              -c "Add :CFBundleIcons~ipad:CFBundlePrimaryIcon:CFBundleIconFiles:2 string AppIcon83.5x83.5" \
+              -c "Add :CFBundleIcons~ipad:CFBundlePrimaryIcon:CFBundleIconName string AppIcon" \
+              "$PLIST"
+          $PB -c "Print :CFBundleIcons" "$PLIST"
+          ls -l "$APP"/AppIcon*.png
+
+      - name: Package the IPA
+        run: |
+          mkdir -p dist/Payload
+          cp -R build/Build/Products/Release-iphoneos/Tsukihime.app dist/Payload/
+          if [ -d web/assets ]; then
+            # move, not copy: avoids a second multi-GB copy on the runner
+            mv web/assets dist/Payload/Tsukihime.app/www/assets
+          fi
+          cd dist && zip -0 -qry Tsukihime.ipa Payload && rm -rf Payload
+          ls -lh Tsukihime.ipa
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: Tsukihime-ipa
+          path: dist/Tsukihime.ipa
+          compression-level: 0
+          retention-days: 14
