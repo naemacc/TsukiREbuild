@@ -16,7 +16,8 @@ sys.path.insert(0, str(HERE))
 from native_flowchart import build as native_chart
 
 
-def build(root):
+def build(root, out=None):
+    """out: where flowchart.json goes (build_ja.py: web/assets/ja, the original's titles and notes)."""
     root = Path(root).resolve()
     assets = root / "web/assets"
     chart = native_chart(root)
@@ -52,7 +53,7 @@ def build(root):
             count += 1
     if missing:
         raise ValueError(f"Native flowchart jump targets missing from browser script index: {sorted(set(missing))}")
-    path = assets / "flowchart.json"
+    path = (Path(out) if out else assets) / "flowchart.json"
     temp = path.with_suffix(".json.tmp")
     temp.write_text(json.dumps(chart, ensure_ascii=False, separators=(",", ":")))
     os.replace(temp, path)

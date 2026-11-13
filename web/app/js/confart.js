@@ -4,6 +4,7 @@
 // time in a visit: the old words taken out, the same words drawn at CONF_TEXT.size in the rows' own face, each in its
 // state's colour and glow. Everything else in the pictures (the bars, the marks before each choice, "ms") is as it was.
 // The samples take the same size in style.css (.confsample).
+import { asset } from "./lang.js";
 
 export const CONF_TEXT = { size: 28, line: 36, font: 'Helvetica, Arial, "Liberation Sans", "Arimo Bundled", sans-serif', fill: "rgba(255, 255, 255, .96)" };
 // system_bg (1432 x 1336): each row's name, the rows its old words lay in ([first, last]) and its lines. The words start
@@ -44,7 +45,7 @@ function load(name) {
     const img = new Image();
     img.onload = () => done(img);
     img.onerror = () => fail(Error(name));
-    img.src = `/assets/ui/CONF_PARTS_JA/${name}.webp`;
+    img.src = asset(`/assets/ui/CONF_PARTS_JA/${name}.webp`);
   });
 }
 const canvasOf = (img) => {

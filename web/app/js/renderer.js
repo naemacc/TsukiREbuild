@@ -5,6 +5,7 @@ import { layerState } from "./animation.js";
 import { clipShift, hazeConstants, impactPixels, layerShiftPixels } from "./effects.js";
 import { place, clipGeometry, panelRuns, groupModes, plainGroups, groupCoverage, groupNeedsBuffer, groupOpacity, groupRelative, blurSigma } from "./transform.js";
 import { grainSample, linesSample, splitSample } from "./screenfx.js";
+import { asset } from "./lang.js";
 const F = 1.5;
 // STBR's number -> the shader that draws the layer, as positions in the engine's shader table (0x264668). The draw
 // (0x89ad0) looks the number up in 0x34dd70 (the identity for 0-39) and maps it with 0xa2790 to a shader; shaders of
@@ -661,7 +662,7 @@ export class Renderer {
     }
     const e = { used: performance.now(), tex: null, w: 0, h: 0 };
     e.promise = (async () => {
-      const res = await fetch(`/assets/img/${encodeURIComponent(key)}.avif`);
+      const res = await fetch(asset(`/assets/img/${encodeURIComponent(key)}.avif`));
       if (!res.ok) throw new Error(`no image ${key}`);
       const bmp = await createImageBitmap(await res.blob(), { premultiplyAlpha: "premultiply", colorSpaceConversion: "none" });
       const gl = this.gl;
@@ -711,7 +712,7 @@ export class Renderer {
     if (hit) return hit.tex;
     const e = { tex: null };
     this.ui.set(path, e);
-    e.loaded = fetch(`/assets/ui/${path}.webp`).then((r) => (r.ok ? r.blob() : Promise.reject(new Error(path))))
+    e.loaded = fetch(asset(`/assets/ui/${path}.webp`)).then((r) => (r.ok ? r.blob() : Promise.reject(new Error(path))))
       .then((b) => createImageBitmap(b, { premultiplyAlpha: "premultiply", colorSpaceConversion: "none" }))
       .then((bmp) => {
         const gl = this.gl;

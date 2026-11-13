@@ -10,6 +10,7 @@ import { LogoDust, LogoShards, MenuCursor, MENU_COLUMN, MENU_FADE, drawTitlePart
 import { ACTIONS, MENU_KEYS, MOUSE, SLOTS, canBind, keyLabel, keyName } from "./keys.js";
 import { chapterNamed, menuChapter } from "./chapters.js";
 import { TOUCH, TOUCH_CONTROLS, TOUCH_HINTS, barPlace } from "./touch.js";
+import { JA, LANG, asset } from "./lang.js";
 const PHASES = {
   // script prefix -> [column, row] in system_phasetitle_ja. The route of each is inferred from the script names.
   "00": [2, 7], "01": [0, 1], "02": [0, 2], "03": [0, 3], "04": [0, 4], "05_00": [2, 8], "05_01": [0, 5],
@@ -32,7 +33,7 @@ export const PHASE_NAMES = [
   ["Vermillion Vestiges II", "The Moon's Surface", "Mirage", "Stone of Eternity", "Moon Princess", "Rainbow in the Night", "Daylight Blue", "Prologue", "Infernal River of Blood II"],
 ];
 
-const url = (pack, name) => `/assets/ui/${pack}/${name}.webp`;
+const url = (pack, name) => asset(`/assets/ui/${pack}/${name}.webp`);
 
 // A piece of an atlas at a place on the 1920 x 1080 stage.
 export function sprite(pack, name, x, y, w, h, sx = 0, sy = 0, cls = "") {
@@ -273,6 +274,10 @@ export const HINTS = {
   "Change page": ["Tab"], Scroll: ["Wheel", "Page Up / Down"], "Quick jump": ["Enter", "Click"], "Replay voice": ["V", "Click its mark"],
   Picture: ["\u2190 \u2192", "Click"], Zoom: ["Wheel", "\u2191 \u2193"], Fill: ["Enter"], Reset: ["Home"], "Change key": ["Enter", "Click"],
 };
+// Japanese: the hint bar's words as the game's own help band has them (the original's picture of its labels, in DISP_PARTS_JA). A label the game
+// has no word for (the port's own: Fill, the flowchart's plate) stays as it is.
+export const HINTS_JA = { Start: "決定", Back: "戻る", Choose: "決定", Move: "移動", "Cursor movement": "カーソル移動", "Change page": "ページ変更", Scroll: "スクロール",
+  "Quick jump": "クイックジャンプ", "Replay voice": "ボイス再生", Picture: "画像の切替", Zoom: "拡大・縮小", Reset: "初期化", "Change key": "変更" };
 // The system menu background's sparkles, one set for the whole session (menuBackground; 0xb34bc8), drawn on one canvas
 // that the newest background takes.
 export const menuSparkles = { set: null, star: null, owner: null, canvas: null, render: null };
@@ -678,7 +683,7 @@ export class UI {
       const keys = this.touch ? TOUCH_HINTS[label] : label === "Replay voice" ? [this.keys?.label("voice") || "V", ...HINTS[label].slice(1)] : HINTS[label] || [];
       if (!keys) continue;
       for (const key of keys) hint.append(Object.assign(document.createElement("kbd"), { textContent: key }));
-      hint.append(Object.assign(document.createElement("span"), { className: "hint-label", textContent: label }));
+      hint.append(Object.assign(document.createElement("span"), { className: "hint-label", textContent: (JA && HINTS_JA[label]) || label }));
       bar.append(hint);
     }
     page.appendChild(bar);
@@ -1148,7 +1153,10 @@ export class UI {
       chapter = chapterNamed(PHASE_NAMES[c][r]);
       s.textContent = PHASE_NAMES[c][r] || "";
     }
-    this.chapterTitle(page, chapter);
+    // Japanese: the game's own picture of the chapter, its cell of the sheet (the names are written out only because the translation's did not fit)
+    const cell = JA && T ? T.phaseCells[f23 >= 0 && f23 < 38 ? f23 : 0] : null;
+    if (JA && cell) { if (cell[2] - cell[0] > 1) page.append(sprite("MENU_PARTS_JA", "system_phasetitle_ja", 8, 0, cell[2] - cell[0], cell[3] - cell[1], cell[0], cell[1], "chapter-art")); }
+    else this.chapterTitle(page, chapter);
     page.append(s);
     this.nowPlaying(page, s);
   }
@@ -1679,6 +1687,8 @@ export class UI {
       n.className = "savenote";
       n.textContent = rec.note || "";
       info.append(n);
+      // a save made in the other language: its line as this language has it
+      if ((rec.lang || "en") !== LANG && this.vm?.noteIn) this.vm.noteIn(rec).then((t) => { if (n.isConnected) n.textContent = t; });
     };
     // Up / Down step along the list and repeat, wrapping only on a fresh press (0x50fc0 state 2).
     const stepRow = (d) => (e) => {
@@ -1743,7 +1753,10 @@ export class UI {
           const [c, rr] = phaseOf(rec.name);
           chapter = chapterNamed(PHASE_NAMES[c][rr]);
         }
-        if (chapter) {
+        // Japanese: the row's own picture of the chapter (SAVE_PARTS_JA/savetitle, its cell by F023: 0x4f240)
+        const art = JA && T ? T.saveTitleCells?.[Math.max(0, Math.min(37, f23(rec)))] : null;
+        if (JA && art) { if (art[2] - art[0] > 1) r.append(sprite("SAVE_PARTS_JA", "savetitle", 359, 121, art[2] - art[0], art[3] - art[1], art[0], art[1], "slottitle-art")); }
+        else if (chapter) {
           const t = document.createElement("div");
           t.className = "slottitle";
           if (chapter.day !== null) {

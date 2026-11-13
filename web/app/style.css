@@ -123,7 +123,7 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 /* The chapter at the header's left (ui.js chapterTitle), after the game's picture of it (system_phasetitle_ja): the day's figure, a long thin
    stroke, the name in a chancery italic, white, on one line. */
 .chapter { position: absolute; left: 20px; top: 0; height: 84px; display: flex; align-items: center; white-space: nowrap; color: #fff; pointer-events: none; }
-.menufg .chapter { opacity: var(--lv, 1); }
+.menufg .chapter, .menufg .chapter-art { opacity: var(--lv, 1); }
 .chapter-day { position: relative; top: 9px; font: 400 92px/84px "Hoefler Text", "Palatino Linotype", Palatino, "Book Antiqua", "Pagella Bundled", Georgia, "Gelasio Bundled", serif; letter-spacing: 6px; font-variant-numeric: lining-nums; }
 .chapter-stroke { flex: none; position: relative; top: 2px; width: 68px; height: 70px; margin: 0 2px 0 6px; background: linear-gradient(to bottom right, transparent calc(50% - 1.6px), #fff calc(50% - 1px), #fff calc(50% + 1px), transparent calc(50% + 1.6px)); }
 .chapter-name { font-family: "Apple Chancery", "Lucida Calligraphy", "Monotype Corsiva", "URW Chancery L", "TeX Gyre Chorus", "Chorus Bundled", Georgia, "Gelasio Bundled", serif; font-style: italic; line-height: 84px; padding-right: 12px; position: relative; top: 2px; }
@@ -398,7 +398,13 @@ div.fc-node { pointer-events: none; cursor: default; }
 .hm-text > .hm-logo:first-child { margin: 120px auto 44px; }   /* (the page before a plate is chosen: the logo, and a line under it) */
 .hm-tall { display: none; }   /* (the opening page's parts for a phone held upright: touch.css html.upright) */
 .wl-text .wl-rows.hm-rows { grid-template-columns: max-content 1fr; gap: 14px 44px; }
-.hm-press { display: block; width: 472px; height: 88px; margin: 64px auto 24px; padding: 0; border: 0; cursor: pointer; background: url("/assets/ui/TITLE_PARTS_JA/press_start.webp") 0 0 / 100% 100% no-repeat; }
+.hm-press { display: block; width: 472px; height: 88px; margin: 40px auto 24px; padding: 0; border: 0; cursor: pointer; background: url("/assets/ui/TITLE_PARTS_JA/press_start.webp") 0 0 / 100% 100% no-repeat; }
+/* The language's plates on PLAY ONLINE (home.js langBlock): the panel's own plates, side by side over the prompt. */
+.hm-lang { margin: 44px 0 0; text-align: center; }
+.wl-text .hm-lang h3 { margin: 0 0 16px; }
+.hm-lang-row { display: flex; justify-content: center; gap: 28px; }
+.hm-lang-row .qbtn { position: relative; flex: none; }
+.wl-text .hm-lang-note { margin: 16px 0 0; font-size: 24px; line-height: 32px; color: #c9d8e6; }
 /* Export and Import on SAVE DATA (home.js savesBlock): two of the panel's own plates side by side under the page's words, their keys, and a line
    that says what was done. */
 .hm-saves { margin: 40px 0 44px; text-align: center; }
@@ -419,3 +425,35 @@ div.fc-node { pointer-events: none; cursor: default; }
 .hm-notice .wl-what { font-size: 28px; line-height: 38px; color: #e8f1fb; }
 .hm-link { display: inline-block; margin: 6px 0 20px; font: 400 34px/44px "PT Sans Narrow", "Ubuntu Condensed", "Arial Narrow", "PT Sans Narrow Bundled", "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: #f2f6f8; text-decoration: underline 1px rgba(191, 238, 255, .55); text-underline-offset: 7px; text-shadow: 0 0 9px rgba(110, 195, 255, .75); }
 .hm-link:hover { color: #fff; text-decoration-color: #bfeeff; text-shadow: 0 0 9px rgba(112, 255, 255, .95), 0 0 18px rgba(64, 200, 255, .6); }
+
+/* ---- Japanese (lang.js: html.ja) ---------------------------------------------------------------------------------------------------------------------
+   The original game's own text, as its engine sets it (measured on frames of the unpatched executable and read from its text object, 0xbf0f8): the game's
+   mincho face at 45.6 px with 4 px between letters, so a cell is 49.6 px and a row holds 28; rows 81 px apart from (264, 156.7). The rows are the
+   engine's (textbox.js ROW), so nothing wraps here; a letter the row's rules let hang (a 29th cell) runs past the box, as it does in the game. */
+@font-face { font-family: "TsukuMin"; src: url("/assets/ja/fonts/TsukuMin.ttf") format("truetype"); font-display: block; }
+@font-face { font-family: "TsukuGo"; src: url("/assets/ja/fonts/TsukuGo.ttf") format("truetype"); font-display: block; }
+@font-face { font-family: "SeuratProJa"; src: url("/assets/ja/fonts/SeuratPro.otf") format("opentype"); font-display: block; }
+/* (the story's face is set where the story's text is, not as --story-font: the port's own English words, the opening page among them, keep theirs) */
+html.ja { --ja-font: "TsukuMin", "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif; --ja-size: 45.6px; --cell: 49.6px; --gap: 4px;
+  /* the menus' own words (scene names, the flowchart's titles and notes, the Music Player's tracks): their Japanese in the game's gothic face, the Latin
+     letters and figures in the faces they always had (a face is asked only for the letters the ones before it lack) */
+  --flow-font: Helvetica, Arial, "Arimo Bundled", "TsukuGo", "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif; --gallery-font: Inter, "TsukuGo", "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif; }
+html.ja :is(#text, .logpage) { left: 264px; top: 146.7px; width: 1388.8px; font-family: var(--ja-font); font-size: var(--ja-size); line-height: 81px; white-space: pre; letter-spacing: var(--gap); font-kerning: none; font-feature-settings: "palt" 0, "kern" 0; font-variant-east-asian: full-width; -webkit-font-smoothing: antialiased; }
+html.ja #text.balloon { font-family: "SeuratProJa", var(--ja-font); }
+html.ja :is(#text, .logpage) .seg.glued { margin-left: 2px; }
+/* a narrow letter: half a cell, whatever its glyph's own advance */
+html.ja :is(#text, .logpage) .ch.hw { display: inline-block; width: calc(var(--cell) / 2); letter-spacing: 0; text-align: center; font-variant-east-asian: normal; }
+/* Ruby: half the size, 2 px between its letters, centred on its base and taking no room of its own, so the cells stay where they are (native frames:
+   a reading wider than its base runs out over the letters on both sides). */
+html.ja :is(#text, .logpage) ruby { position: relative; display: inline; }
+html.ja :is(#text, .logpage) rt { position: absolute; display: block; left: calc(50% - var(--gap) / 2); bottom: 100%; transform: translate(-50%, -2px); padding-left: 2px; font-size: 22.8px; line-height: 1; letter-spacing: 2px; white-space: nowrap; text-align: center; }
+html.ja :is(#text, .logpage) rt .ch.hw { width: 12.4px; }
+/* A run of dashes is one solid line across its cells (318 to 458 of 313.6 to 462.4 for three, 2 px, a little above the middle), a run of blocks one bar. */
+html.ja :is(#text, .logpage) .dashrun { position: relative; display: inline-block; width: calc(var(--n) * var(--cell) - var(--gap)); margin-right: var(--gap); letter-spacing: 0; white-space: nowrap; -webkit-text-fill-color: transparent; text-shadow: none; }
+html.ja :is(#text, .logpage) .dashrun::after { content: ""; position: absolute; left: 4.4px; right: 0; top: calc(50% - 1px); height: 2.4px; background: currentColor; box-shadow: 0 1px 3px rgba(0,0,0,.85), 0 0 6px rgba(0,0,0,.45); }
+html.ja :is(#text, .logpage) .blockrun { width: calc(var(--n) * var(--cell) - var(--gap) - 6px) !important; margin: 0 calc(var(--gap) + 3px) 0 3px; height: .88em; vertical-align: -.1em; }
+html.ja :is(#text, .logpage) .glyph { width: calc(var(--n) * var(--cell) - var(--gap)) !important; margin-right: var(--gap); letter-spacing: 0; background-size: calc(21 * var(--cell)) 29em; }
+/* @b: the line runs leftwards from the row's right end */
+html.ja :is(#text, .logpage) .seg.back { display: inline-block; width: 100%; direction: rtl; unicode-bidi: bidi-override; }
+html.ja .choice { font-family: var(--ja-font); font-size: var(--ja-size); letter-spacing: var(--gap); font-kerning: none; -webkit-font-smoothing: antialiased; }
+html.ja .confsample { font-family: var(--ja-font); }

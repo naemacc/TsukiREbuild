@@ -1,4 +1,5 @@
 // textbox.js - dialogue shown a line at a time over the picture, on a full page that clears when the page ends.
+import { JA, asset } from "./lang.js";
 const el = () => document.getElementById("text");
 const panel = () => document.getElementById("panel");
 // Italics: U+E000 plus the ASCII code (the game font's slanted letters at U+E021-E07E). Written as escapes: the raw
@@ -32,6 +33,10 @@ export const GLYPH_ROWS = { ber: [0, 21], zap: [21, 8] };
 // A line break of the patch's that reflow.js took out (a space on screen). The game's text keeps the raw line feed there, a code
 // point below 0x20 that the typing does not count (0xbd990-0xbd9a0), so the port's space is no letter either (N2-122).
 export const SOFT = "\uE3FF";
+// Japanese: a row break the original engine made itself. It wraps a line at 28 cells with its own rules for what may start or end a row (0xbf0f8: Unicode line
+// breaking, then 0xc471c), and where it breaks each line is written into the Japanese text (web-dev/tools/build_ja.py). A break on screen, no letter of
+// the typing (code 10, as ^ is), and nothing at all where the line is read as plain text (the save note).
+export const ROW = "\uE3FE";
 const GLYPH_TAG = /^\[(ber|zap)\d\d\]/;
 
 // The translation spaces its ruby out for the engine's monospaced ruby, which set the letters too close together and
@@ -108,6 +113,7 @@ export function runElement(piece, cls = "") {
     s.className = `${cls}dashrun`;
     s.textContent = "―".repeat(piece.length);
   }
+  s.style.setProperty?.("--n", String(piece.length));   // the run's cells (Japanese: one solid line or bar across them, style.css html.ja)
   return s;
 }
 // Plain text with its dash and block runs joined (the backlog).
@@ -209,7 +215,10 @@ export function parseMarkup(s) {
     // @t: the two parts of the line type side by side (native 0xbdc2c keeps its letter index, 0xc0684 types from it).
     // That index counts the patch's raw line breaks before the mark, which are no letters on screen: `lf`.
     if (c === "@" && s[i + 1] === "t") { flush(); out.push({ split: true, lf }); i += 2; continue; }
-    if (c === "@" && s[i + 1] === "g") { flush(); gface = true; i += 2; continue; }
+    // (the slant is the translation's: in the original the mark shows no change of face on a native frame, so Japanese sets none)
+    if (c === "@" && s[i + 1] === "g") { flush(); gface = !JA; i += 2; continue; }
+    // @b (four lines of the original, each with @g): the line is set from the row's right end, its letters in order leftwards (native frames)
+    if (c === "@" && s[i + 1] === "b") { flush(); out.push({ back: true }); i += 2; continue; }
     if (c === "@" && s[i + 1] === "k") { i += 2; continue; }
     // ^ is the game's own line break (0xbdc2c emits code 10 for it, counting no letter); a raw line break, the patch's
     // %{n} and its injector's wraps, goes through as a character (counted, laid out as code 10, typed as nothing)
@@ -220,7 +229,7 @@ export function parseMarkup(s) {
   flush();
   const res = [];
   for (const p of out) {
-    if (p.glyph || p.split) { res.push(p); continue; }
+    if (p.glyph || p.split || p.back) { res.push(p); continue; }
     if (p.t === undefined) {
       if (gface) p.g = true;
       // ruby written in italic letters (the cicada's "chiiiirp") stays italic
@@ -255,8 +264,8 @@ export function parseMarkup(s) {
 // Plain text (the backlog, measuring): a mirrored run reads the right way round there.
 export function plain(s) {
   const sup = { "\u2212": "\u207B", 3: "\u00B3", 5: "\u2075" };
-  return parseMarkup(s).map((p) => p.split ? "" : p.glyph ? "―".repeat(p.n) : p.m ? [...p.t].reverse().join("")
-    : p.s ? [...p.t].map((c) => sup[c] ?? c).join("") : p.t ?? p.base).join("").replaceAll(SOFT, " ");
+  return parseMarkup(s).map((p) => p.split || p.back ? "" : p.glyph ? "―".repeat(p.n) : p.m ? [...p.t].reverse().join("")
+    : p.s ? [...p.t].map((c) => sup[c] ?? c).join("") : p.t ?? p.base).join("").replaceAll(SOFT, " ").replaceAll(ROW, "");
 }
 
 // ---- the window's rates (native 0x38d40 each frame) -------------------------------------------------------------
@@ -381,8 +390,8 @@ export function fillSegment(seg, markup) {
     const letters = [...text];
     for (let n = 0; n < letters.length; n++) {
       const ch = letters[n];
-      if (ch === "\n") {
-        parent.appendChild(document.createTextNode(ch));
+      if (ch === "\n" || ch === ROW) {
+        parent.appendChild(document.createTextNode("\n"));
         word = null;
         continue;
       }
@@ -404,7 +413,8 @@ export function fillSegment(seg, markup) {
         continue;
       }
       const s = document.createElement("span");
-      s.className = flip ? `ch ${flip}` : "ch";
+      // Japanese: a letter below U+0100 is half a cell (0xbf0f8 counts two of them a cell; "10" and "!?" share one: native frames)
+      s.className = flip ? `ch ${flip}` : JA && ch.charCodeAt(0) < 0x100 ? "ch hw" : "ch";
       s.textContent = ch;
       if (flip) {
         if (!word) { word = document.createElement("span"); word.className = "mirror-word"; parent.appendChild(word); }
@@ -416,6 +426,7 @@ export function fillSegment(seg, markup) {
   let box = seg, boxCol = 0;
   for (const p of parts) {
     if (p.split) { t = chars.length + p.lf; continue; }
+    if (p.back) { seg.classList?.add("back"); continue; }
     const col = p.col || 0;
     if (col !== boxCol) {
       boxCol = col;
@@ -513,7 +524,7 @@ export function renderLogPage(box, records, wrap = null) {
 // (the game dims it with its line, 0x391a0).
 const BLINK = typeof navigator !== "undefined" && /Chrome\//.test(navigator.userAgent || "");
 function dimReadings(seg, v) {
-  if (!BLINK) return;
+  if (!BLINK || JA) return;   // (Japanese readings are placed by the port, inside their line: style.css html.ja rt)
   for (const rt of seg.querySelectorAll("rt")) rt.style.opacity = v;
 }
 
@@ -664,16 +675,16 @@ export class TextBox {
     this.second = this.first && st2 && st2[0] && w.style2 >= 3 ? { ...origin(st2, off("x", w.x2), off("y", w.y2)), width: st[5] * 3 } : null;
     if (!p || !box) return;
     this.balloon = !!(st && st[0] && w.style >= 3);
-    if (this.balloon) document.fonts?.load?.('42px "SeuratPro"');   // the balloon's face (N2-21), fetched before its first letter is typed
+    if (this.balloon) document.fonts?.load?.(JA ? '45.6px "SeuratProJa"' : '42px "SeuratPro"');   // the balloon's face (N2-21), fetched before its first letter is typed
     if (!this.balloon) {
       const file = (w.style >= 0 && w.style <= 2 && st?.[0]) || "txtwindow01-1920";
-      p.style.background = `url("/assets/ui/DISP_PARTS_JA/${file}.webp") 0 0 / 100% 100% no-repeat`;
+      p.style.background = `url("${asset(`/assets/ui/DISP_PARTS_JA/${file}.webp`)}") 0 0 / 100% 100% no-repeat`;
       box.style.left = box.style.width = box.style.top = "";
       box.classList.remove("balloon");
     } else {
       const [file, x, y, tx, ty, width] = st;
       const ox = off("x", w.x), oy = off("y", w.y);
-      p.style.background = `url("/assets/ui/DISP_PARTS_JA/${file}.webp") ${(x + ox) * 1.5}px ${(y + oy) * 1.5}px no-repeat`;
+      p.style.background = `url("${asset(`/assets/ui/DISP_PARTS_JA/${file}.webp`)}") ${(x + ox) * 1.5}px ${(y + oy) * 1.5}px no-repeat`;
       // the table's text origin in stage pixels, less what the game's cells put above and left of the port's line box (measured on native frames, styles 3 and 5)
       box.style.left = `${(x + tx + ox) * 1.5 - 3}px`;
       box.style.top = `${(y + ty + oy) * 1.5 - 11}px`;
@@ -686,7 +697,7 @@ export class TextBox {
     if (st2 && st2[0] && w.style2 >= 3) {
       if (!p2) { p2 = document.createElement("div"); p2.id = "panel2"; p.after(p2); }
       const [file, x, y] = st2;
-      p2.style.background = `url("/assets/ui/DISP_PARTS_JA/${file}.webp") ${(x + off("x", w.x2)) * 1.5}px ${(y + off("y", w.y2)) * 1.5}px no-repeat`;
+      p2.style.background = `url("${asset(`/assets/ui/DISP_PARTS_JA/${file}.webp`)}") ${(x + off("x", w.x2)) * 1.5}px ${(y + off("y", w.y2)) * 1.5}px no-repeat`;
       p2.style.display = "";
     } else if (p2) p2.style.display = "none";
     this.render();

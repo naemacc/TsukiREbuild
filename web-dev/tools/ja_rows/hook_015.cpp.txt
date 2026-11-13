@@ -1,0 +1,85 @@
+#include <cstdio>
+#include <cstdlib>
+#include <string>
+void main_000BF0F8(nx::CPU& NX_RESTRICT c) {
+    uint64_t obj = c.x[0];
+    std::string before((const char*)(obj + 0xd8a0));
+    main_000BF0F8_orig(c);
+    static FILE* f = nullptr; static std::string last; static const char* path = getenv("NX_LAYOUT_LOG");
+    if (!path) return;
+    if (!f) f = fopen(path, "a");
+    if (!f) return;
+    std::string after((const char*)(obj + 0xd8a0));
+    std::string key = before + '\0' + after;
+    if (key == last) return;
+    last = key;
+    fprintf(f, "L cap=%d cap2=%d rows=%d w=%f fw=%f sp=%f flag=%d x0=%f y0=%f gx=%f ", *(int*)(obj + 0x108b0), *(int*)(obj + 0x108b4), *(int*)(obj + 0x108b8), *(float*)(obj + 0x300), *(float*)(obj + 0x18a24), *(float*)(obj + 0x18a30), (int)*(unsigned char*)(obj + 0x18a8d), *(float*)(obj + 0x200), *(float*)(obj + 0x204), *(float*)(obj + 0x18aa8));
+    for (unsigned char ch : before) fprintf(f, "%02x", ch);
+    fputc(' ', f);
+    for (unsigned char ch : after) fprintf(f, "%02x", ch);
+    fputc('\n', f); fflush(f);
+}
+
+#include <fstream>
+#include <vector>
+// Batch harness: once the story's text object (28 cells, 1392 wide) has had a text set, every line of NX_LAYOUT_BATCH ("id<TAB>text[<TAB>startx]") is set on
+// it in turn and the laid-out buffer written to NX_LAYOUT_OUT.
+std::string g_layout_id;
+void main_000BD7EC(nx::CPU& NX_RESTRICT c) {
+    uint64_t obj = c.x[0], text = c.x[1], flags = c.x[2];
+    nx::V128 v0 = c.v[0];
+    main_000BD7EC_orig(c);
+    static bool done = false;
+    static const char* batch = getenv("NX_LAYOUT_BATCH");
+    if (!batch || done || !text) return;
+    int wantCap = getenv("NX_LAYOUT_CAP") ? atoi(getenv("NX_LAYOUT_CAP")) : 28;
+    if (*(int*)(obj + 0x108b4) != wantCap) return;
+    done = true;
+    nx::CPU saved = c;
+    std::string orig((const char*)text);
+    float gx0 = *(float*)(obj + 0x18aa8);
+    FILE* out = fopen(getenv("NX_LAYOUT_OUT"), "w");
+    std::ifstream in(batch);
+    std::string line;
+    static char buf[0x2000];
+    fprintf(out, "# cap=%d w=%f fw=%f sp=%f flags=%llx gx=%f\n", *(int*)(obj + 0x108b4), *(float*)(obj + 0x300), *(float*)(obj + 0x18a24), *(float*)(obj + 0x18a30), (unsigned long long)flags, gx0);
+    long n = 0;
+    while (std::getline(in, line)) {
+        size_t t = line.find('\t');
+        if (t == std::string::npos) continue;
+        std::string id = line.substr(0, t), body = line.substr(t + 1);
+        float gx = 0; bool hasGx = false;
+        size_t t2 = body.find('\t');
+        if (t2 != std::string::npos) { gx = (float)atof(body.c_str() + t2 + 1); hasGx = true; body = body.substr(0, t2); }
+        if (body.size() >= 0xff0) continue;
+        memset(buf, 0, sizeof buf);
+        memcpy(buf, body.data(), body.size());
+        c = saved;
+        c.x[0] = obj; c.x[1] = (uint64_t)buf; c.x[2] = flags; c.v[0] = v0;
+        *(float*)(obj + 0x18aa8) = 0.0f;
+        g_layout_id = id;
+        main_000BD7EC_orig(c);
+        if (hasGx) {
+            // as the window does for a line with the glue code: the line's place is set, with where the row before ended (0x18aa8), and the line laid out again (0xc3710)
+            *(float*)(obj + 0x200) = -1.0f;
+            *(float*)(obj + 0x18aa8) = gx;
+            *(unsigned char*)(obj + 0x18ab2) = 0;
+            c = saved;
+            c.v[0].f32[0] = 264.0f; c.v[1].f32[0] = 156.696442f; c.x[0] = obj;
+            main_000C3710(c);
+        }
+        g_layout_id.clear();
+        fprintf(out, "%s\t%d\t%d,%d,%.3f,%.3f\t", id.c_str(), *(int*)(obj + 0x108b8), (int)*(unsigned char*)(obj + 0x18ab2), *(int*)(obj + 0x108b0), *(float*)(obj + 0x18aa8), *(float*)(obj + 0x200));
+        for (const unsigned char* q = (const unsigned char*)(obj + 0xd8a0); *q; q++) fprintf(out, "%02x", *q);
+        fputc('\n', out);
+        n++;
+    }
+    fprintf(out, "# done %ld\n", n);
+    fclose(out);
+    *(float*)(obj + 0x18aa8) = gx0;
+    static char keep[0x2000];
+    memset(keep, 0, sizeof keep); memcpy(keep, orig.data(), orig.size() < 0x1ff0 ? orig.size() : 0x1ff0);
+    c = saved; c.x[0] = obj; c.x[1] = (uint64_t)keep; c.x[2] = flags; c.v[0] = v0;
+    main_000BD7EC_orig(c);
+    c = saved;
+}

@@ -220,16 +220,27 @@ def help_tables(image, rom):
                 start = r
             prev = r
         bands.append((start, prev))
-        for y0, y1 in bands:     # a label is a run of columns; the spaces inside one are under 7 pixels
+        # A label is a run of columns. The spaces inside an English one are under 7 pixels, but a Japanese word can have wider ones (ロ|ー|ド 7 and 8,
+        # データ|コピー 7, 拡大|・|縮小 9 and 9, where the words are 13 or more apart): so the runs are cut at every space over 6 pixels, and then the
+        # narrowest spaces between runs are closed until there are as many labels as the screens name (27 in both games).
+        runs = []        # [x0, x1, y0, y1, the space before it on its row or None]
+        for y0, y1 in bands:
             cols = np.where(alpha[y0:y1 + 1].max(axis=0) > 20)[0]
-            run = [cols[0], cols[0]]
+            run, gap = [cols[0], cols[0]], None
             for c in cols[1:]:
                 if c - run[1] > 6:
-                    labels.append([int(run[0]) - 2, int(y0) - 3, int(run[1]) + 3, int(y1) + 4])
-                    run = [c, c]
+                    runs.append([int(run[0]), int(run[1]), int(y0), int(y1), gap])
+                    run, gap = [c, c], int(c - run[1])
                 else:
                     run[1] = c
-            labels.append([int(run[0]) - 2, int(y0) - 3, int(run[1]) + 3, int(y1) + 4])
+            runs.append([int(run[0]), int(run[1]), int(y0), int(y1), gap])
+        wanted = 1 + max((ident for items in screens for kind, ident in items if kind == 1), default=len(runs) - 1)
+        while len(runs) > wanted:
+            k = min((i for i in range(1, len(runs)) if runs[i][4] is not None), key=lambda i: runs[i][4])
+            runs[k - 1][1] = runs[k][1]
+            del runs[k]
+        assert len(runs) == wanted, (len(runs), wanted)
+        labels = [[x0 - 2, y0 - 3, x1 + 3, y1 + 4] for x0, x1, y0, y1, _ in runs]
         break
     return {"glyphs": glyphs, "screens": screens, "labels": labels}
 

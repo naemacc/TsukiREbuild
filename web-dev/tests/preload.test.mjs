@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-const { ART, GL_ART, Preloader, RANK } = await import("../../web/app/js/preload.js");
+const { ART, GL_ART, Preloader, RANK, fontsFor } = await import("../../web/app/js/preload.js");
 const { VM } = await import("../../web/app/js/vm.js");
 const asset = (path) => new URL(`../../web/assets/${path}`, import.meta.url);
 // The media are not in the repository: whether the site has a picture is asked of the list of its files (web-dev/assets-manifest.txt), which also
@@ -22,7 +22,7 @@ function fakePage() {
   return page;
 }
 // The game's own scripts and tables, with stand-ins for the renderer and the sound that record what they were asked for, in order.
-function world({ lanes = 4, vm: extra = {} } = {}) {
+function world({ lanes = 4, vm: extra = {}, fonts } = {}) {
   const asked = [];
   const scripts = new Map();
   const vm = { index, movies: tables.movies, system, scripts, skip: false, skipUntil: 0, instant: false, voiceOn: true, soundsSkipped: false, script: { name: "" },
@@ -34,7 +34,7 @@ function world({ lanes = 4, vm: extra = {} } = {}) {
   const audio = { table: tables, buffers: new Map(), muted: false, buffer(url) { asked.push(`snd ${url}`); audio.buffers.set(url, true); return Promise.resolve(); } };
   class Picture { set src(v) { asked.push(`art ${v}`); } decode() { return Promise.resolve(); } }
   const page = fakePage();
-  return { asked, vm, gfx, audio, page, pre: new Preloader({ vm, gfx, audio, page, Picture, lanes }) };
+  return { asked, vm, gfx, audio, page, pre: new Preloader({ vm, gfx, audio, page, Picture, lanes, ...(fonts ? { fonts } : {}) }) };
 }
 const settle = async (pre) => { for (let k = 0; k < 5; k++) { await new Promise((r) => setTimeout(r, 5)); await pre.idle(); } };
 
@@ -109,6 +109,7 @@ test("a later visit makes the logo and the title's movie ready, and reads the ti
   assert.ok(at("art /assets/ui/PARTS/caution2_1920x1080.webp") < at("art /assets/ui/DISP_PARTS_JA/txtwindow01-1920.webp"), "the notice");
   assert.ok(at("art /assets/ui/TITLE_PARTS_JA/title_bg3.webp") < at("art /assets/ui/DISP_PARTS_JA/txtwindow01-1920.webp"), "the stage's own still");
   assert.ok(!asked.includes("img IMG0597"), "not the opening's picture");
+  for (const p of ART.firstTitle) assert.ok(!asked.includes(`art /assets/ui/${p}.webp`), `not the first launch's ${p}`);
   // a page opened on a scene has no logo, title or opening to read
   const scene = world();
   scene.pre.startup({ scene: true });
@@ -227,6 +228,52 @@ test("the game uses it: movies play in the element made ready, the script runner
   assert.equal(VM.prototype.movieFor.call({ movies: tables.movies, script: { name: "04_00_ARC04_4_1" } }, "5"), "op1_arc");
   assert.equal(VM.prototype.movieFor.call({ movies: tables.movies, script: { name: "04_00_ARC04_4_1" } }, "5", "04_01_CIEL04_4_2"), "op1_arc");
   // the tables are asked for together, each still read where it was
-  assert.match(vm, /\.map\(\(n\) => \[n, fetch\(`\/assets\/\$\{n\}\.json`\)\]\)\);/);
+  assert.match(vm, /\.map\(\(n\) => \[n, fetch\(shared\.has\(n\) \? `\/assets\/\$\{n\}\.json` : asset\(`\/assets\/\$\{n\}\.json`\)\)\]\)\);/);   // (each in the language in use: lang.js)
   for (const n of ["scripts/index", "text", "audio_tables", "images", "effects", "system", "animations", "gallery", "flowchart"]) assert.ok(existsSync(asset(`${n}.json`)), n);
+});
+
+test("the faces are the language's own: in Japanese the original's text face with the story's screen, its balloon and sans faces with the menus", async () => {
+  assert.deepEqual(fontsFor(false), { story: ['40px "SeuratPro"', "16px Inter"], menus: [] });
+  const ja = fontsFor(true);
+  assert.deepEqual(ja.story, ['45.6px "TsukuMin"', "16px Inter"]);
+  assert.deepEqual(ja.menus, ['45.6px "SeuratProJa"', '24px "TsukuGo"']);
+  assert.ok(![...ja.story, ...ja.menus].some((f) => f.includes('"SeuratPro"')), "not the translation's balloon face");
+  // each is a face style.css declares, and the Japanese ones are read from ja/fonts
+  const css = source("style.css");
+  for (const f of [...ja.story, ...ja.menus, ...fontsFor(false).story]) {
+    const family = f.match(/"([^"]+)"/)?.[1];
+    if (family) assert.match(css, new RegExp(`@font-face \\{ font-family: "${family}"; src: url\\("/assets/${family === "SeuratPro" ? "fonts" : "ja/fonts"}/`), family);
+  }
+  const { pre, page } = world({ lanes: 1, fonts: ja });
+  pre.startup({ firstLaunch: false, stage: 0, scene: true });
+  await settle(pre);
+  assert.deepEqual(page.fonts.asked, [...ja.story, ...ja.menus], "the story's faces first, then the menus'");
+  const order = [...pre.read];
+  assert.ok(order[RANK.story] >= 2 && order[RANK.menus] >= 2);
+});
+
+
+test("the first launch reads its own title and cautions; a later boot, or one with the 100% save, reads the title of its stage and no more", async () => {
+  // the pictures each title draws (ui.js): the first launch's title_bg0, prompt and cautions only there
+  const ui = source("js/ui.js");
+  for (const p of ART.firstTitle) assert.ok(ui.includes(`"${p.split("/")[1]}"`), p);
+  assert.match(ui, /sprite\("TITLE_PARTS_JA", "title_bg0"/);
+  assert.match(ui, /sprite\("PARTS", "caution2_1920x1080"/);
+  for (const p of [...ART.title, ...ART.firstTitle]) {
+    const [pack, name] = p.split("/");
+    assert.ok(ui.includes(`"${name}"`) || source("js/home.js").includes(p), `${p} is drawn somewhere`);
+  }
+  const first = world({ lanes: 1 });
+  first.pre.startup({ firstLaunch: true, stage: 0 });
+  await settle(first.pre);
+  for (const p of ART.firstTitle) assert.ok(first.asked.includes(`art /assets/ui/${p}.webp`), p);
+  // the 100% save: the last stage, its movie, still and music
+  const full = world({ lanes: 1 });
+  full.pre.startup({ firstLaunch: false, stage: 5 });
+  await settle(full.pre);
+  assert.deepEqual([...full.pre.movies.keys()], ["TM_CI", "titlebg4"]);
+  assert.ok(full.asked.includes("art /assets/ui/TITLE_PARTS_JA/title_bg4.webp"));
+  assert.ok(full.asked.includes(`snd /assets/bgm/${tables.bgm[71]}.ogg`), "music 72, the last stage's");
+  assert.ok(!full.asked.includes(`snd /assets/bgm/${tables.bgm[1]}.ogg`), "not the earlier stages' music 2");
+  for (const p of ART.firstTitle) assert.ok(!full.asked.includes(`art /assets/ui/${p}.webp`), p);
 });

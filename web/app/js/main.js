@@ -13,6 +13,7 @@ import { openFlowchart } from "./flowchart.js";
 import { openGallery, preloadGallery } from "./gallery.js";
 import { welcomeDue, markWelcomed } from "./welcome.js";
 import { openHome, homeDue } from "./home.js";
+import { JA } from "./lang.js";
 import { savesReplaced } from "./savefile.js";
 import { Preloader, RANK, movieUrl } from "./preload.js";
 import { REWIND_FIXED, ROUTE_FLAGS, fvar } from "./flowchart-model.js";
@@ -1211,10 +1212,14 @@ async function loadingScreen() {
   // drawn again: where the system has none of a stack's fonts, its bundled backup (style.css) is fetched first. A system that has them asks for
   // nothing; 3 s at most, then the canvases draw with what there is.
   const wanted = CANVAS_FONTS.filter((f) => !f.system.some(installedFont)).map((f) => f.backup);
+  // Japanese: the game's own faces (style.css html.ja), fetched before the first line is set so that no letter is drawn in another
+  if (JA) wanted.push('45.6px "TsukuMin"');
   await Promise.race([Promise.all(wanted.map((f) => document.fonts?.load?.(f)?.catch(() => {}))), new Promise((r) => setTimeout(r, 3000))]);
   // The quick bar's art is made here, on the black before the first screen, so that its first opening looks like every other.
   ui.buildPanel();
-  relettered().then((art) => { ui.confArt = art; });   // the System page's words at one size (confart.js), ready before the config is first opened
+  // the System page's words at one size (confart.js), ready before the config is first opened: the translation's art only (the original's pictures keep
+  // their words as they were drawn)
+  if (!JA) relettered().then((art) => { ui.confArt = art; });
   await ui.panel.ready;
   const q = new URLSearchParams(location.search);
   const firstVisit = welcomeDue(q);   // (marked as made once the first screens have loaded, below)

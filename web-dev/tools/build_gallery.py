@@ -157,9 +157,11 @@ def _endings(image, text, scripts_dir):
             "complete": text[239]}
 
 
-def build(root):
+def build(root, out=None):
+    """out: where gallery.json and the thumbnail sheet go (build_ja.py: web/assets/ja); everything read is the shared web/assets."""
     root = Path(root).resolve()
     assets = root / "web/assets"
+    dest = Path(out) if out else assets
     image = _image(root)
     packs, Rom = _pack_tools(root)
     rom = Rom(str(root))
@@ -231,8 +233,8 @@ def build(root):
             "movieList": movie_list, "endings": endings,
             "layout": {"thumbCell": [154, 87], "thumbColumns": 36, "thumbScale": 1.5,
                        "grid": {"x": 392, "y": 109, "dx": 240, "dy": 139, "columns": 6}}}
-    out = assets / "gallery.json"
-    out.with_suffix(".json.tmp").write_text(json.dumps(data, separators=(",", ":")))
+    out = dest / "gallery.json"
+    out.with_suffix(".json.tmp").write_text(json.dumps(data, ensure_ascii=bool(dest == assets), separators=(",", ":")))
     os.replace(out.with_suffix(".json.tmp"), out)
 
     # The thumbnail atlas: 5544 x 4840, too large to keep lossless like the other interface art.
@@ -242,7 +244,7 @@ def build(root):
         if name.upper().startswith("CG_THUMB_PARTS_JA"):
             _, raw, _, _ = packs.unwrap(rom.read("allui.mrg", off, stored))
             t = next(iter(tex.textures(raw)))
-            folder = assets / "ui/CG_THUMB_PARTS_JA"
+            folder = dest / "ui/CG_THUMB_PARTS_JA"
             folder.mkdir(parents=True, exist_ok=True)
             Image.fromarray(tex.decode(t, raw), "RGBA").convert("RGB").save(folder / "cg_thumb_all.webp", "WEBP", quality=86, method=4)
             break

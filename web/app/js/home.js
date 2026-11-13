@@ -10,6 +10,7 @@ import { sprite, quickBarArt, panelBack } from "./ui.js";
 import { TOUCH } from "./touch.js";
 import { ButtonState, pressPulse } from "./uifx.js";
 import { SECTIONS, TOUCH_INTRO, blockEl } from "./welcome.js";
+import { LANG, asset, chooseLang } from "./lang.js";
 import { FILE_NAME, NOTE, dropBase, exportSaves, hasImported, importSaves, keepBase, loadBase, loadedData, readSaves, removeImported } from "./savefile.js";
 import { GAME } from "./gamesave.js";
 import { fullSaveFile } from "./fullsave.js";
@@ -32,7 +33,7 @@ export function homeDue(query, host = globalThis.location?.hostname || "") {
 }
 
 // The tabs: a plate, and the sections its page shows, each a heading and blocks as welcome.js draws them, plus ["link", text, address, file name if a
-// download], ["data"], what the browser holds now, ["saves"], SAVE DATA's plates, and ["press"], the prompt that starts the game.
+// download], ["data"], what the browser holds now, ["saves"], SAVE DATA's plates, ["lang"], the language's two plates, and ["press"], the prompt that starts the game.
 export const TABS = [
   { plate: "ABOUT", sections: SECTIONS.map(({ head, blocks }) => ({ head, blocks })) },
   { plate: "GITHUB", sections: [{ head: "The source, on GitHub", blocks: [
@@ -100,6 +101,7 @@ export const TABS = [
     ["gpu"],
     "Nothing to install. It runs in Chrome or Firefox, on a computer, a phone or a tablet. Not in Safari, which plays the AV1 movies only on Apple's newest hardware.",
     "The game's files arrive as you play: the first screens load while this page is open, and the rest follow. Saves, settings and progress are kept in this browser; clearing the site's data removes them. SAVE DATA saves them as a file.",
+    ["lang"],
     ["press"],
   ] }] },
 ];
@@ -133,6 +135,11 @@ export function glAccel() {
   } catch { return "unsure"; }
 }
 export const ABOUT = 0, PLAY = TABS.length - 1, SAVE = PLAY - 1, NONE = -1;
+// The language, chosen on PLAY ONLINE above its prompt (lang.js): two of the panel's plates, the one in use lit as a chosen tab is. English is the translation
+// the port was made from; Japanese is the original game's own text, set as its engine sets it. Saves and progress are the same ones in both.
+export const LANG_PLATES = [{ lang: "en", plate: "ENGLISH" }, { lang: "ja", plate: "日本語" }];
+export const LANG_LINE = { head: "Language", note: "English is the fan translation. 日本語 is the original game's text. Your saves and progress carry over between them. (L changes it.)" };
+const REOPEN = "tsuki.home.tab";   // (kept for one reload: the page a change of language comes back to)
 // Export, Import and Remove, on SAVE DATA's page (savefile.js): three of the panel's plates under the list of what the browser holds now. The file is the
 // Nintendo Switch game's own save, savedata000 (gamesave.js), so a save goes between the game and this page both ways. Import loads such a file's settings
 // and progress over the browser's own, which are put aside; Remove takes the file out again, after a question in the game's Yes / No window, and the
@@ -177,9 +184,9 @@ export async function openHome(ui, { started = null } = {}) {
     const L = upright() ? TOUCH.homeUpright : TOUCH.home, [row, count] = rowOf(L, i);
     return [Math.round((L.w - (L.pitch * (count - 1) + shown)) / 2) + (i % L.cols) * L.pitch, L.y + row * L.rowPitch];
   };
-  const [sheet, saveSheet, fullSheet] = await Promise.all([quickBarArt(TABS.map((t) => ({ label: t.plate })), P), quickBarArt(SAVE_PLATES.map((t) => ({ label: t.plate })), P),
-    quickBarArt([{ label: FULL_PLATE.plate }], { w: P.w + FULL_PLATE.wider, h: P.h }),
-    ...ART.map((a) => { const i = new Image(); i.src = `/assets/ui/${a}.webp`; return i.decode().catch(() => {}); })]);
+  const [sheet, saveSheet, fullSheet, langSheet] = await Promise.all([quickBarArt(TABS.map((t) => ({ label: t.plate })), P), quickBarArt(SAVE_PLATES.map((t) => ({ label: t.plate })), P),
+    quickBarArt([{ label: FULL_PLATE.plate }], { w: P.w + FULL_PLATE.wider, h: P.h }), quickBarArt(LANG_PLATES.map((l) => ({ label: l.plate })), P),
+    ...ART.map((a) => { const i = new Image(); i.src = asset(`/assets/ui/${a}.webp`); return i.decode().catch(() => {}); })]);
   return new Promise((done) => {
     black.remove();
     page.classList.add("hm-page");
@@ -325,7 +332,46 @@ export async function openHome(ui, { started = null } = {}) {
       box.append(status);
       return box;
     };
+    // Another language: kept, and the page loaded again in it (every table is read in one language from the start), coming back to PLAY ONLINE.
+    const setLang = (lang) => {
+      if (leaving) return;
+      ui.audio.start();
+      if (!chooseLang(lang)) { ui.sound(1); return; }
+      leaving = true;
+      ui.sound(6);
+      try { sessionStorage.setItem(REOPEN, "play"); } catch { /* opens on its first page */ }
+      ui.fadeBlack(black, 1, FADE.out * 2, () => {
+        const u = new URL(location.href);
+        u.searchParams.delete("lang");   // (an address that names a language would keep it)
+        location.replace(u);
+      });
+    };
+    const langBlock = () => {
+      const box = el("div", "hm-lang");
+      box.append(el("h3", "", LANG_LINE.head));
+      const row = el("div", "hm-lang-row");
+      for (const [i, l] of LANG_PLATES.entries()) {
+        const b = el("button", "qbtn hm-lang-plate", l.plate);
+        const on = l.lang === LANG;
+        b.style.cssText = `width:${P.w}px;height:${P.h}px;`;
+        b.setAttribute("aria-pressed", String(on));
+        b.lang = l.lang;
+        const paint = (hover) => {
+          const r = on ? 3 : hover ? 2 : 1;
+          b.className = `qbtn hm-lang-plate r${r}${langSheet ? " art" : ""}`;
+          if (langSheet) { b.style.backgroundImage = `url("${langSheet}")`; b.style.backgroundPosition = `${-i * P.w}px ${-r * P.h}px`; }
+        };
+        paint(false);
+        b.addEventListener("pointerenter", (e) => { if (e.pointerType !== "touch") paint(true); });
+        b.addEventListener("pointerleave", () => paint(false));
+        b.addEventListener("click", (e) => { e.stopPropagation(); setLang(l.lang); });
+        row.append(b);
+      }
+      box.append(row, el("p", "hm-lang-note", LANG_LINE.note));
+      return box;
+    };
     const block = (b) => {
+      if (b[0] === "lang") return langBlock();
       if (b[0] === "saves") return savesBlock();
       if (b[0] === "data") return dataBlock();
       if (b[0] === "press") {
@@ -399,7 +445,7 @@ export async function openHome(ui, { started = null } = {}) {
       ui.after(10, leave);
     }
     // On PLAY ONLINE a click anywhere on its page is the button too; a drag that scrolls it is not a click.
-    list.addEventListener("click", (e) => { if (tab === PLAY && !e.target.closest("a")) start(); });
+    list.addEventListener("click", (e) => { if (tab === PLAY && !e.target.closest("a, .hm-lang")) start(); });
     const plates = TABS.map((t, i) => {
       const b = el("button", "qbtn r1", t.plate);   // the word, where the art cannot be made
       b.style.cssText = `left:${spot(i)[0]}px;top:${spot(i)[1]}px;width:${P.w}px;height:${P.h}px;`;
@@ -433,6 +479,8 @@ export async function openHome(ui, { started = null } = {}) {
       const note = sessionStorage.getItem(NOTE);
       if (note) { sessionStorage.removeItem(NOTE); said = { text: note, bad: false }; show(SAVE); ui.select(SAVE); }
     } catch { /* its first page */ }
+    // (after a change of language the page comes back where it was, on PLAY ONLINE)
+    try { if (sessionStorage.getItem(REOPEN)) { sessionStorage.removeItem(REOPEN); show(PLAY); ui.select(PLAY); } } catch { /* its first page */ }
 
     ui.keyFn = (e) => {
       const k = e.key;
@@ -448,6 +496,7 @@ export async function openHome(ui, { started = null } = {}) {
       }
       else if ((k === "e" || k === "E") && tab === SAVE && !e.ctrlKey && !e.metaKey && !e.altKey) { if (!e.repeat) exportNow(); }
       else if ((k === "i" || k === "I") && tab === SAVE && !e.ctrlKey && !e.metaKey && !e.altKey) { if (!e.repeat) importPick(); }
+      else if ((k === "l" || k === "L") && tab === PLAY && !e.ctrlKey && !e.metaKey && !e.altKey) { if (!e.repeat) setLang(LANG_PLATES[(LANG_PLATES.findIndex((l) => l.lang === LANG) + 1) % LANG_PLATES.length].lang); }
       else if (k === "ArrowUp") list.scrollTop -= 120;
       else if (k === "ArrowDown") list.scrollTop += 120;
       else if (k === "PageUp") list.scrollTop -= 760;

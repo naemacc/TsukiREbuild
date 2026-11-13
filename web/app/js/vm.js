@@ -8,7 +8,9 @@ import { allEpisodesDone, inferEndings } from "./endings.js";
 import { blurName, pivotOf, sizeClass, wrapRotation } from "./transform.js";
 import { splitSample, startLines, startSplit, stopLines, stopSplit } from "./screenfx.js";
 import { reflow, wrapContext, choiceText } from "./reflow.js";
-import { colourMarks, plain, SOFT } from "./textbox.js";
+import { colourMarks, plain, SOFT, ROW } from "./textbox.js";
+import { JA, LANG, asset, has, langReady } from "./lang.js";
+import { carryPoint, noteLine } from "./langsave.js";
 
 // A global variable is its number, however a script writes it: "G70" (13_01_02_CIEL13_7B) is G070. Kept under the three-digit name, which is also
 // the one a save file's globals come in as (gamesave.js globalName).
@@ -256,20 +258,29 @@ export class VM {
 
   async init() {
     // The tables are asked for together, and read below in their old order: nothing can start before the last of them is in.
+    // In Japanese the lines, the gallery's and the flowchart's words are the original game's own files (lang.js asset); the system tables and the pictures'
+    // table are the shared ones with what differs laid over them (ja/system.json, ja/images.json: never in their place, or every picture but those few
+    // loses its size, pivot and blurred copies, and a blurred background is not drawn at all).
+    await langReady;
+    const shared = new Set(["system", "images"]);
     const asked = Object.fromEntries(["scripts/index", "text", "audio_tables", "images", "effects", "system", "animations", "gallery", "flowchart"]
-      .map((n) => [n, fetch(`/assets/${n}.json`)]));
+      .map((n) => [n, fetch(shared.has(n) ? `/assets/${n}.json` : asset(`/assets/${n}.json`))]));
+    const systemOver = has("system.json") ? fetch("/assets/ja/system.json").then((r) => (r.ok ? r.json() : null)).catch(() => null) : null;
     for (const p of Object.values(asked)) p.catch(() => {});   // each is awaited where it is read
     this.index = await (await asked["scripts/index"]).json();
     this.lines = await (await asked.text).json();
     this.audio.table = await (await asked.audio_tables).json();
     this.movies = this.audio.table.movies || {};
     this.gfx.images = await (await asked.images).json();
+    // (pictures the translation made on another canvas have the original's own sizes: ja/images.json)
+    if (has("images.json")) Object.assign(this.gfx.images, await fetch("/assets/ja/images.json").then((r) => (r.ok ? r.json() : {})).catch(() => ({})));
     const effects = await asked.effects;
     if (effects.ok) { const e = await effects.json(); this.gfx.effects = e.presets; this.gfx.focusLines = e.focusLines; this.gfx.hazeTable = e.haze || null; }
     else console.warn("Colour effects missing: run web/tools/build_effects.py from the port root");
     const system = await asked.system.catch(() => null);
     if (system?.ok) {
       this.system = await system.json();
+      Object.assign(this.system, (await systemOver) || {});
       this.audio.seLoops = this.system.seLoops || {};
       this.audio.musicLoops = this.system.musicLoops || {};
       this.text.windows = this.system.windows || null;
@@ -396,10 +407,40 @@ export class VM {
     try { localStorage.setItem("tsuki.globals", JSON.stringify(this.globals)); } catch { /* not saved */ }
   }
 
+  // A record's note in the language now in use: its own text when it was made in this one, else what this language's script shows at that line
+  // (langsave.js noteLine): the message here that names it, as a note keeps a message (the original's glued "$a^$b" whole, the translation's MSAD
+  // piece by itself).
+  async noteIn(s) {
+    if (!s || (s.lang || "en") === LANG) return s?.note || "";
+    try {
+      const id = noteLine(s, (await this.scriptIn(s.lang || "en", s.script))?.ops);
+      if (id === null || this.lines?.[id] === undefined) return s.note || "";
+      const named = new RegExp(`\\$0*${id}(?!\\d)`);
+      const op = (await this.getScript(s.script))?.ops.find((o) => (o[0] === "MSG" || o[0] === "MSAD") && named.test(o[1] || ""));
+      const marks = (piece) => piece.replace(/@(?![cr])[a-z]\d?/g, "");
+      const raw = op ? String(op[1]).split(/(\$\d+)/).map((p) => (/^\$\d+$/.test(p) ? this.lines[Number(p.slice(1))] ?? "" : marks(p))).join("") : this.lines[id];
+      return plain(colourMarks(raw).text);
+    } catch { return s.note || ""; }
+  }
+
+  // The script as the language `lang` has it (the other language's, for a record made in it).
+  async scriptIn(lang, i) {
+    if (lang === LANG) return this.getScript(i);
+    const get = (url) => fetch(url).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    return (lang === "ja" ? await get(`/assets/ja/scripts/${i}.json`) : null) || get(`/assets/scripts/${i}.json`);
+  }
+  async carry(s) {
+    try {
+      const [from, to] = await Promise.all([this.scriptIn(s.lang || "en", s.script), this.getScript(s.script)]);
+      if (!from || !to) return { ...s, lang: LANG };
+      return carryPoint(s, from, to, (arg) => this.textOf(arg), LANG);
+    } catch (e) { console.warn("save from the other language:", e.message); return { ...s, lang: LANG }; }
+  }
+
   async getScript(i) {
     let p = this.scripts.get(i);
     if (!p) {
-      p = fetch(`/assets/scripts/${i}.json`).then((r) => r.json());
+      p = fetch(asset(`/assets/scripts/${i}.json`)).then((r) => r.json());
       this.scripts.set(i, p);
       p.catch(() => { if (this.scripts.get(i) === p) this.scripts.delete(i); });   // one that failed (read ahead, say) is asked for again when it is wanted
     }
@@ -1257,12 +1298,15 @@ export class VM {
   // A line as the patch has it (a choice's row takes its breaks out when it is shown: choiceRows).
   textOf(s) {
     const m = /\$(\d+)/.exec(s || "");
-    return m ? (this.lines[Number(m[1])] ?? "") : (s || "");
+    return m ? (this.lines[Number(m[1])] ?? "").replaceAll(ROW, "") : (s || "");   // (a choice is one row: the story box's row breaks go)
   }
   // A story line as the port shows it: without the breaks the English patch's injector put in to wrap its 55-cell
   // rows (reflow.js), which needs where the line started on its row, worked out once per script.
-  lineText(id) {
+  // Japanese: the original's lines have the engine's own row breaks written in (ROW, build_ja.py), for a line set by itself; a message laid out together
+  // with others (a glued line, text an MSAD adds) has its rows with its script (`rows`: op -> the text of each line it names, in order: `nth`).
+  lineText(id, nth = 0) {
     const t = this.lines?.[id] ?? "";
+    if (JA) return this.script?.rows?.[this.pc - 1]?.[nth] ?? t;
     if (!t.includes("\n")) return t;
     const s = this.script;
     // The Q&A corners were broken by hand for their balloons, and the game shows those rows as they are: their breaks stay.
@@ -1290,7 +1334,8 @@ export class VM {
     const marks = (piece) => piece.replace(/@(?![cr])[a-z]\d?/g, "");
     let raw = "";
     if (ids.length) {
-      for (const piece of s.split(/(\$\d+)/)) raw += /^\$\d+$/.test(piece) ? this.lineText(Number(piece.slice(1))) : marks(piece);
+      let nth = 0;
+      for (const piece of s.split(/(\$\d+)/)) raw += /^\$\d+$/.test(piece) ? this.lineText(Number(piece.slice(1)), nth++) : marks(piece);
     } else raw = marks(s);
     const { text, color, edge } = colourMarks(raw);
     // the copy stops at the first @e or @n (0x6e1dc-0x6e294), so "$id@k@e@n" is an @e and waits for its voice (N2-19)
@@ -2234,7 +2279,7 @@ export class VM {
       effects: Object.fromEntries(Object.entries(l.effects).map(([k, e]) => [k, rebaseEffect(e, now, 0)])) });
     const el = document.getElementById("text");
     return {
-      script: this.scriptIndex, pc: this.choosing ? this.choosing.pc : this.pc, vars: { ...this.vars },
+      script: this.scriptIndex, pc: this.choosing ? this.choosing.pc : this.pc, vars: { ...this.vars }, lang: LANG,
       layers: [...this.layers.values()].map(state), pending: [...this.pending.values()].map(state), removed: [...this.removed],
       ghosts: [...this.ghosts.values()].map(state),
       page: this.text.pageParts.slice(), html: el.innerHTML,
@@ -2343,6 +2388,9 @@ export class VM {
   // restartMusic: the load, the backlog's Quick Jump and Return to Previous Scene stop all sound before the restore
   // (0x82330 / 0x81a50 -> 0x5ef10, 0x28d50 -> 0x9c610), so the music starts again from its top; a rewind keeps it.
   async restore(s, { rewind = false, restartMusic = !rewind, retype = !rewind, readSpeed = false, voice = !rewind } = {}) {
+    // A record made in the other language (a save from before the switch, or from before there was one: English) stands at another command of
+    // the scripts the two do not share: carried across by its line (langsave.js).
+    if ((s.lang || "en") !== LANG) s = await this.carry(s);
     this.stop();
     this.endInstant(false);   // the restore puts the sound back itself
     const gen = this.generation;   // a later restore or stop ends this one

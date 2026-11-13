@@ -6,6 +6,7 @@ import { chapterLine, flowChapter } from "./chapters.js";
 import { DragFlick, FLOW_SCROLL_TIME, PadRepeat, STICK_DEAD, layoutChart, moveCursor, reselect, scrollFor, stickTarget, titleSize } from "./flowchart-model.js";
 import { EASE, MenuBgFade, Tween, fadeIn, fadeOut, wheelPixels } from "./uifx.js";
 import { GuideFx, REPLAY_MENU_BG, cgCursorLight, fadeMusicOut, scrollBar } from "./gallery.js";
+import { JA, asset } from "./lang.js";
 
 const PACK = "MENU_PARTS_JA";
 
@@ -18,7 +19,7 @@ function fitTitle(el, text) {
   titleRuler.font = TITLE_FONT;
   el.style.fontSize = `${titleSize(titleRuler.measureText(text).width)}px`;
 }
-const url = (name) => `/assets/ui/${PACK}/${name}.webp`;
+const url = (name) => asset(`/assets/ui/${PACK}/${name}.webp`);
 const element = (tag, cls, text) => {
   const e = document.createElement(tag);
   e.className = cls;
@@ -74,7 +75,7 @@ export async function openFlowchart(ui, vm, jump, keep = null, opts = {}) {
   let chart = vm.flowChart;
   if (!chart || chart.version !== 2) {
     try {
-      const response = await fetch("/assets/flowchart.json");
+      const response = await fetch(asset("/assets/flowchart.json"));
       if (!response.ok) throw Error("Run web/tools/build_flowchart.py to build the flowchart");
       chart = await response.json();
       if (chart.version !== 2) throw Error("Rebuild the flowchart with web/tools/build_flowchart.py");
@@ -114,6 +115,8 @@ export async function openFlowchart(ui, vm, jump, keep = null, opts = {}) {
     for (const label of d.labels) {
       const r = chart.phaseRects[label.phase], c = flowChapter(r);
       if (!c) continue;
+      // Japanese: the game's own picture of the chapter (flow_phasetitle), where the cell is
+      if (JA) { group.append(sprite(PACK, "flow_phasetitle", label.x, label.y, r[2], r[3], r[0], r[1])); continue; }
       const t = place(element("div", `fc-chapter${c.struck ? " struck" : ""}`), 0, label.y, label.x + r[2], r[3]);
       if (c.struck) { t.textContent = c.day === null ? "" : `${c.day} / `; t.append(element("s", "", c.name)); } else t.textContent = chapterLine(c);
       group.append(t);
@@ -174,10 +177,10 @@ export async function openFlowchart(ui, vm, jump, keep = null, opts = {}) {
     if (!p || p.preview < 0 || !p.previewName) return;
     const image = place(element("img", "fc-preview-image"), 1380, 120, 432, 244);
     image.alt = ""; image.decoding = "async"; image.style.zIndex = "1";
-    image.src = `/assets/img/${encodeURIComponent(p.previewName)}.avif`;
+    image.src = asset(`/assets/img/${encodeURIComponent(p.previewName)}.avif`);
     const title = place(element("div", "fc-preview-title", p.title.replace(/\^/g, "\n")), 1392, 404, 400, 48);
     fitTitle(title, p.title);
-    const note = place(element("div", "fc-preview-note", reflowNote(p.note)), 1392, 452, 400, 200);
+    const note = place(element("div", "fc-preview-note", JA ? p.note.replace(/\^/g, "\n") : reflowNote(p.note)), 1392, 452, 400, 200);
     title.style.opacity = note.style.opacity = quick ? "1" : "0";
     panel.append(image, title, note);
     if (!quick) fades.push({ els: [title, note], text: true, tw: new Tween(0, 1, PREVIEW_FADE, EASE.quad.in) });

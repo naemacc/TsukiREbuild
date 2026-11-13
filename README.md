@@ -10,7 +10,7 @@ The Tsukihime remake, *Tsukihime -A piece of blue glass moon-*, rebuilt to play 
 
 - [Play it](#play-it): in a browser, on Android, on Windows, macOS and Linux, from this folder
 - [Controls](#controls): mouse and keyboard, touch, controller
-- [How it plays](#how-it-plays): the opening page, saves, skipping, movies, Ciel-sensei
+- [How it plays](#how-it-plays): the opening page, language, saves, skipping, movies, Ciel-sensei
 - [Under the hood](#under-the-hood): loading, fonts, opening a particular scene
 - [The repository](#the-repository): what is where, making the assets again, tests
 - [Deployment](#deployment): how arcueid.date is served
@@ -23,6 +23,8 @@ The Tsukihime remake, *Tsukihime -A piece of blue glass moon-*, rebuilt to play 
 Open **[arcueid.date](https://arcueid.date/)** in Chrome or Firefox, on a computer, a phone or a tablet. Nothing is installed: the game's files arrive as you play, and saves stay in the browser.
 
 The site opens on a page with five tabs: **ABOUT** (what this is and how it was made), **GITHUB**, **DOWNLOAD** (the apps below), **SAVE DATA** (your saves to and from the game's own save file), and **PLAY ONLINE**, whose PRESS ANY BUTTON starts the game.
+
+It plays in **English** (the fan translation) or in **Japanese** (the original game's own text): two plates on PLAY ONLINE, above the prompt, choose. See [Language](#language).
 
 **It does not work in Safari.** The movies are AV1 video, which Safari plays only on Apple's newest hardware (it has no decoder of its own), and the game has not been tried there.
 
@@ -149,6 +151,16 @@ The game opens on the same page every time, for everyone (`app/js/home.js`). It 
 
 It opens with no tab chosen, showing the game's logo and a line naming the plates, so a stray tap starts nothing. It is skipped only inside the Android and desktop apps, which are the game itself, and for an address that opens a scene (`?script=...`).
 
+### Language
+
+PLAY ONLINE has two plates over its prompt, ENGLISH and 日本語 (the L key changes it too). The choice is kept in the browser; choosing the other one loads the page again in it, back on PLAY ONLINE. `?lang=ja` or `?lang=en` in the address chooses it for one visit, which is also how the Android and desktop apps, which have no opening page, can be opened in Japanese.
+
+- **English** is the Tsukihimates translation, which the port's files are made from.
+- **Japanese** is the original game: its dialogue, its scripts where the translation rewrote them (241 of the 549), its system messages, scene names, flowchart notes and music titles, its interface art, the pictures with writing on them, and its movies with writing on them (the prologue and the chapter titles; the openings and endings stay the translation's). Only what differs is kept, under `assets/ja/`, listed in `assets/ja/index.json` (`app/js/lang.js`); the picture and system tables are the shared ones with Japanese's few differing entries laid over them.
+- **The text is set as the original engine sets it**: the game's own mincho face, 28 cells to a row, rows 81 px apart, furigana centred over their words. Where each row breaks is the engine's own decision, taken from a build of the unpatched executable and written into the Japanese text (`web-dev/tools/ja_rows/README.md`); rows, letters and furigana fall within a pixel of the game's frames.
+- **Saves and progress are the same ones in both.** A save made in one language loads in the other at the same line, which is written again in the language in use (`app/js/langsave.js`), and the Load screen shows its note in the language in use; what has been read, the flowchart and the gallery do not depend on the language.
+- The port's own words (the hint bar's keys, the quick bar's captions, the Controls page, the opening page) stay English, except the hint bar's labels, which take the game's own Japanese ones.
+
 ### Saves
 
 100 save slots, a quick save, and 39 automatic saves. As in the game a save holds the latest checkpoint (a scene's start, a choice, or the first line of a page), so loading shows that page from its first line. The automatic save is made when you return to the title from the system menu (which asks nothing outside a gallery replay), and here also when the page is closed during a story, or the Android app is left, or the desktop app is closed. The save screen lists all 100 slots by number, starting on the lowest empty one. The load screen lists everything there is to load, newest first: the slots in use, the quick save and the automatic saves, each named. Continue loads the save written last. In the story's Save and Load, Left gives the menu's column the cursor and Right gives it back to the row you were on. Some chapters ask "Save Progress?"; Yes opens the save screen and the story goes on when it closes.
@@ -265,6 +277,7 @@ Tests, with Node.js and no packages: `node --test web-dev/tests/*.test.mjs`. Eve
 - `build_ui.py`: the game's interface art (and the film grain static; `build_ui.py "$PWD" NOISE_PARTS` adds just that; `PARTS`, the start-up notice and cautions from `parts.hed`, likewise)
 - `build_animations.py`, `build_effects.py`: the game's motion tracks and colour effect presets
 - `build_gallery.py`, `build_flowchart.py`, `native_flowchart.py`, `build_system.py`, `build_sounds.py`: the gallery, flowchart and system tables, and the interface's own sounds
+- `build_ja.py`: Japanese, the original game's own files where they differ from the translation's (`assets/ja/`); `ja_rows/`: how the original engine's row breaks were read
 - `decode_save.py`: reads a save of the original game and prints its progress as the web version keeps it
 
 ### The game's files

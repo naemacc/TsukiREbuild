@@ -24,7 +24,7 @@ import packs
 from build_animations import build as build_animations
 from build_effects import build as build_effects
 
-ROOT = sys.argv[1]
+ROOT = sys.argv[1] if len(sys.argv) > 1 else "."
 OUT = os.path.join(HERE, "../../web/assets")
 OP = re.compile(r"_([A-Za-z0-9_]+)\(([^()]*)\);")
 
@@ -166,4 +166,5 @@ def main():
     build_effects(ROOT, OUT)
 
 
-main()
+if __name__ == "__main__":
+    main()

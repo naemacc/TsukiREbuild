@@ -1,0 +1,16 @@
+#include <cstdio>
+#include <cstdlib>
+#include <string>
+extern std::string g_layout_id;
+void main_000C471C(nx::CPU& NX_RESTRICT c) {
+    uint64_t obj = c.x[0], p = c.x[1]; int used = (int)c.x[2], cap = (int)c.x[3];
+    main_000C471C_orig(c);
+    static const char* path = getenv("NX_C471C_LOG");
+    static FILE* f = nullptr;
+    if (!path || g_layout_id.empty()) return;
+    if (!f) f = fopen(path, "w");
+    uint64_t w = obj + 0xf8a0;
+    fprintf(f, "%s\t%lld\t%d\t%d\t%lld\t%d\t", g_layout_id.c_str(), (long long)(p - w), used, cap, c.x[0] ? (long long)(c.x[0] - w) : -1LL, *(int*)(obj + 0x108cc));
+    for (const unsigned char* q = (const unsigned char*)w; *q; q++) fprintf(f, "%02x", *q);
+    fputc('\n', f);
+}

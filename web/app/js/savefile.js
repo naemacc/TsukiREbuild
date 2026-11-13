@@ -6,7 +6,7 @@
 //   the globals         tsuki.globals; the flowchart's bits among them are tsuki.flow.v2
 //   pictures and music  tsuki.unlocks.v1 (seen bits, music numbers, the two opening movies)
 //   the read marks      tsuki.readBlocks
-// Not in the file and left alone by both: the key bindings, the voice samples, which pages were shown (LOCAL).
+// Not in the file and left alone by both: the key bindings, the voice samples, the language, which pages were shown (LOCAL).
 //
 // Import loads the file's settings and progress over the browser's own, which are put aside first (OWN), not lost: Remove takes the file out again
 // and puts them back as they were. The saves made here (the save list, the automatic saves, the quick save) are the browser's own throughout; neither
@@ -22,9 +22,9 @@ export const KEYS = {
   "tsuki.globals": "progress", "tsuki.flow.v2": "progress", "tsuki.unlocks.v1": "progress", "tsuki.readBlocks": "progress", "tsuki.read": "progress",
   "tsuki.settings": "config", "tsuki.volumes": "config",
 };
-// Kept by this browser and never part of a save file: the key bindings, the config's voice samples, the first visit made, the touch hint learnt; and
-// the note the opening page leaves itself across the reload after an import (session storage).
-export const LOCAL = ["tsuki.keys", "tsuki.voiceSamples", "tsuki.welcomed", "tsuki.touch.hint"];
+// Kept by this browser and never part of a save file: the key bindings, the config's voice samples, the first visit made, the touch hint learnt, the
+// language (lang.js); and the notes the opening page leaves itself across a reload, after an import or a change of language (session storage).
+export const LOCAL = ["tsuki.keys", "tsuki.voiceSamples", "tsuki.welcomed", "tsuki.touch.hint", "tsuki.lang", "tsuki.home.tab"];
 export const NOTE = "tsuki.home.loaded";
 // The browser's own settings and progress while an imported file (or the 100% save) is loaded: { name: the stored value, or null where there was
 // none }, and under "label" what is loaded, for the page to say.

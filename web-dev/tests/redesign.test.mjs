@@ -355,11 +355,13 @@ test("Chapter titles are written out, one line each, from what the two picture s
   for (let i = 0; i < 38; i++) assert.equal(system.saves.saveTitleCells[i][2] - system.saves.saveTitleCells[i][0] > 1, !!menuChapter(cells[i]), `entry ${i}`);
   const ui = source("js/ui.js");
   assert.match(ui, /chapter = menuChapter\(T\.phaseCells\[Math\.max\(0, Math\.min\(37, f23\(rec\)\)\)\]\);/);
-  assert.doesNotMatch(ui, /SAVE_TITLES|saveTitleCells/);
+  // (Japanese keeps the game's own pictures of the chapters, which need no fitting: lang.js. Those lines are the ones that name JA.)
+  const english = (text) => text.split("\n").filter((l) => !/\bJA\b/.test(l)).join("\n");
+  assert.doesNotMatch(english(ui), /SAVE_TITLES|saveTitleCells/);
   assert.doesNotMatch(source("style.css"), /savetitle\.webp/);
   // drawn as text: no cell of either picture any more
-  assert.doesNotMatch(source("js/ui.js"), /"system_phasetitle_ja"/);
-  assert.doesNotMatch(source("js/flowchart.js"), /"flow_phasetitle"/);
+  assert.doesNotMatch(english(source("js/ui.js")), /"system_phasetitle_ja"/);
+  assert.doesNotMatch(english(source("js/flowchart.js")), /"flow_phasetitle"/);
   const css = source("style.css");
   assert.match(css, /\.chapter \{ position: absolute; left: 20px; top: 0; height: 84px; display: flex; align-items: center; white-space: nowrap;/);
   assert.match(css, /\.fc-chapter \{[^}]*text-align: right; white-space: nowrap;[^}]*\n\s+font: 400 25px\/32px/, "the flowchart's, larger than the picture's 17 px");

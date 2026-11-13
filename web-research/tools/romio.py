@@ -13,7 +13,9 @@ from Crypto.Util import Counter
 
 
 class Rom:
-    def __init__(self, root, patch="tsukihimates_patch", overlay=True):
+    def __init__(self, root, patch=None, overlay=True):
+        # the layer read on top of the dump: the translation, unless TSUKI_LAYER names another (build_ja.py: "_update_v131072", the original game)
+        patch = patch or os.environ.get("TSUKI_LAYER") or "tsukihimates_patch"
         self.root = root
         raw = open(os.path.join(root, "data/tsuki/romfs_source.bin"), "rb").read()
         assert raw[:8] == b"NXRSRC1\0"

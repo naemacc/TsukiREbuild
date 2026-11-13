@@ -65,6 +65,16 @@ def main():
         missing["fixed addresses in the code"] = gone
     if outside:
         missing["code asking the server for the game's own files"] = sorted(outside)
+    # Japanese (build_ja.py): what the original game has of its own is the list in ja/index.json, no more and no less.
+    ja = os.path.join(A, "ja")
+    if os.path.isdir(ja):
+        listed = set(json.load(open(os.path.join(ja, "index.json")))["files"]) if os.path.isfile(os.path.join(ja, "index.json")) else set()
+        there = {os.path.relpath(os.path.join(d, f), ja) for d, _, fs in os.walk(ja) for f in fs if f != "index.json" and not f.startswith(".")}
+        counts["Japanese's own files"] = len(listed)
+        if listed - there or not listed:
+            missing["Japanese files (run build_ja.py)"] = sorted(listed - there) or ["ja/index.json"]
+        if there - listed:
+            extra["Japanese files not on its list"] = sorted(there - listed)
     # The sound packs (build_packs.py), where there are any: they must be the ones the loose files make, or the game would play an old copy of a sound.
     packs = ""
     if os.path.isdir(os.path.join(A, "pack")):

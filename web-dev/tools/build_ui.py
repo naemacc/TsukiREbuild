@@ -17,6 +17,7 @@ import packs
 import tex
 
 OUT = os.path.join(HERE, "../../web/assets/ui")
+MANIFEST = os.path.join(HERE, "../data/ui_manifest.json")
 SKIP = {"CG_THUMB_PARTS_JA", "DUMMY"}
 ONLY = {"NOISE_PARTS": {"noisehd0", "noisehd1"}}
 
@@ -54,10 +55,13 @@ def boot_parts(rom, manifest):
     print("PARTS", len(m), flush=True)
 
 
-def main():
-    rom = Rom(sys.argv[1])
-    wanted = set(sys.argv[2:])
-    path = os.path.join(HERE, "../data/ui_manifest.json")
+def main(root, wanted=(), out=None, manifest=None):
+    """out, manifest: another folder and list to write (build_ja.py makes the original's art beside the translation's)."""
+    global OUT
+    OUT = out or OUT
+    rom = Rom(root)
+    wanted = set(wanted)
+    path = manifest or MANIFEST
     manifest = json.load(open(path)) if wanted and os.path.exists(path) else {}
     done = set()
     for i, name, off, stored, _ in packs.entries(rom, "allui"):
@@ -89,4 +93,5 @@ def main():
     print("done", sum(len(v) for v in manifest.values()))
 
 
-main()
+if __name__ == "__main__":
+    main(sys.argv[1], sys.argv[2:])

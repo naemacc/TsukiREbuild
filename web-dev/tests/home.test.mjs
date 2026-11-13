@@ -61,9 +61,9 @@ test("it opens with no tab chosen and no plate lit, so a stray tap starts nothin
   assert.match(home, /show\(NONE\);\n    ui\.sel = NONE;/);
   assert.equal(NONE, -1);
   assert.match(NONE_LINE, /ABOUT, GITHUB, DOWNLOAD, SAVE DATA, or PLAY ONLINE/);
-  assert.match(home, /if \(tab === PLAY && !e\.target\.closest\("a"\)\) start\(\);/, "taps start the game only on PLAY ONLINE's page");
+  assert.match(home, /if \(tab === PLAY && !e\.target\.closest\("a, \.hm-lang"\)\) start\(\);/, "taps start the game only on PLAY ONLINE's page");
   assert.match(home, /if \(i === PLAY && tab === PLAY\) \{ start\(\); return; \}/);
-  assert.match(home, /list\.addEventListener\("click", \(e\) => \{ if \(tab === PLAY && !e\.target\.closest\("a"\)\) start\(\); \}\);/);
+  assert.match(home, /list\.addEventListener\("click", \(e\) => \{ if \(tab === PLAY && !e\.target\.closest\("a, \.hm-lang"\)\) start\(\); \}\);/);   // (not a link, nor the language's plates)
   assert.match(home, /if \(leaving \|\| tab !== PLAY\) return;/, "nothing else starts it");
   assert.ok(main.indexOf("preload.startup(") < main.indexOf("await openHome(ui"), "the game loads while the page is open");
 });

@@ -5,6 +5,7 @@
 import { streamOf } from "./audio.js";
 import { grainSample } from "./screenfx.js";
 import { titleMusic, titleVariant } from "./uifx.js";
+import { JA, asset } from "./lang.js";
 
 // What a job is for, most pressing first: the screen that comes next; the story's own screen; the menus over it; the gallery.
 export const RANK = { next: 0, story: 1, menus: 2, extras: 3 };
@@ -19,10 +20,15 @@ const AHEAD = { pictures: 8, voices: 6, sounds: 6, music: 1, movies: MOVIES, jum
 const pack = (name, list) => list.split(" ").map((n) => `${name}/${n}`);
 // The interface's pictures (assets/ui), in the order a player can come to them. The CG grid's sheet is gallery.js's own (preloadGallery).
 export const ART = {
+  // the title (ui.js titleMenu, with its stage's own still, title_bg1-4) and the notice a later boot shows before it (ui.js notice); not extra_menu_ja,
+  // whose GALLERY submenu never shows in this build (uifx.js)
   title: [
-    ...pack("TITLE_PARTS_JA", "title_bg0 title_titlelog titlemenu titlemenu_lumi titlemenu__c_type-moon press_start logoparticle_all extra_menu_ja caution1_1920x1080 caution_UpRGB__scale__x1_500000_"),
-    ...pack("PARTS", "caution2_1920x1080 caution1_1920x1080 caution_UpRGB__scale__x1_500000_"),
+    ...pack("TITLE_PARTS_JA", "title_titlelog titlemenu titlemenu_lumi titlemenu__c_type-moon logoparticle_all"),
+    "PARTS/caution2_1920x1080",
   ],
+  // the first launch's own title (ui.js title: title_bg0 and its prompt) and the two cautions after it (ui.js cautions), which no later boot shows: not
+  // read once the prologue has started (a returning player, or a loaded save such as the 100% one)
+  firstTitle: pack("TITLE_PARTS_JA", "title_bg0 press_start caution_UpRGB__scale__x1_500000_ caution1_1920x1080"),
   // the text window and its marks, the notices, the choices and the questions
   story: [
     ...pack("DISP_PARTS_JA", "txtwindow01-1920 bf_with_edge68x68_2 lineBreak_a pageBreak_a pageBreak_ciel_a-1920x1080 popup_ja mode_disp mode_ring_1 mode_help tw___________ dialog_win dialog_btn_ja"),
@@ -48,10 +54,15 @@ export const GL_ART = {
   story: ["DISP_PARTS_JA/txtwindow01-1920"],
   menus: [...SIZES.flatMap((n) => pack("BORDER_PARTS", `alphagradation${n} alphagradation${n}_2 alphagradation_inv${n}`)), "EFFECT_PARTS/FocusLine"],
 };
-const FONTS = ['40px "SeuratPro"', "16px Inter"];
+// The faces the screens' words are set in, asked for with them. English: the balloons' SeuratPro (the story's own text is in a system face) and the
+// gallery's Inter, with the story's screen. Japanese (style.css html.ja): the original's text face TsukuMin with the story's screen, for its first line;
+// with the menus, its balloon face (SeuratProJa: only the Ciel-sensei corners have balloons) and TsukuGo, which sets the Japanese in the notes, the
+// flowchart and the gallery. All three hide their words until they are in (font-display: block), and the translation's SeuratPro is not used there.
+export const fontsFor = (ja) => (ja ? { story: ['45.6px "TsukuMin"', "16px Inter"], menus: ['45.6px "SeuratProJa"', '24px "TsukuGo"'] }
+  : { story: ['40px "SeuratPro"', "16px Inter"], menus: [] });
 const SYS_SOUNDS = 9;
 
-export const movieUrl = (name) => `/assets/movie/${name}.mp4`;   // (main.js reads the movies' addresses from here too)
+export const movieUrl = (name) => asset(`/assets/movie/${name}.mp4`);   // (main.js reads the movies' addresses from here too)
 const ruleName = (n) => `RULE_${String(n).padStart(2, "0")}`;
 function unload(v) {
   try { v.removeAttribute("src"); v.load(); } catch { /* gone already */ }
@@ -59,8 +70,8 @@ function unload(v) {
 
 export class Preloader {
   // page: the document (none outside a browser); Picture: its Image.
-  constructor({ vm, gfx, audio, page = globalThis.document, Picture = globalThis.Image, lanes = LANES }) {
-    Object.assign(this, { vm, gfx, audio, page, Picture, lanes });
+  constructor({ vm, gfx, audio, page = globalThis.document, Picture = globalThis.Image, lanes = LANES, fonts = fontsFor(JA) }) {
+    Object.assign(this, { vm, gfx, audio, page, Picture, lanes, fonts });
     this.jobs = new Map();     // key -> { rank, n, start, running }: waiting or being read
     this.count = 0;
     this.active = 0;
@@ -134,7 +145,7 @@ export class Preloader {
     return this.add(rank, `art ${path}`, () => {
       const img = new this.Picture();
       this.kept.set(path, img);
-      img.src = `/assets/ui/${path}.webp`;
+      img.src = asset(`/assets/ui/${path}.webp`);
       return img.decode ? img.decode() : null;
     });
   }
@@ -199,7 +210,7 @@ export class Preloader {
   // Then, in order: the story's screen and the story's first commands; the menus; the gallery.
   startup({ firstLaunch = false, stage = 0, scene = false } = {}) {
     const { vm } = this, variant = titleVariant(stage);
-    const title = (rank) => { for (const p of [...ART.title, `TITLE_PARTS_JA/title_bg${variant}`]) this.art(rank, p); };
+    const title = (rank) => { for (const p of [...(firstLaunch ? ART.firstTitle : []), ...ART.title, `TITLE_PARTS_JA/title_bg${variant}`]) this.art(rank, p); };
     for (let n = 0; n < SYS_SOUNDS; n++) this.sound(RANK.next, `/assets/sys/${n}.ogg`);
     if (!scene) {
       // the opening (main.js newGame), whose title after it has no movie; else the logo, then the title with its own
@@ -210,12 +221,13 @@ export class Preloader {
     }
     for (const p of ART.story) this.art(RANK.story, p);
     for (const p of GL_ART.story) this.glArt(RANK.story, p);
-    for (const f of FONTS) this.font(RANK.story, f);
+    for (const f of this.fonts.story) this.font(RANK.story, f);
     if (!scene) {
       if (firstLaunch) title(RANK.story);
       this.from(vm.index.start, RANK.story, { movies: 0 });   // New Game; its movies wait until the story is there (the look-ahead)
     }
     for (const p of ART.menus) this.art(RANK.menus, p);
+    for (const f of this.fonts.menus) this.font(RANK.menus, f);
     // the balloons and the other windows (system.json windows): the page's copy and the renderer's
     const windows = (vm.system?.windows?.styles || []).map((s) => `DISP_PARTS_JA/${s[0]}`);
     for (const p of windows) { this.art(RANK.menus, p); this.glArt(RANK.menus, p); }
