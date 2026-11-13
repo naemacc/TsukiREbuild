@@ -28,6 +28,37 @@ final class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate
     })();
     """
 
+    // iOS skips the opening page, which is where the apps check for updates (home.js). So it is done here, at every
+    // launch: once the game's page is up it is confirmed (apphost.js `confirm`), then the site is asked (update.js),
+    // and an update is downloaded after asking. Shown over the game by the native alert below.
+    private static let updateScript = """
+    (async () => {
+      if (!window.__TSUKI_IOS__ || !location.search.includes("play")) return;
+      try {
+        const { HOST } = await import("/js/apphost.js");
+        if (!HOST) return;
+        for (let i = 0; i < 300 && !window.preload; i++) await new Promise((r) => setTimeout(r, 100));
+        if (!window.preload) return;   // the page never came up: not confirmed, so the app takes a bad update out again
+        await HOST.call("confirm").catch(() => {});
+        const U = await import("/js/update.js");
+        const plan = await U.checkUpdate(HOST);
+        if (plan.state !== "update") return;
+        if (!confirm("An update is available (" + U.sizeText(plan.bytes) + ").\\nDownload it now?")) return;
+        const box = document.createElement("div");
+        box.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:#000;color:#fff;display:flex;align-items:center;justify-content:center;font:20px -apple-system,sans-serif;text-align:center";
+        box.textContent = "Downloading the update  0%";
+        document.body.appendChild(box);
+        try {
+          await U.runUpdate(HOST, plan, (p) => { box.textContent = "Downloading the update  " + (p.total ? Math.floor((p.done / p.total) * 100) : 0) + "%"; });
+          location.reload();
+        } catch (e) {
+          box.textContent = "The update could not be downloaded. Nothing was changed.";
+          setTimeout(() => box.remove(), 3000);
+        }
+      } catch (e) { /* no update check this time */ }
+    })();
+    """
+
     override var prefersStatusBarHidden: Bool { true }
     override var prefersHomeIndicatorAutoHidden: Bool { true }
     override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { .all }
@@ -44,6 +75,8 @@ final class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate
         config.mediaTypesRequiringUserActionForPlayback = []
         config.userContentController.addUserScript(
             WKUserScript(source: Self.bootScript, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        config.userContentController.addUserScript(
+            WKUserScript(source: Self.updateScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         config.userContentController.addScriptMessageHandler(self, contentWorld: .page, name: "host")
 
         webView = WKWebView(frame: .zero, configuration: config)
@@ -235,6 +268,15 @@ final class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate
             return
         }
         decisionHandler(.allow, preferences)
+    }
+
+    // The update question (confirm() in the page)
+    func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String,
+                 initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
+        let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Not now", style: .cancel) { _ in completionHandler(false) })
+        alert.addAction(UIAlertAction(title: "Download", style: .default) { _ in completionHandler(true) })
+        present(alert, animated: true)
     }
 
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,

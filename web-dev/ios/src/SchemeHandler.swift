@@ -85,6 +85,17 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
             return send(task, id, 404, ["Content-Type": "text/plain"], Data("Not found: \(rel)".utf8))
         }
 
+        // iOS only: `?play` skips the opening page (home.js homeDue). Done here, on the way out, so it holds for the
+        // bundled copy and for a copy that an update downloaded; the files themselves stay as the site has them.
+        if rel == "js/home.js", let raw = try? Data(contentsOf: file), var text = String(data: raw, encoding: .utf8) {
+            let needle = "return !query.has(\"script\");"
+            if text.contains(needle) {
+                text = text.replacingOccurrences(of: needle, with: "return !query.has(\"script\") && !query.has(\"play\");")
+                return send(task, id, 200, ["Content-Type": "text/javascript; charset=utf-8",
+                                            "Access-Control-Allow-Origin": "*"], Data(text.utf8))
+            }
+        }
+
         var headers = ["Content-Type": Self.mimeType(for: file), "Accept-Ranges": "bytes",
                        "Access-Control-Allow-Origin": "*"]
         var status = 200

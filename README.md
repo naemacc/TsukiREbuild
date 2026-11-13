@@ -1,14 +1,14 @@
 # TsukiREbuild
 
-The Tsukihime remake, *Tsukihime -A piece of blue glass moon-*, rebuilt to play in a web browser, on Android, and as an app on Windows, macOS and Linux. The game's engine was rewritten in JavaScript and WebGL2, and that new engine plays the game's own scripts, pictures, voices, music and movies. Wherever the port had to decide how something looks, sounds or moves, the answer was taken from the game itself and checked against it frame by frame.
+The Tsukihime remake, _Tsukihime -A piece of blue glass moon-_, rebuilt to play in a web browser, on Android, on iPhone and iPad (sideloaded), and as an app on Windows, macOS and Linux. The game's engine was rewritten in JavaScript and WebGL2, and that new engine plays the game's own scripts, pictures, voices, music and movies. Wherever the port had to decide how something looks, sounds or moves, the answer was taken from the game itself and checked against it frame by frame.
 
-**[▶ Play online](https://arcueid.date/)** · ⬇ Download: **[Windows](https://arcueid.date/desktop/Tsukihime-win-x64.zip)** (2.9 GB) · **[Android](https://arcueid.date/android/tsukihime.apk)** (2.8 GB) · macOS and Linux: [build it](#on-windows-macos-and-linux)
+**[▶ Play online](https://arcueid.date/)** · ⬇ Download: **[Windows](https://arcueid.date/desktop/Tsukihime-win-x64.zip)** (2.9 GB) · **[Android](https://arcueid.date/android/tsukihime.apk)** (2.8 GB) · iOS: [build and sideload the IPA](#on-iphone-and-ipad) · macOS and Linux: [build it](#on-windows-macos-and-linux)
 
 > An unofficial, non-commercial fan project, not affiliated with TYPE-MOON or Aniplex. Please support the official release.
 
 ## Contents
 
-- [Play it](#play-it): in a browser, on Android, on Windows, macOS and Linux, from this folder
+- [Play it](#play-it): in a browser, on Android, on iPhone and iPad, on Windows, macOS and Linux, from this folder
 - [Controls](#controls): mouse and keyboard, touch, controller
 - [How it plays](#how-it-plays): the opening page, language, saves, skipping, movies, Ciel-sensei
 - [Under the hood](#under-the-hood): loading, fonts, opening a particular scene
@@ -37,6 +37,18 @@ It plays in **English** (the fan translation) or in **Japanese** (the original g
 3. Install. As much space again must be free while it installs; afterwards the download can be deleted.
 
 It needs Android 8 or newer and plays in landscape, by touch, as the site does on a phone. It opens on the site's opening page with four plates, ABOUT, GITHUB, SAVE DATA and PLAY; SAVE DATA's Import and Export use the phone's own file picker, so a `savedata000` goes between the app, the site and the Switch game. Android's Back gesture does what the game's own Back button does, and leaving the app makes the automatic save. Saves are kept in the app, apart from the website's, and a newer APK installs over the old one with them kept. **It updates itself:** when it opens with a connection it looks on arcueid.date for a newer version, asks, and downloads only the files that changed (usually a megabyte or so); the saves stay. How it is built: [web-dev/android/README.md](web-dev/android/README.md).
+
+### On iPhone and iPad
+
+There is no download for iOS: an app has to be signed, and a 2.8 GB IPA is too large to host. Instead this repository builds an **unsigned IPA** that you sideload yourself. It is the same web port as the Android app (in a `WKWebView`), in English, landscape only, and it needs iOS 16 or newer.
+
+1. Fork this repository on GitHub, open its **Actions** tab, choose **Build iOS IPA** and press **Run workflow**. It has two options:
+   - **Put the game's assets inside the IPA** (on by default): the whole game, about 2.8 GB, is packed in so it plays with no connection. Off makes a lite IPA without the game's files, which then have to be copied into the app's folder through the Files app.
+   - **Re-encode movies AV1 -> H.264** (on by default): the movies are AV1, which iPhones play in hardware only on the newest models; this is needed for iPhone 14 and older.
+2. When it finishes (it can take a while), download the **Tsukihime-ipa** artifact from the run's page and unzip it to get `Tsukihime.ipa`. Artifacts are kept for 14 days.
+3. Install the IPA with a sideloading tool and follow that tool's own guide: [AltStore](https://altstore.io/), [SideStore](https://sidestore.io/), [Sideloadly](https://sideloadly.io/) or [LiveContainer](https://github.com/LiveContainer/LiveContainer).
+
+The iOS app **opens straight into the game**, with no opening page, so it has no SAVE DATA page. **It still updates itself:** at every launch it looks on arcueid.date for a newer version, asks, and downloads only the files that changed, as the other apps do; the saves stay. Saves are kept in the app, apart from the website's. How it is built: [web-dev/ios/README.md](web-dev/ios/README.md).
 
 ### On Windows, macOS and Linux
 
@@ -76,22 +88,22 @@ The interface is made for a mouse and a keyboard. The story itself (pictures, te
 - **The quick bar.** Move the mouse to the top of the picture. It is the game's own bar and buttons (previous scene, previous message, auto, skip, next scene, Q.SAVE, Q.LOAD, voice) with LOG, HIDE, SAVE, LOAD, CONFIG, FULL and MENU after them, cut from the same art. Pointing at a button shows what it does and its key. Any click sends the bar up again. The two scene buttons and Q.LOAD ask first, starting on No.
 - **The keys.** One map for every screen, shown on the config's Controls page, where a click on a key (or Enter) and then the new key changes it; Esc cancels, Backspace clears, and "Reset to defaults" puts them back.
 
-| Action | Default key |
-|---|---|
-| Advance text | Enter, Space |
-| Fast forward while held | Ctrl (everything, or only read text when Fast forward is "Read") |
-| Skip read text on / off | S |
-| Auto mode on / off | A |
-| Log | L, Page Up |
-| Previous message | R |
-| Hide text | H |
-| Replay voice | V |
-| Quick save, quick load | Q, W |
-| Return to previous scene, jump to next scene | P, N |
-| Quick bar by keys | Up (then Left / Right, Enter; Esc closes) |
-| System menu | Esc |
-| Full screen | F |
-| Save, Load, Config | none until you give them one |
+| Action                                       | Default key                                                      |
+| -------------------------------------------- | ---------------------------------------------------------------- |
+| Advance text                                 | Enter, Space                                                     |
+| Fast forward while held                      | Ctrl (everything, or only read text when Fast forward is "Read") |
+| Skip read text on / off                      | S                                                                |
+| Auto mode on / off                           | A                                                                |
+| Log                                          | L, Page Up                                                       |
+| Previous message                             | R                                                                |
+| Hide text                                    | H                                                                |
+| Replay voice                                 | V                                                                |
+| Quick save, quick load                       | Q, W                                                             |
+| Return to previous scene, jump to next scene | P, N                                                             |
+| Quick bar by keys                            | Up (then Left / Right, Enter; Esc closes)                        |
+| System menu                                  | Esc                                                              |
+| Full screen                                  | F                                                                |
+| Save, Load, Config                           | none until you give them one                                     |
 
 The game goes full screen when it is started from PLAY ONLINE, and after that at any click, until F (or the quick bar's FULL) takes it out; F again puts it back. Esc still opens the menu in full screen, where the browser allows it.
 
@@ -110,14 +122,14 @@ A device played by touch gets a touch interface: one whose first pointer is a fi
 
 **The opening page** works held either way: held upright it has a layout of its own, over a taller column. By touch its five plates are in two rows either way: ABOUT, GITHUB and DOWNLOAD over SAVE DATA and PLAY ONLINE. **The game plays in landscape.** Once PLAY ONLINE has started it, a phone held upright shows a screen asking for it to be turned, and everything is held under it (the story's clocks, sound, movies, the screens' own motion) until it is. The picture is the game's 1920 x 1080 stage, fitted inside the screen's safe area: on a phone wider than 16:9 it stands in the middle with black beside it, clear of a notch and of the home bar. The game goes full screen when it is started, and where the browser lets a page do so, landscape is locked there. The page itself does not scroll, zoom or select: pull to refresh, double-tap and pinch zoom and the long-press menu are off.
 
-| On the story | |
-|---|---|
-| Advance text | Tap |
-| Control panel | Swipe down on the picture, or tap its top edge |
-| Log | Swipe up |
+| On the story            |                                                                                          |
+| ----------------------- | ---------------------------------------------------------------------------------------- |
+| Advance text            | Tap                                                                                      |
+| Control panel           | Swipe down on the picture, or tap its top edge                                           |
+| Log                     | Swipe up                                                                                 |
 | Fast forward while held | Keep a finger on the picture (everything, or only read text when Fast forward is "Read") |
-| Hide text | Tap with two fingers (any tap shows it again) |
-| Pass a movie | Tap (it asks first where a click does) |
+| Hide text               | Tap with two fingers (any tap shows it again)                                            |
+| Pass a movie            | Tap (it asks first where a click does)                                                   |
 
 The control panel is the quick bar at a finger's size: the same fifteen buttons, the game's own plates at one and a half times their size in three rows of five, each with its name under it. A tap on a plate does it and sends the panel up; a tap anywhere else, or a swipe up, only sends it up. The first time a story starts, a band across the top names the gestures until the panel has been pulled down once.
 
@@ -152,6 +164,8 @@ The game opens on the same page every time, for everyone (`app/js/home.js`). It 
 It opens with no tab chosen, showing the game's logo and a line naming the plates, so a stray tap starts nothing. It is skipped only for an address that opens a scene (`?script=...`). An address ending in `#download` opens it on DOWNLOAD.
 
 **In the Android and desktop apps** the same page has four plates: ABOUT, GITHUB, SAVE DATA and PLAY (the site's PLAY ONLINE under the app's name for it). There is no DOWNLOAD and no language to choose. PLAY's page has the app's updates under its prompt: where things stand, the version in use, and a plate that looks again (`app/js/update.js`; how an update is fetched and kept is in [web-dev/android/README.md](web-dev/android/README.md) and [web-dev/desktop/README.md](web-dev/desktop/README.md)). What a browser does for the page the app does itself (`app/js/apphost.js`): Export's file goes where the player chooses, Import opens the system's file picker, and a link opens in the system's browser. By touch the four plates are in one row.
+
+**In the iOS app** (a sideloaded IPA, [above](#on-iphone-and-ipad)) the page is opened with `?play` and the opening page is skipped, so the game starts at once; its updates are checked at each launch instead.
 
 ### Language
 
@@ -207,19 +221,19 @@ What has not arrived when it is wanted is fetched then.
 
 SeuratPro and Inter are always used from the page's own files. Every other font is looked for on the system first, in the order given. Where none of a row's fonts is installed, a free backup that ships in `app/fonts/` is used instead (the last column), so text never falls to a generic face. The backups have names of their own ("Gelasio Bundled" and so on), so they never take over from an installed font. They hold Latin, accents and punctuation only: Japanese and symbols come from the system, which always has them. Gelasio has Georgia's widths and Arimo has Arial's, so lines break where they would. Each backup's licence is beside it (SIL OFL, the Ubuntu Font Licence, the GUST Font License). Letters drawn on canvases (the plates, the config's words) wait at start for any backup they will need (`main.js` `CANVAS_FONTS`), and a system that has the fonts fetches nothing.
 
-| Font | Used for | Then | Backup (included) |
-|---|---|---|---|
-| Georgia | The story, choices, the log, Yes / No questions | Times New Roman | Gelasio |
-| SeuratPro M | Speech balloons (`assets/fonts/`, the game's own) | Georgia | Gelasio |
-| Inter | Gallery lists, Music Player, the hints, Controls page (`app/fonts/`) | | (included itself) |
-| Helvetica | Flowchart cards, the config's words | Arial | Arimo |
-| Apple Chancery | Chapter names, the story's old-fashioned lettering | Lucida Calligraphy, Monotype Corsiva, URW Chancery L, TeX Gyre Chorus | TeX Gyre Chorus |
-| Hoefler Text | Day numbers beside chapter names | Palatino Linotype, Palatino, Book Antiqua | TeX Gyre Pagella |
-| PT Sans Narrow | The words on the plates | Ubuntu Condensed, Arial Narrow | PT Sans Narrow |
-| Ubuntu Condensed | Chapters on save rows and the flowchart | PT Sans Narrow, Arial Narrow, Roboto Condensed | Ubuntu Condensed |
-| Ubuntu | The day on a save row | Helvetica Neue, Segoe UI | Ubuntu Light |
-| Eurostile | The Audio Track label | Microgramma, DIN Alternate, Bahnschrift | Inter |
-| System font | Scene names in the menus, short notices | | (the system's own) |
+| Font             | Used for                                                             | Then                                                                  | Backup (included)  |
+| ---------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------ |
+| Georgia          | The story, choices, the log, Yes / No questions                      | Times New Roman                                                       | Gelasio            |
+| SeuratPro M      | Speech balloons (`assets/fonts/`, the game's own)                    | Georgia                                                               | Gelasio            |
+| Inter            | Gallery lists, Music Player, the hints, Controls page (`app/fonts/`) |                                                                       | (included itself)  |
+| Helvetica        | Flowchart cards, the config's words                                  | Arial                                                                 | Arimo              |
+| Apple Chancery   | Chapter names, the story's old-fashioned lettering                   | Lucida Calligraphy, Monotype Corsiva, URW Chancery L, TeX Gyre Chorus | TeX Gyre Chorus    |
+| Hoefler Text     | Day numbers beside chapter names                                     | Palatino Linotype, Palatino, Book Antiqua                             | TeX Gyre Pagella   |
+| PT Sans Narrow   | The words on the plates                                              | Ubuntu Condensed, Arial Narrow                                        | PT Sans Narrow     |
+| Ubuntu Condensed | Chapters on save rows and the flowchart                              | PT Sans Narrow, Arial Narrow, Roboto Condensed                        | Ubuntu Condensed   |
+| Ubuntu           | The day on a save row                                                | Helvetica Neue, Segoe UI                                              | Ubuntu Light       |
+| Eurostile        | The Audio Track label                                                | Microgramma, DIN Alternate, Bahnschrift                               | Inter              |
+| System font      | Scene names in the menus, short notices                              |                                                                       | (the system's own) |
 
 The game itself carries `ja/TT_TsukuMin-D.ttf`, `ja2/TT_TsukuGo-D.ttf`, `ja3/FOT-SeuratPro-M.otf`, `ja3/SeuratPro-M.otf` and `exfont_nx01.bffnt`.
 
@@ -227,24 +241,24 @@ The game itself carries `ja/TT_TsukuMin-D.ttf`, `ja2/TT_TsukuGo-D.ttf`, `ja3/FOT
 
 Add these to the address:
 
-| | |
-|---|---|
-| `/?script=00_02` | Opens that script by name (capitals matter) |
-| `/?script=89` | The same by its number, 0 to 548 |
-| `/?script=04_00_ARC04_4_1&pc=500` | Runs through to command 500, then plays normally |
+|                                        |                                                                                                                                |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `/?script=00_02`                       | Opens that script by name (capitals matter)                                                                                    |
+| `/?script=89`                          | The same by its number, 0 to 548                                                                                               |
+| `/?script=04_00_ARC04_4_1&pc=500`      | Runs through to command 500, then plays normally                                                                               |
 | `/?script=04_00_ARC04_3&label=LBL_008` | Starts at a label inside the script. Nothing before it has run, so the screen stays empty until the scene next draws a picture |
-| `&mute` | No sound at all, with any of these |
+| `&mute`                                | No sound at all, with any of these                                                                                             |
 
 Script names start with the day, then 00 for Arcueid's route or 01 for Ciel's: `04_00_ARC04_10`, for one, is the last scene of Arcueid's fourth day. `00_00` to `00_02` are the prologue and `QA_01` to `QA_24` the Teach Me, Ciel-sensei episodes; all 549 are in `assets/scripts/index.json`. A scene opened this way starts with the story's flags empty, so one that depends on earlier choices can branch differently than in play. It also skips the opening page, so sound begins at your first click.
 
 ## The repository
 
-| Folder | What is in it |
-|---|---|
-| `web/` | The game as served: `app/` (engine, interface, styles, fonts), `assets/` (the game's converted files: not in the repository, see below) and `server.py`. It runs by itself. |
-| `web-dev/` | What makes and checks it: `tools/` (conversions from a game dump), `tests/`, `smoketest/`, `audit/` (the parity audit and the function map), `android/` (the Android app), `desktop/` (the Windows, macOS and Linux app) |
-| `web-research/` | The first size research and its tools ([FINDINGS.md](web-research/FINDINGS.md)) |
-| `tools/cloudflare/` | The deployment ([below](#deployment)) |
+| Folder              | What is in it                                                                                                                                                                                                                                  |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `web/`              | The game as served: `app/` (engine, interface, styles, fonts), `assets/` (the game's converted files: not in the repository, see below) and `server.py`. It runs by itself.                                                                    |
+| `web-dev/`          | What makes and checks it: `tools/` (conversions from a game dump), `tests/`, `smoketest/`, `audit/` (the parity audit and the function map), `android/` (the Android app), `desktop/` (the Windows, macOS and Linux app), `ios/` (the iOS app) |
+| `web-research/`     | The first size research and its tools ([FINDINGS.md](web-research/FINDINGS.md))                                                                                                                                                                |
+| `tools/cloudflare/` | The deployment ([below](#deployment))                                                                                                                                                                                                          |
 
 Tests, with Node.js and no packages: `node --test web-dev/tests/*.test.mjs`. Every script at full speed, listing errors: `python3 web-dev/tools/dev_server.py 8770`, then open http://localhost:8770/smoketest.html. What the parity audit in `web-dev/audit/` found and what changed is in [FIXES.md](web-dev/audit/FIXES.md).
 
@@ -346,7 +360,7 @@ Each object is stored with its lifetime: 30 days for the game's media (`assets/v
 
 ## Credits
 
-- **The game.** The Tsukihime remake, *Tsukihime -A piece of blue glass moon-*, and all of its story, art, music and voices belong to TYPE-MOON, Aniplex and the other rights holders. This project is unofficial and non-commercial, and is not affiliated with or endorsed by them. Please support the official release.
+- **The game.** The Tsukihime remake, _Tsukihime -A piece of blue glass moon-_, and all of its story, art, music and voices belong to TYPE-MOON, Aniplex and the other rights holders. This project is unofficial and non-commercial, and is not affiliated with or endorsed by them. Please support the official release.
 - **English text.** The English script comes from the Tsukihimates fan translation patch.
 - **Built on.** The native port this grew from is based on the SuperMarioWonderRecomp recompilation framework by BelmanteGu. Ryujinx's shader translator was used offline; Ghidra for decompilation; FFmpeg, SVT-AV1 and Pillow for the conversions.
 - **Fonts.** Inter, Gelasio, Arimo and PT Sans Narrow under the SIL Open Font License; Ubuntu and Ubuntu Condensed under the Ubuntu Font Licence; TeX Gyre Chorus and Pagella under the GUST Font License. Each licence is beside its font in `web/app/fonts/`.
