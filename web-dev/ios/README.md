@@ -10,10 +10,11 @@ The web port as one unsigned IPA, to be sideloaded: `web/app`, and `web/assets` 
 | ------------------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `bundle_assets`    | on      | Fetches the game's files (`web-dev/tools/fetch_assets.py`, 2.8 GB) and puts them inside the IPA. Off makes a lite IPA without them: the app then fetches each file from `https://arcueid.date/` as the page asks for it, as the website does (see "Online game files" below). |
 | `transcode_movies` | on      | Re-encodes the movies from AV1 to H.264 (`libx264`, CRF 22, `yuv420p`, sound copied, `faststart`), because iPhones decode AV1 in hardware only on the newest models. It is meant for iPhone 14 and older, and only runs together with `bundle_assets`.                        |
+| `ignore_cache`     | off     | Ignores what earlier runs saved (below) and starts from nothing.                                                                                                                                                                                                              |
 
 The steps, in order:
 
-1. Tools: `xcodegen` (Homebrew), Bun, Python 3.13. `ffmpeg` too when the movies are re-encoded.
+1. Tools: `xcodegen` (Homebrew), Bun, Python 3.13. `ffmpeg` is installed only when a movie has to be converted.
 2. `bun web-dev/ios/ios.ts` copies `web/app` into `web-dev/ios/build/www` (the page itself: engine, interface, fonts, `index.html`). The game's files are not copied there, so they are never on the runner twice.
 3. `web-dev/ios/make_bundled.py` writes `bundled.json` and `bundled-assets.txt` into that folder: what this IPA was built with, which the app's updates are worked out from (`web/app/js/update.js`). It reads `https://arcueid.date/update/app.json` for that; when the site cannot be read it says so and writes nothing, and that IPA never looks for updates.
 4. `xcodegen generate` makes `Tsukihime.xcodeproj` from `project.yml` (bundle id `date.arcueid.tsukihime`, iOS 16, iPhone and iPad, `build/www` as a resource folder).
@@ -21,6 +22,15 @@ The steps, in order:
 6. The app icon is added by hand (there is no asset catalog): `web/app/apple-touch-icon.png`, flattened onto black as iOS wants an opaque icon, is written at 120, 180, 152 and 167 px into the `.app`, and `Info.plist` is given its `CFBundleIcons` entries with `PlistBuddy`.
 7. The IPA is packed: the `.app` goes into `Payload/`, and the game's files are _moved_ (not copied) into `Tsukihime.app/www/assets`. It is zipped with no compression (`zip -0`; the files are compressed already, and the app seeks in them).
 8. It is uploaded as the artifact `Tsukihime-ipa`, kept 14 days.
+
+## What a run keeps for the next one
+
+With the game's files bundled, a run does not start from nothing. It uses GitHub's Actions cache (10 GB for the repository, and a cache not used for 7 days is deleted, after which the next run does everything again):
+
+- **The game's files** (`web/assets`, about 2.8 GB): restored first, then `fetch_assets.py` checks every file against `web-dev/assets-manifest.txt` and downloads only what is missing or different. A new copy is saved only when the check changed something. It is saved before the movies are converted, so the saved copy always holds the originals.
+- **The converted movies** (`movie-h264-cache`): each movie is converted once. Its source's MD5 is kept beside the result, so a movie is converted again only when its source changed, and a run that reuses every one never installs `ffmpeg`. When the encoder settings change (the `SETTINGS` line in the workflow), all are converted again. A new copy is saved only when a movie was converted, and one that was cut off is kept up to the movie it had reached.
+
+The restore picks the newest saved copy. `ignore_cache` skips both restores. None of this applies to a lite IPA, which downloads and converts nothing.
 
 ## The files
 

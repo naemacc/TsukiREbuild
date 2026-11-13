@@ -11,6 +11,10 @@ on:
         description: Re-encode movies AV1 -> H.264 (needed for iPhone 14 and older; only with the assets bundled)
         type: boolean
         default: true
+      ignore_cache:
+        description: Ignore the saved game files and converted movies, and start from nothing
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -35,25 +39,96 @@ jobs:
           brew install xcodegen
           df -h /
 
-      - name: Fetch game assets
+      # ---- The game's files: kept between runs, so only what is missing or changed is downloaded ----
+      - name: Restore the game files saved by an earlier run
+        id: assets-cache
+        if: ${{ inputs.bundle_assets && !inputs.ignore_cache }}
+        uses: actions/cache/restore@v4
+        with:
+          path: web/assets
+          key: tsuki-assets-v1-${{ github.run_id }}
+          restore-keys: tsuki-assets-v1-
+
+      - name: Note what is there before the check
+        if: ${{ inputs.bundle_assets }}
+        run: |
+          mkdir -p web/assets
+          echo "ASSETS_BEFORE=$(find web/assets -type f | wc -l | tr -d ' ') $(du -sk web/assets | cut -f1)" >> "$GITHUB_ENV"
+
+      - name: Fetch game assets (checks every file, downloads only the missing or changed)
         if: ${{ inputs.bundle_assets }}
         run: python -u web-dev/tools/fetch_assets.py
 
-      - name: Re-encode movies to H.264
+      - name: Did the game files change?
+        id: assets-changed
+        if: ${{ always() && inputs.bundle_assets }}
+        run: |
+          after="$(find web/assets -type f | wc -l | tr -d ' ') $(du -sk web/assets | cut -f1)"
+          if [ "$after" = "$ASSETS_BEFORE" ]; then echo "changed=false" >> "$GITHUB_OUTPUT"; else echo "changed=true" >> "$GITHUB_OUTPUT"; fi
+          echo "before: $ASSETS_BEFORE, after: $after"
+
+      # saved before the movies are converted, so the saved copy keeps the originals
+      - name: Save the game files for the next run
+        if: ${{ always() && inputs.bundle_assets && steps.assets-changed.outputs.changed == 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: web/assets
+          key: tsuki-assets-v1-${{ github.run_id }}
+
+      # ---- The movies: each converted once, and converted again only when its source changes ----
+      - name: Restore the converted movies saved by an earlier run
+        if: ${{ inputs.bundle_assets && inputs.transcode_movies && !inputs.ignore_cache }}
+        uses: actions/cache/restore@v4
+        with:
+          path: movie-h264-cache
+          key: tsuki-movies-h264-v1-${{ github.run_id }}
+          restore-keys: tsuki-movies-h264-v1-
+
+      - name: Re-encode movies to H.264 (only the ones not converted before)
+        id: movies
         if: ${{ inputs.bundle_assets && inputs.transcode_movies }}
         run: |
-          brew install ffmpeg
+          SETTINGS="libx264-crf22-medium-yuv420p-v1"
+          CACHE=movie-h264-cache
+          mkdir -p "$CACHE"
+          if [ "$(cat "$CACHE/settings" 2>/dev/null || true)" != "$SETTINGS" ]; then
+            echo "no saved movies for these settings: converting all of them"
+            rm -rf "$CACHE"; mkdir -p "$CACHE"; echo "$SETTINGS" > "$CACHE/settings"
+          fi
+          echo "converted=false" >> "$GITHUB_OUTPUT"
           du -sh web/assets/movie
+          have_ffmpeg=0; reused=0; made=0
           for f in web/assets/movie/*.mp4; do
-            echo "== $f"
-            ffmpeg -nostdin -loglevel error -y -i "$f" -map 0 \
-              -c:v libx264 -crf 22 -preset medium -pix_fmt yuv420p \
-              -fps_mode passthrough -c:a copy -movflags +faststart \
-              "$f.tmp.mp4"
-            mv "$f.tmp.mp4" "$f"
+            name="$(basename "$f")"
+            src_md5="$(md5 -q "$f")"
+            if [ -f "$CACHE/$name" ] && [ "$(cat "$CACHE/$name.md5" 2>/dev/null || true)" = "$src_md5" ]; then
+              echo "== $name: converted before"
+              cp "$CACHE/$name" "$f"
+              reused=$((reused + 1))
+            else
+              if [ "$have_ffmpeg" = 0 ]; then brew install ffmpeg; have_ffmpeg=1; fi
+              echo "== $name: converting"
+              ffmpeg -nostdin -loglevel error -y -i "$f" -map 0 \
+                -c:v libx264 -crf 22 -preset medium -pix_fmt yuv420p \
+                -fps_mode passthrough -c:a copy -movflags +faststart \
+                "$CACHE/$name.tmp.mp4"
+              mv "$CACHE/$name.tmp.mp4" "$CACHE/$name"
+              echo "$src_md5" > "$CACHE/$name.md5"
+              cp "$CACHE/$name" "$f"
+              made=$((made + 1))
+              echo "converted=true" >> "$GITHUB_OUTPUT"
+            fi
           done
+          echo "converted before: $reused, converted now: $made"
           du -sh web/assets/movie
           df -h /
+
+      - name: Save the converted movies for the next run
+        if: ${{ always() && inputs.bundle_assets && inputs.transcode_movies && steps.movies.outputs.converted == 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: movie-h264-cache
+          key: tsuki-movies-h264-v1-${{ github.run_id }}
 
       - name: Stage the web app (Bun)
         run: bun web-dev/ios/ios.ts
