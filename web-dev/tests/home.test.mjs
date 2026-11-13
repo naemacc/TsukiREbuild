@@ -16,10 +16,10 @@ test("it opens for everyone, on every visit and every address, the local server 
   }
 });
 
-test("only the Android and desktop apps, which are the game itself, and an address for a scene go past it", () => {
-  assert.equal(homeDue(q(""), "appassets.androidplatform.net"), false);
-  assert.equal(homeDue(q(""), "tsukihime.desktop"), false);
-  for (const s of ["script=00_02", "script=89&pc=500", "script=04_00_ARC04_3&label=LBL_008&mute"]) assert.equal(homeDue(q(s), "arcueid.date"), false, s);
+test("only an address for a scene goes past it; the Android and desktop apps open on it too (app-update.test.mjs has their page)", () => {
+  assert.equal(homeDue(q("")), true);
+  assert.doesNotMatch(source("js/home.js"), /hostname/, "the page is not skipped by where it is served from");
+  for (const s of ["script=00_02", "script=89&pc=500", "script=04_00_ARC04_3&label=LBL_008&mute"]) assert.equal(homeDue(q(s)), false, s);
 });
 
 test("five tabs: ABOUT, GITHUB, DOWNLOAD, SAVE DATA, PLAY ONLINE, each a page of its own", () => {
@@ -50,7 +50,8 @@ test("GitHub's page links the repository, DOWNLOAD's the four apps, PLAY ONLINE'
   for (const s of TABS[2].sections.slice(1, 3)) assert.match(s.blocks.at(-1)[1], / {2}·  \d\.\d GB$/, `${s.head}: the link says the size`);
   const build = JSON.stringify(TABS[2].sections[3].blocks);
   for (const word of ["git clone --depth 1 https://github.com/waifwu/TsukiREbuild", "web-dev/desktop/build.sh mac", "web-dev/desktop/build.sh linux", "Tsukihime-mac-universal.dmg", "Tsukihime-linux-x86_64.AppImage"]) assert.ok(build.includes(word), word);
-  assert.equal(DESKTOP.size, "2.9 GB", "the 2,885,339,917-byte zip (2026-11-11)");
+  assert.equal(DESKTOP.size, "2.9 GB", "the 2,885,645,007-byte zip (2026-11-13)");
+  assert.equal(APK.size, "2.8 GB", "the 2,801,384,376-byte APK (2026-11-13)");
   assert.ok(blocks(PLAY).some((b) => b[0] === "press"));
   for (const k of [0, 1, 2, SAVE]) assert.ok(!blocks(k).some((b) => b[0] === "press"), `${TABS[k].plate}: only PLAY ONLINE starts the game`);
 });
@@ -61,9 +62,9 @@ test("it opens with no tab chosen and no plate lit, so a stray tap starts nothin
   assert.match(home, /show\(NONE\);\n    ui\.sel = NONE;/);
   assert.equal(NONE, -1);
   assert.match(NONE_LINE, /ABOUT, GITHUB, DOWNLOAD, SAVE DATA, or PLAY ONLINE/);
-  assert.match(home, /if \(tab === PLAY && !e\.target\.closest\("a, \.hm-lang"\)\) start\(\);/, "taps start the game only on PLAY ONLINE's page");
+  assert.match(home, /if \(tab === PLAY && !e\.target\.closest\("a, \.hm-lang, \.hm-update"\)\) start\(\);/, "taps start the game only on PLAY ONLINE's page");
   assert.match(home, /if \(i === PLAY && tab === PLAY\) \{ start\(\); return; \}/);
-  assert.match(home, /list\.addEventListener\("click", \(e\) => \{ if \(tab === PLAY && !e\.target\.closest\("a, \.hm-lang"\)\) start\(\); \}\);/);   // (not a link, nor the language's plates)
+  assert.match(home, /list\.addEventListener\("click", \(e\) => \{ if \(tab === PLAY && !e\.target\.closest\("a, \.hm-lang, \.hm-update"\)\) start\(\); \}\);/);   // (not a link, nor the language's plates, nor the app's update plate)
   assert.match(home, /if \(leaving \|\| tab !== PLAY\) return;/, "nothing else starts it");
   assert.ok(main.indexOf("preload.startup(") < main.indexOf("await openHome(ui"), "the game loads while the page is open");
 });
@@ -87,7 +88,8 @@ test("on a phone held upright the opening page has a layout of its own and no ro
   assert.match(main, /touch\.upright = \(\) => homeUp;/);
   assert.match(main, /homeUp = false;\n  touch\.reorient\?\.\(\);[^\n]*\n  fitStage\(\);/, "the rotate screen once the page has gone");
   // by touch the five plates are three over two, each row centred, on the game's stage and on the upright one
-  assert.match(home, /const L = upright\(\) \? TOUCH\.homeUpright : TOUCH\.home, \[row, count\] = rowOf\(L, i\);/);
+  assert.match(home, /const L = upright\(\) \? TOUCH\.homeUpright : LAND, \[row, count\] = rowOf\(L, i\);/);
+  assert.match(home, /const LAND = TABS\.length <= TOUCH\.homeRow\.cols \? TOUCH\.homeRow : TOUCH\.home;/, "(the site's five do not fit one row)");
   assert.match(home, /return \[Math\.round\(\(L\.w - \(L\.pitch \* \(count - 1\) \+ shown\)\) \/ 2\) \+ \(i % L\.cols\) \* L\.pitch, L\.y \+ row \* L\.rowPitch\];/);
   const shown = TOUCH.bar.w * TOUCH.bar.scale, tall = TOUCH.bar.h * TOUCH.bar.scale;
   for (const L of [TOUCH.home, TOUCH.homeUpright]) {

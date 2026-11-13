@@ -1436,3 +1436,94 @@ each "agreed" for being invisible: draw the port's own outcomes first and check 
 Not a fault, recorded so it is not chased again: `?script=NAME&pc=N` fast-forwards from the script's first command, so a
 native scene cut to start at the moment's own `PGST` is not the same state and will differ for want of the earlier
 staging. Comparisons of a real scene have to run the native build from the script's start too.
+
+## The apps: the opening page, the save tools, and updates from the site, 2026-11-13
+
+The user: "add that front page to apps as well (change play online to play) and remove the download tab. That way they should be able to load and
+export files and load 100% save as well. Also add an in app updater in both windows and Android so further updates can be pushed directly. Don't add
+Japanese language option." And, while it was being tried on their phone: "on anroid open app in landscape only", "put all 4 tabs at the top in a row
+theres space there".
+
+**The opening page in the apps.** `home.js` no longer skips the Android and desktop apps (`homeDue` is only about `?script` now). There the page has
+four plates (`tabsFor`): ABOUT (without its notice of which browsers the site works in), GITHUB, SAVE DATA (saying "this app" where the site says
+"this browser") and PLAY, the site's PLAY ONLINE under that name, with no notice about a browser's graphics setting and no language plates. The site
+keeps its five plates and its language choice. `apphost.js` is new: what tells the page it is in an app (`APP_HOSTS`, moved from `home.js`), and the
+one object through which it asks the app for what a browser would have done.
+
+| What | In a browser | In the Android app | In the desktop app |
+|---|---|---|---|
+| Import | the browser's file dialog | `onShowFileChooser` opens the system's document picker (a WebView has none of its own) | Electron's own Open dialog |
+| Export | a download | the file goes to the app in base64; `ACTION_CREATE_DOCUMENT` asks where, and it is written there | the system's Save dialog, starting in Downloads |
+| a link (GITHUB) | a new tab | `ACTION_VIEW`: the phone's browser, or the app that takes such links | `shell.openExternal` |
+| Remove Data, Load 100% save | as before | as before (they only use the page's own storage) | as before |
+
+Export says the name the file was really given ("Saved as savedata000 (1)." where Android numbers a second one), and only once it is saved.
+`appSuspend` (the saves the app asks for when it is left) now holds off after an import, as `pagehide` does: choosing a file takes the Android app
+to the background and back.
+
+**No Japanese in the apps.** `lang.js` `langOf` gives English in an app whatever is kept in `tsuki.lang` or asked for by `?lang=ja`; both builds
+leave `web/assets/ja` out (`build_apk.sh`, `package.json`), and so does the list the updates compare (`app_manifest.py` `WITHOUT`).
+
+**Landscape only on Android, four plates in one row.** The first version let the opening page turn upright in the Android app and held the game in
+landscape from its start; the user asked for landscape throughout, so the manifest is `sensorLandscape` again and the page has no say in it. By
+touch the apps' four plates are in one row (`TOUCH.homeRow`, `html.touch .hm-row1` in `touch.css`: a strip 150 high, the column from there); the
+site's five stay three over two.
+
+**Updates** (`web/app/js/update.js`, `web-dev/desktop/updater.js`, `web-dev/android/.../Updates.java`, `web-dev/tools/app_manifest.py`,
+`tools/cloudflare/deploy.py`).
+
+- Each deployment stores `update/app.json`: every app file with its size and SHA-256, and under a name made from its content the list of the game's
+  files the apps carry, with their MD5 (the manifest without `ja/`). Each app build puts the same description of what it packed into the app
+  (`bundled.json`, `bundled-assets.txt`). `deploy.py`'s `app_version` moved into `app_manifest.py` unchanged (it gives `05ec47da1b1d` for the commit
+  the site was serving, as the site's own `index.html` named it).
+- The page decides (`checkUpdate`): what the site has that the app was not built with is the update. Only what was published after the app's own
+  files counts, so an app built from newer work than the site has is left alone. The lists of the game's files are fetched and compared only when
+  their hashes differ, and a comparison that found nothing is remembered (`tsuki.update.seen`).
+- The app does (`stage`, `apply`, `confirm`): downloads come from `https://arcueid.date` alone, each file to a place beside its name, checked
+  against size and hash, then renamed; nothing is used until `state.json` names the update, and that file is replaced in one step. A request is
+  answered from the update first, from the app's own files otherwise. Paths are plain names only on both sides (`SAFE_PATH`); every address carries
+  the file's hash as a query, so no cache can answer with an older file of the same name.
+- It asks first, in the game's Yes / No window, with the size; the download shows in the game's notice window and a press stops it. PLAY's page
+  says where things stand and has a plate, CHECK FOR UPDATES, cut from the panel's plates as the 100% save's is.
+- An update that does not come up (the page never reports in) twice running is taken out by the app itself and not offered again unless asked.
+  A newer app put in place of the old one drops the old one's updates. An update that needs a newer app (`SHELL`) is not taken: the page offers
+  the site's DOWNLOAD page instead (`#download` now opens the site on that tab).
+- The Android app has one permission now, the internet, for this alone; the WebView is kept off the network (`setBlockNetworkLoads`).
+
+**The stage cannot be scrolled** (`style.css` `#stage`: `overflow: clip`). Seen on the phone while testing: asking for a question window's button
+to be scrolled into view (the test's own doing) moved the whole picture up 133 px with black under it until the window closed. A finger does not
+ask that, but nothing can now.
+
+**Checked.**
+
+| Where | What | Result |
+|---|---|---|
+| `node --test web-dev/tests/*.test.mjs` | 579 tests, 22 of them new (`app-update.test.mjs`): the page's decisions against pretend sites, and `updater.js` against a real local server: a full update, a download cut off halfway, a wrong file, paths that climb out, roll-back, a newer app, stopping | all pass (2 are skipped where `deploy.py` is not present) |
+| The user's phone (OnePlus CPH2749, Android 17), debug build, over adb and the WebView's debug port | the opening page in landscape; Import of a real `savedata000` through the system's picker; Export through its save-as screen, the file pulled back and compared; Remove Data; Load 100% save; the GitHub link; PLAY to the title | all work; the exported file is byte for byte the imported one; all 12 stored entries (saves, settings, progress) had the same length and SHA-256 afterwards as before the first install |
+| The same phone, against a copy of the site staged with `deploy.py --stage` and served from this Mac (`adb reverse`) | the update question and its size; a download cut off halfway; the update taken (6 files, 203 KB, one of them a picture); a restart; a second update on top of it (4 files downloaded, the rest kept); an update with a broken `main.js` | cut off: "could not be downloaded", nothing changed; taken: the new code and picture after the reload, saves identical; the broken one: gone at the second start, the version before back, not offered again |
+| The same phone, the release build installed over that | it opens; PLAY and SAVE DATA by screenshot (a release build has no debug port) | the test updates were dropped with the new APK; the saves are listed as before |
+| The Android emulator (Android 17, a 113 MB build without the big media) | Import, Export, Remove, 100% save, the link | all work (done before the phone was attached) |
+| The packaged Mac app (`out/mac-universal/Tsukihime.app`, the same files as the Windows zip), over its debug port, with a scratch profile | the four plates; against a staged site identical to what it was built with; against a newer one: a download cut off, the update taken, a restart; Import of a real `savedata000` (the file chooser opens; the file set through the debug port), Export (with `--test-dir`), Remove, Load 100% save; the link (`opened.txt`); the system's Save dialog (a second window appears); PLAY | "Up to date." after one request for `update/app.json`; cut off: nothing changed; taken: 3 files, 116 KB, the new code after the reload, the test save still there, and after a restart; the exported file byte for byte the imported one; PLAY goes to full screen and the game |
+| The Windows zip and the Linux AppImage | their contents: `Tsukihime.exe`, `resources/app.asar` holding `main.js`, `preload.js`, `updater.js` identical to the sources, `resources/www` with `bundled.json` naming the same version as the Mac app and the APK, no `assets/ja` | as built; **neither was run** (no Windows or Linux here) |
+
+**A Save dialog must not write when the app closes** (found while checking the Mac app, 2026-11-13). Electron reports a Save dialog that is
+still open when the app quits as accepted, with the path it opened on. `main.js` then wrote the export there: quitting the test app with the dialog
+up replaced a `savedata000` already in the user's Downloads, with no "Replace?" asked (a real file of theirs, put back at once from the reference
+copy that had been made from it; same SHA-256, size and dates as before). Fixed: `closing` is set at `before-quit` and at the window's `close`, and
+`saveFile` writes nothing once it is. Reproduced and re-checked with the app's home moved to a scratch folder (`CFFIXED_USER_HOME`), which is how a
+Save dialog is to be tried from now on: before the fix the file already there was overwritten, with it the file is untouched.
+
+**The Mac build's signing.** electron-builder's signer opens every file of the app at once to look for programs among them, 10,584 here, and macOS
+lets one process hold 10,240 open on this Mac: the build stopped with `EMFILE: too many open files`. `package.json` `mac.sign` is now
+`build/sign-mac.js`, which signs with the system's `codesign --force --deep --sign -` (`codesign --verify --deep --strict` passes, 10,584 files
+sealed).
+
+**Files, built 2026-11-13** (nothing uploaded): `web-dev/android/out/tsukihime.apk` 2,801,384,376 bytes (version code 26111310, one permission,
+the same signing key as the 2026-11-11 APK); in `web-dev/desktop/out`, `Tsukihime-win-x64.zip` 2,885,645,007 bytes, `Tsukihime-mac-universal.dmg`
+2,993,209,604 and `Tsukihime-linux-x86_64.AppImage` 2,863,293,340, all three rebuilt after the Save dialog fix (the Mac app re-checked after it:
+the update, a restart, Import and Export, and quitting with the dialog up). A site staged from the commit names the same version (`e8f30a231687`)
+and the same list of the game's files as the apps were built with, so after a push they say "Up to date."
+
+**Not done, and why.** The Windows and Linux apps were not run. The release APK's update was not tried against the live site, which has no
+`update/app.json` until this is pushed; until then the apps say "Could not look for an update just now." The update's first live run will be
+the push after that one.

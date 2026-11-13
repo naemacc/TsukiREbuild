@@ -5,15 +5,19 @@
 // those files, and asset() gives the Japanese file's address where there is one and the shared file's everywhere else.
 //
 // The language is chosen on the opening page (home.js, PLAY ONLINE) and kept in this browser. It is read once, as the page loads: every table is fetched in
-// that language from the start, so changing it loads the page again. `?lang=ja` (or en) in the address chooses it for that visit, and is how the Android and
-// desktop apps, which have no opening page, can be opened in Japanese.
+// that language from the start, so changing it loads the page again. `?lang=ja` (or en) in the address chooses it for that visit.
+// The Android and desktop apps are English only: they are built without web/assets/ja, so there neither a kept choice nor the address can ask for
+// Japanese (langOf), and their opening page has no language plates.
+import { APP } from "./apphost.js";
+
 export const LANGS = ["en", "ja"];
 const KEY = "tsuki.lang";
 
 export function storedLang(storage = globalThis.localStorage) {
   try { const v = storage?.getItem(KEY); return LANGS.includes(v) ? v : "en"; } catch { return "en"; }
 }
-export function langOf(search = "", storage = globalThis.localStorage) {
+export function langOf(search = "", storage = globalThis.localStorage, app = APP) {
+  if (app) return "en";   // (the apps have no Japanese files)
   const asked = new URLSearchParams(search).get("lang");
   return LANGS.includes(asked) ? asked : storedLang(storage);
 }

@@ -515,8 +515,10 @@ document.addEventListener("visibilitychange", () => {
 // (Not after an import, home.js: the page is loading again to read the file's saves, and what it holds of the old ones must not be written over them.)
 addEventListener("pagehide", () => { if (!savesReplaced()) { autosave(); vm.saveRead(); vm.unlocks.save(); } if (audio.ctx) audio.ctx.close(); });
 // The Android app (web-dev/android) calls this when it goes to the background, where Android may end it without a
-// pagehide: the same saves, with the sound left open for coming back. Nothing on the web calls it.
-globalThis.appSuspend = () => { autosave(); vm.saveRead(); vm.unlocks.save(); };
+// pagehide, and the desktop app (web-dev/desktop) when its window closes: the same saves, with the sound left open for
+// coming back. Nothing on the web calls it. (Not after an import, as above: choosing the file takes the Android app to
+// the background and back.)
+globalThis.appSuspend = () => { if (!savesReplaced()) { autosave(); vm.saveRead(); vm.unlocks.save(); } };
 
 // Ordinary skipping passes only text already read; a forced skip passes everything up to the next choice.
 // The skip toggle is bit 1 of 0xae0660 (vm.skipToggle): an instant run takes the flags over until it ends (N2-208), and then what it gives back is what this sets.

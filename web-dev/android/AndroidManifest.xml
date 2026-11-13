@@ -1,14 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The web port as an Android app: everything it plays is inside the APK, and it has no internet permission. -->
+<!-- The web port as an Android app: everything it plays is inside the APK. Its one permission, the internet, is for
+     bringing itself up to date from arcueid.date (Updates.java); the page itself is kept off the network. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="date.arcueid.tsukirebuild">
+    <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:label="Tsukihime"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="true"
         android:largeHeap="true"
         android:hardwareAccelerated="true"
+        android:usesCleartextTraffic="false"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+        <!-- (the WebView shows only the app's own page: nothing of it is reported or looked up) -->
+        <meta-data android:name="android.webkit.WebView.MetricsOptOut" android:value="true" />
+        <meta-data android:name="android.webkit.WebView.EnableSafeBrowsing" android:value="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

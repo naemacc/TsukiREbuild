@@ -14,7 +14,10 @@
 /* The translation's special letters (private-use U+E000-E2FF, the game font's) are turned into the story font's own
    letters, italic or flipped (textbox.js; #text .ch.mirror, .ch.flip). */
 html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
-#stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; overflow: hidden; background: #000; user-select: none; font-family: var(--story-font); color: #fff; }
+/* (overflow clip, where the browser has it: what reaches past the stage is cut off and the stage cannot be scrolled at all. Merely hidden, it
+   still scrolls when something asks for an element to be brought into view: asking that of a question window's button on a phone moved the
+   whole picture up 133 px, with black under it, until the window closed.) */
+#stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; overflow: hidden; overflow: clip; background: #000; user-select: none; font-family: var(--story-font); color: #fff; }
 #gl, #movie { position: absolute; inset: 0; width: 1920px; height: 1080px; }
 /* the touch ring (touchfx.js) over everything, as the game draws it last */
 #touchfx { position: absolute; inset: 0; width: 1920px; height: 1080px; pointer-events: none; z-index: 50; }
@@ -407,6 +410,10 @@ div.fc-node { pointer-events: none; cursor: default; }
 .wl-text .hm-lang-note { margin: 16px 0 0; font-size: 24px; line-height: 32px; color: #c9d8e6; white-space: pre-line; }   /* (its two sentences on rows of their own) */
 /* Export and Import on SAVE DATA (home.js savesBlock): two of the panel's own plates side by side under the page's words, their keys, and a line
    that says what was done. */
+/* The app's updates on PLAY's page (home.js updateBlock): the plate that looks for one, and under it where things stand and the version in use. */
+.hm-update { margin: 36px 0 44px; text-align: center; }
+.wl-text .hm-update-version { margin: 14px 0 0; font-size: 24px; line-height: 34px; color: #c9d8e6; }
+.wl-text .hm-update-version:empty { display: none; }
 .hm-saves { margin: 40px 0 44px; text-align: center; }
 .wl-text .hm-data h3 { margin-top: 28px; }
 .wl-text .hm-data .wl-facts { grid-template-columns: repeat(4, 1fr); margin: 20px 0 0; }   /* (the four figures across the page) */

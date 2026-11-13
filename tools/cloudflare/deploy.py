@@ -13,6 +13,10 @@ Two ways in serve the same files:
                                   The page loads its scripts, styles, icons and font from v/<version>/, a copy of web/app named by
                                   its content, so a page only ever runs the one set of files it was published with (VERSIONED).
   https://tsukirebuild.pages.dev  Pages: the app as static files, and web/cloudflare/worker.js reading assets/ from the bucket.
+
+The Android and desktop apps bring themselves up to date from the first: each deployment also stores update/app.json, which says what the
+site serves now (every app file with its hash, and the list of the game's files the apps carry), and the apps download what they were not
+built with (web/app/js/update.js; web-dev/tools/app_manifest.py makes the description, here and in the app builds).
 """
 
 import base64
@@ -33,6 +37,9 @@ from contextlib import nullcontext
 
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "web-dev/tools"))
+import app_manifest  # noqa: E402  (the apps' description of the site: update_objects)
+
 SITE = "https://arcueid.date"   # where the game is served from: the bucket, attached to this domain
 API = "https://api.cloudflare.com/client/v4"
 CONTENT_TYPES = {
@@ -81,11 +88,7 @@ VERSIONED_REFERENCE = re.compile(r'(\s(?:href|src)=")([^"/:#?][^":#?]*)(")')
 
 
 def app_version(files):
-    digest = hashlib.sha256()
-    for path in sorted(files):
-        if path.name != "index.html":
-            digest.update(path.relative_to("web/app").as_posix().encode() + b"\0" + (ROOT / path).read_bytes() + b"\0")
-    return digest.hexdigest()[:12]
+    return app_manifest.app_version(ROOT / "web/app", [path.relative_to("web/app") for path in files])
 
 
 def versioned_index(path, version, names):
@@ -111,9 +114,9 @@ def site_objects(files):
     app = [p for p in files if p.is_relative_to("web/app")]
     version = app_version(app)
     names = {p.relative_to("web/app").as_posix() for p in app}
-    clash = sorted(n for n in names if n.startswith(("assets/", "v/")))
+    clash = sorted(n for n in names if n.startswith(("assets/", "v/", "update/")))
     if clash:
-        raise RuntimeError(f"App files that would be stored among the game's assets or the app's versions: {clash}")
+        raise RuntimeError(f"App files that would be stored among the game's assets, the app's versions or the apps' updates: {clash}")
     objects, index = [], None
     for path in files:
         if not path.is_relative_to("web/app"):
@@ -122,12 +125,23 @@ def site_objects(files):
         name = path.relative_to("web/app").as_posix()
         if name == "index.html":
             index = (name, path, versioned_index(path, version, names))
+            # (as it is in web/app, beside the files it names: the page the Android and desktop apps take with an update)
+            objects.append((f"v/{version}/{name}", path, None))
             continue
         objects.append((name, path, None))
         objects.append((f"v/{version}/{name}", path, None))
     if index is None:
         raise RuntimeError("No web/app/index.html")
     return objects, index, version
+
+
+def update_objects(files):
+    """What the Android and desktop apps read to bring themselves up to date (web/app/js/update.js): the list of the game's files they
+    carry, under a name made from its content, and update/app.json, which names that list and every app file with its hash. The second is
+    stored after everything else but the page: an app that reads it finds all of it there."""
+    app = [path.relative_to("web/app") for path in files if path.is_relative_to("web/app")]
+    description, key, listing = app_manifest.site_description(ROOT / "web/app", app, ROOT / "web-dev/assets-manifest.txt")
+    return (key, Path(key), listing), ("update/app.json", Path("update/app.json"), description)
 
 
 def tracked_files(directory):
@@ -285,6 +299,8 @@ def sync_assets(client, bucket, assets=None):
 
     # Retain previous objects for open browser sessions and deployment rollbacks.
     objects, index, version = site_objects(tracked_files("web/app"))
+    listing, description = update_objects(tracked_files("web/app"))
+    objects.append(listing)
     with ThreadPoolExecutor(max_workers=8) as pool:
         uploaded = sum(pool.map(upload, objects))
         if restamp:
@@ -292,12 +308,13 @@ def sync_assets(client, bucket, assets=None):
             stored_assets = [key for key in remote if key.startswith("assets/") and key not in mine]
             list(pool.map(restamp_stored, stored_assets))
             print(f"R2: {len(stored_assets)} stored assets given their lifetime and type again", flush=True)
+    uploaded += upload(description)   # what the apps update from, once every file it names is there
     uploaded += upload(index)   # last: the page a player gets only once every file it names is there
     print(f"R2: the page loads the app from v/{version}/", flush=True)
     if restamp:
         client.put_object(Bucket=bucket, Key=POLICY_KEY, Body=POLICY.encode(), ContentType="text/plain", CacheControl=SHORT)
     in_bucket = sum(1 for key in remote if key.startswith("assets/"))
-    print(f"R2: uploaded {uploaded} new or modified files, skipped {len(objects) + 1 - uploaded} unchanged files; {in_bucket} assets in the bucket, left as they are", flush=True)
+    print(f"R2: uploaded {uploaded} new or modified files, skipped {len(objects) + 2 - uploaded} unchanged files; {in_bucket} assets in the bucket, left as they are", flush=True)
 
 
 def frontend_assets(account, project, token):
@@ -383,11 +400,11 @@ def stage(directory):
     out.mkdir(parents=True, exist_ok=True)
     if not (out / "assets").exists():
         (out / "assets").symlink_to(ROOT / "web/assets")
-    for key, path, data in objects + [index]:
+    for key, path, data in objects + list(update_objects(tracked_files("web/app"))) + [index]:
         target = out / key
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes((ROOT / path).read_bytes() if data is None else data)
-    print(f"Staged {len(objects) + 1} objects in {out}; the page loads the app from v/{version}/ ({cache_control('v/' + version + '/js/main.js')})")
+    print(f"Staged {len(objects) + 3} objects in {out}; the page loads the app from v/{version}/ ({cache_control('v/' + version + '/js/main.js')})")
 
 
 def main():

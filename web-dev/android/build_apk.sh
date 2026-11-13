@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # build_apk.sh [--debug] [--install]: the web port as one Android APK with everything in it (web/app, and web/assets
-# but the loose voices and sound effects, which the packs carry). Writes web-dev/android/out/tsukihime.apk.
-#   --debug    the page can be inspected from chrome://inspect on the computer (USB debugging)
+# but the loose voices and sound effects, which the packs carry, and Japanese's own files: the app is English only).
+# Writes web-dev/android/out/tsukihime.apk.
+#   --debug    the page can be inspected from chrome://inspect on the computer (USB debugging), and updates can be
+#              taken from a copy of the site on the computer (README, "Trying an update")
 #   --install  installs it on the connected phone or emulator (adb install -r keeps the saves)
 # Needs the Android SDK (ANDROID_HOME, default ~/Library/Android/sdk) with platform android-36 and build-tools 35+,
 # and a JDK. No Gradle. The signing key is made once, in web-dev/android/keystore: keep it, or a later APK cannot
@@ -38,10 +40,16 @@ if [ ! -f "$ks" ]; then
     echo "made the signing key: $ks (keep it)"
 fi
 
-# Resources, manifest -> base.apk
+# Resources, manifest -> base.apk. (A debug build may fetch its updates over plain HTTP from the computer it is tested on.)
 "$bt/aapt2" compile --dir "$here/res" -o "$work/res.zip"
 version=$(date +%y%m%d%H)
-link=("$bt/aapt2" link -o "$work/base.apk" -I "$jar" --manifest "$here/AndroidManifest.xml" "$work/res.zip"
+manifest="$here/AndroidManifest.xml"
+if [ "$debug" = 1 ]; then
+    manifest="$work/AndroidManifest.xml"
+    sed 's/android:usesCleartextTraffic="false"/android:usesCleartextTraffic="true"/' "$here/AndroidManifest.xml" > "$manifest"
+    grep -q 'usesCleartextTraffic="true"' "$manifest" || { echo "the manifest no longer has usesCleartextTraffic to switch" >&2; exit 1; }
+fi
+link=("$bt/aapt2" link -o "$work/base.apk" -I "$jar" --manifest "$manifest" "$work/res.zip"
       --min-sdk-version 26 --target-sdk-version 36 --version-code "$version" --version-name "$(date +%Y.%m.%d)")
 [ "$debug" = 1 ] && link+=(--debug-mode)
 "${link[@]}"
@@ -52,12 +60,15 @@ javac -nowarn --release 11 -cp "$jar" -d "$work/classes" \
 [ -n "$(find "$work/classes" -name '*.class')" ] || { echo "javac failed" >&2; exit 1; }
 "$bt/d8" --release --min-api 26 --lib "$jar" --output "$work" $(find "$work/classes" -name '*.class')
 
-# The game: assets/www = web/app, assets/www/assets = web/assets without voice/ and se/ (in the packs). Linked, not
-# copied; zip follows the links. Stored, not compressed, so the app can seek in them (the files are compressed already).
+# The game: assets/www = web/app, assets/www/assets = web/assets without voice/ and se/ (in the packs) and ja/ (the
+# app is English only). Linked, not copied; zip follows the links. Stored, not compressed, so the app can seek in them
+# (the files are compressed already). With them goes the description of what was packed, bundled.json and
+# bundled-assets.txt, which the app's updates are worked out from (web-dev/tools/app_manifest.py).
 for f in "$web/app"/*; do ln -s "$f" "$work/stage/assets/www/"; done
 for f in "$web/assets"/*; do
-    case "$(basename "$f")" in voice|se) ;; *) ln -s "$f" "$work/stage/assets/www/assets/" ;; esac
+    case "$(basename "$f")" in voice|se|ja) ;; *) ln -s "$f" "$work/stage/assets/www/assets/" ;; esac
 done
+python3 "$here/../tools/app_manifest.py" --bundle "$work/stage/assets/www"
 cp "$work/base.apk" "$work/unsigned.apk"
 (cd "$work" && zip -q -X "unsigned.apk" classes.dex)
 (cd "$work/stage" && zip -q -X -0 -r "../unsigned.apk" assets -x '*.DS_Store' -x '*/.*')

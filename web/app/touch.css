@@ -105,12 +105,18 @@ html.touch .modepanel.hm.on { transform: none; }
 html.touch .hm-scroll { top: 266px; height: 814px; }
 html.touch .hm-bar { position: absolute; inset: 0; pointer-events: none; transform-origin: 0 993px; transform: scaleY(.81); }
 html.touch .hm-bar > .scrollstrip { pointer-events: auto; }
+/* ... with the plates in one row (the apps' four, home.js hm-row1, TOUCH.homeRow): the strip one row high, the column and its scroll bar from there */
+html.touch:not(.upright) .hm-row1 .modepanel.hm { height: 150px; transform: translateY(-158px); }
+html.touch:not(.upright) .hm-row1 .modepanel.hm.on { transform: none; }
+html.touch:not(.upright) .hm-row1 .hm-scroll { top: 150px; height: 930px; }
+html.touch:not(.upright) .hm-row1 .hm-bar { transform: scaleY(.94); }
 html.touch .hm-link { font-size: 44px; line-height: 56px; }
 html.touch .hm-press { width: 708px; height: 132px; }
 /* Export and Import on SAVE DATA (home.js savesBlock): the plates at a finger's size, as the strip's are (1.5), and the line under them larger */
 html.touch .hm-save-row .qbtn { transform: scale(1.5); transform-origin: 50% 0; margin: 0 55px 31px; overflow: visible; }
 html.touch .hm-save-row .qbtn.wide { margin: 0 75px 31px; }   /* (the wider plate: half of what the 1.5 adds, each side) */
 html.touch .wl-text .hm-save-status { font-size: 34px; line-height: 46px; }
+html.touch .wl-text .hm-update-version { font-size: 30px; line-height: 42px; }
 /* held upright (touch.js place: html.upright, the stage 1080 wide and as tall as the window): the title's picture covering it, Config's
    panel down its length 40 from the sides, the panel's strip with its rounded ends kept over the same two rows of plates, the column
    scrolled by the finger, its letters larger */
@@ -135,6 +141,7 @@ html.touch.upright .hm-text .hm-data .wl-facts { grid-template-columns: repeat(2
 html.touch .wl-text .hm-data-file { font-size: 32px; line-height: 44px; }
 html.touch.upright .hm-text .wl-what { font-size: 34px; line-height: 46px; }
 html.touch.upright .wl-text .hm-save-status { font-size: 40px; line-height: 54px; }
+html.touch.upright .wl-text .hm-update-version { font-size: 34px; line-height: 46px; }
 html.touch .wl-text { padding: 30px 110px 150px; font-size: 40px; line-height: 60px; }
 html.touch .wl-text p { margin-bottom: 30px; }
 html.touch .wl-text h2 { font-size: 64px; line-height: 78px; }

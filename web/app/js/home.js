@@ -4,8 +4,11 @@
 // Built as the quick bar is (ui.js buildPanel), from the game's art: the mode panel's strip with five of its plates relettered, the title's picture under the
 // system menu's sky, Config's inner panel, the game's scroll bar and help band, and the title's own prompt.
 // It opens on every visit, for everyone, with no tab chosen and no plate lit: the column holds only the game's logo and a line naming the plates, so
-// a stray tap starts nothing. Not inside the Android or desktop app (web-dev/android, web-dev/desktop), which is the game itself, nor where the address asks for a scene (?script,
-// for tests and the scene links in ABOUT's Extras).
+// a stray tap starts nothing. Not where the address asks for a scene (?script, for tests and the scene links in ABOUT's Extras).
+// The Android and desktop apps (web-dev/android, web-dev/desktop) open on it too, with four tabs (tabsFor): ABOUT, GITHUB, SAVE DATA and PLAY, the
+// site's PLAY ONLINE under the app's name for it. There is no DOWNLOAD there (it is the download) and no language to choose (the apps are built
+// without the Japanese files, lang.js); PLAY's page has the app's updates instead (update.js). What a browser does for the page the app does
+// through apphost.js: Export's file goes where the player chooses, and a link opens in the system's browser.
 import { sprite, quickBarArt, panelBack } from "./ui.js";
 import { TOUCH } from "./touch.js";
 import { ButtonState, pressPulse } from "./uifx.js";
@@ -14,6 +17,8 @@ import { LANG, asset, chooseLang } from "./lang.js";
 import { FILE_NAME, NOTE, dropBase, exportSaves, hasImported, importSaves, keepBase, loadBase, loadedData, readSaves, removeImported } from "./savefile.js";
 import { GAME } from "./gamesave.js";
 import { fullSaveFile } from "./fullsave.js";
+import { APP, HOST, toBase64 } from "./apphost.js";
+import { DOWNLOAD_PAGE, UPDATED, UPDATE_TEXT, checkUpdate, runUpdate } from "./update.js";
 
 export const GITHUB = "https://github.com/waifwu/TsukiREbuild";
 // The downloads: the whole game as an app that needs no connection (web-dev/android, web-dev/desktop), with the size each system shows for its file.
@@ -25,16 +30,15 @@ const FADE = { in: 0.024, out: 0.02, to: 1.2 };                          // Conf
 const PRESS = { w: 472, h: 88 };                                          // the title's prompt (TITLE_PARTS_JA/press_start), at its size
 const ART = ["TITLE_PARTS_JA/title_bg1", "TITLE_PARTS_JA/title_titlelog", "TITLE_PARTS_JA/press_start", "DISP_PARTS_JA/menuBG01_upscale", "DIALOG_PARTS_JA/dialog_BG",
   "CONF_PARTS_JA/config_innerbg", "MODEPNL_PARTS_JA/modepanel_window", "MENU_PARTS_JA/underline"];
-const APP_HOSTS = ["appassets.androidplatform.net", "tsukihime.desktop"];   // the apps' own addresses for the page (web-dev/android, web-dev/desktop)
 
-export function homeDue(query, host = globalThis.location?.hostname || "") {
-  if (query.has("script")) return false;
-  return !APP_HOSTS.includes(host);
+export function homeDue(query) {
+  return !query.has("script");
 }
 
 // The tabs: a plate, and the sections its page shows, each a heading and blocks as welcome.js draws them, plus ["link", text, address, file name if a
-// download], ["data"], what the browser holds now, ["saves"], SAVE DATA's plates, ["lang"], the language's two plates, and ["press"], the prompt that starts the game.
-export const TABS = [
+// download], ["data"], what the browser holds now, ["saves"], SAVE DATA's plates, ["lang"], the language's two plates, ["update"], the app's updates,
+// and ["press"], the prompt that starts the game.
+const SITE_TABS = [
   { plate: "ABOUT", sections: SECTIONS.map(({ head, blocks }) => ({ head, blocks })) },
   { plate: "GITHUB", sections: [{ head: "The source, on GitHub", blocks: [
     "Everything this was made with is in one repository: the engine rewritten in JavaScript and WebGL2, the tools that turned the game's files into what this page plays, the tests, and the notes on how each part was checked against the game itself.",
@@ -53,7 +57,8 @@ export const TABS = [
     { head: "Download the game", blocks: [
       "The whole game as an app that needs no connection: every picture, voice, song and movie is inside it, and nothing is fetched while you play. Windows and Android have a download here; for macOS and Linux the same app is built from the source, below.",
       ["facts", [[DESKTOP.size, "Windows"], [APK.size, "Android"], ["0", "connections needed"]]],
-      "It is this site's game in a window of its own, opening on the game itself. Saves are kept in the app, apart from this site's, and stay when a newer version replaces it. Leaving the app makes the automatic save, so you come back to where you were.",
+      "It is this site's game in a window of its own, in English only, opening on this page's ABOUT, GITHUB, SAVE DATA and PLAY. Saves are kept in the app, apart from this site's, and stay when a newer version replaces it; SAVE DATA moves progress between the app and this site as a file. Leaving the app makes the automatic save, so you come back to where you were.",
+      "The app keeps itself up to date: when it opens with a connection it looks here for a newer version, asks, and downloads only the files that changed, so a fix is not this download again.",
     ] },
     { head: "Windows", blocks: [
       ["rows", [
@@ -66,7 +71,7 @@ export const TABS = [
     ] },
     { head: "Android", blocks: [
       ["rows", [
-        ["Needs", "Android 8 or newer. It asks for no permissions at all, not even the internet."],
+        ["Needs", "Android 8 or newer. Its one permission is the internet, which it uses only to look for and download its updates from this site."],
         ["1. Download", `${APK.file}, below, on the phone itself. It is large, so Wi-Fi is best.`],
         ["2. Open it", "From the browser's downloads. Android asks whether that browser may install apps: allow it."],
         ["3. Install", "As much space again must be free while it installs. Afterwards the download can be deleted."],
@@ -105,6 +110,28 @@ export const TABS = [
     ["press"],
   ] }] },
 ];
+// In the apps: ABOUT without its first notice (which browsers the site works in), GITHUB as it is, SAVE DATA saying where the app keeps things, and
+// PLAY: everything is in the app, so its page has no notice about the browser's graphics setting, no language plates, and under the prompt the
+// app's updates (["update"], update.js).
+const APP_TABS = [
+  { plate: "ABOUT", sections: SITE_TABS[0].sections.map((s, n) => (n ? s : { head: s.head, blocks: s.blocks.filter((b) => b[0] !== "note") })) },
+  SITE_TABS[1],
+  { plate: "SAVE DATA", sections: [{ head: "Your save data", blocks: [
+    "Saves, settings and progress are kept in this app, apart from the website's: removing the app, or clearing its data, removes them, and another device starts with none.",
+    "Export and Import use the Nintendo Switch game's own save format, the file savedata000: the original game reads what Export writes, and a save from the Switch game can be loaded here. The website's SAVE DATA page reads and writes the same file, so progress goes between the two that way.",
+    ...SITE_TABS[3].sections[0].blocks.slice(2),
+  ] }] },
+  { plate: "PLAY", sections: [
+    { head: "Play", blocks: [
+      "Everything the game plays is inside this app: no connection is needed, and nothing is fetched while you play. Saves, settings and progress are kept in the app; SAVE DATA saves them as a file.",
+      ["press"],
+    ] },
+    { head: UPDATE_TEXT.head, blocks: [UPDATE_TEXT.what, ["update"]] },
+  ] },
+];
+// The tabs: the site's five, or the app's four.
+export const tabsFor = (app) => (app ? APP_TABS : SITE_TABS);
+export const TABS = tabsFor(APP);
 // PLAY ONLINE's notice, first on its page: with the browser drawing on the processor instead of the graphics card the game stutters and its frame rate falls.
 // Shown only where hardware acceleration is off or can't be told to be on (glAccel); the line that it is off only where it is. (On a phone or tablet the
 // browser has no such setting, so the touch layer leaves it out.)
@@ -167,10 +194,11 @@ export const SAVE_PLATES = [{ act: "export", plate: "EXPORT SAVES" }, { act: "im
 // The 100% save's plate, next to REMOVE DATA: the same plate made `wider` than the others, for its longer words. Its warning is the question it asks
 // when pressed (SAVE_TEXT.askFull).
 export const FULL_PLATE = { act: "full", plate: "LOAD 100% SAVE", wider: 80 };
+const HERE = APP ? "app" : "browser";   // where the saves are kept, as the page calls it
 export const SAVE_TEXT = {
   keys: "Keys: E exports, I imports.",
-  now: "In this browser now",
-  empty: "No save data in this browser yet.",
+  now: `In this ${HERE} now`,
+  empty: `No save data in this ${HERE} yet.`,
   nothing: "Nothing to remove: no imported file or 100% save is loaded.",
   askRemove: "Remove the loaded save data?\nYour own save data comes back.",
   removed: "Removed. Your own save data is back.",
@@ -178,12 +206,16 @@ export const SAVE_TEXT = {
   full: "The 100% save",
   askFull: "Not recommended.\nOnly do this if you have finished the game.\nLoad the 100% save?",
   fullLoaded: "Loaded the 100% save.",
-  none: "Nothing to export yet: the game has not been played in this browser.",
+  none: `Nothing to export yet: the game has not been played in this ${HERE}.`,
   exported: (name) => `Saved as ${name}.`,
+  unsaved: "The file could not be saved there.",
   loaded: (name) => `Loaded ${name}.`,   // (what it holds is in the list above the plates)
 };
 // The line under the logo before a plate is chosen.
-export const NONE_LINE = "An unofficial fan rebuild of the Tsukihime remake. Choose a page above: ABOUT, GITHUB, DOWNLOAD, SAVE DATA, or PLAY ONLINE to start the game.";
+export const noneLine = (tabs) => `An unofficial fan rebuild of the Tsukihime remake. Choose a page above: ${tabs.slice(0, -1).map((t) => t.plate).join(", ")}, or ${tabs.at(-1).plate} to start the game.`;
+export const NONE_LINE = noneLine(TABS);
+// The app's updates, on PLAY's page (update.js): one of the panel's plates, wider for its words as the 100% save's is, that looks for an update now.
+export const UPDATE_PLATE = { act: "update", plate: "CHECK FOR UPDATES", wider: 80 };
 
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
 
@@ -195,16 +227,18 @@ export async function openHome(ui, { started = null } = {}) {
   const T = ui.touch ? TOUCH : null, P = T ? { w: T.bar.w, h: T.bar.h } : PLATE;
   const shown = T ? P.w * T.bar.scale : P.w;
   // by touch (TOUCH.home; held upright TOUCH.homeUpright, touch.js place sets html.upright): rows of L.cols plates, each row centred, so three
-  // plates over two. With a mouse: the five in one row.
+  // plates over two; the apps' four are few enough for one row (TOUCH.homeRow). With a mouse: all in one row.
   const upright = () => document.documentElement.classList.contains("upright");
+  const LAND = TABS.length <= TOUCH.homeRow.cols ? TOUCH.homeRow : TOUCH.home;   // (on the game's stage: one row where they fit it)
   const rowOf = (L, i) => { const row = Math.floor(i / L.cols), count = Math.min(L.cols, TABS.length - row * L.cols); return [row, count]; };
   const spot = (i) => {
     if (!T) return [Math.round((1920 - (PLATE.pitch * (TABS.length - 1) + shown)) / 2) + i * PLATE.pitch, PLATE.y];
-    const L = upright() ? TOUCH.homeUpright : TOUCH.home, [row, count] = rowOf(L, i);
+    const L = upright() ? TOUCH.homeUpright : LAND, [row, count] = rowOf(L, i);
     return [Math.round((L.w - (L.pitch * (count - 1) + shown)) / 2) + (i % L.cols) * L.pitch, L.y + row * L.rowPitch];
   };
-  const [sheet, saveSheet, fullSheet, langSheet] = await Promise.all([quickBarArt(TABS.map((t) => ({ label: t.plate })), P), quickBarArt(SAVE_PLATES.map((t) => ({ label: t.plate })), P),
+  const [sheet, saveSheet, fullSheet, langSheet, updateSheet] = await Promise.all([quickBarArt(TABS.map((t) => ({ label: t.plate })), P), quickBarArt(SAVE_PLATES.map((t) => ({ label: t.plate })), P),
     quickBarArt([{ label: FULL_PLATE.plate }], { w: P.w + FULL_PLATE.wider, h: P.h }), quickBarArt(LANG_PLATES.map((l) => ({ label: l.plate })), P),
+    quickBarArt([{ label: UPDATE_PLATE.plate }], { w: P.w + UPDATE_PLATE.wider, h: P.h }),
     ...ART.map((a) => { const i = new Image(); i.src = asset(`/assets/ui/${a}.webp`); return i.decode().catch(() => {}); })]);
   return new Promise((done) => {
     black.remove();
@@ -225,7 +259,8 @@ export async function openHome(ui, { started = null } = {}) {
     ui.helpBar(page, ["Choose", "Change page", "Scroll"]);
 
     const bar = el("div", T ? "modepanel hm" : "modepanel");
-    if (T) bar.append(...panelBack(TOUCH.home.height), el("div", "hm-tall hm-tall-strip")); else bar.append(sprite("MODEPNL_PARTS_JA", "modepanel_window", 0, 0, 1920, 96));
+    if (T) bar.append(...panelBack(LAND.height), el("div", "hm-tall hm-tall-strip")); else bar.append(sprite("MODEPNL_PARTS_JA", "modepanel_window", 0, 0, 1920, 96));
+    if (T && LAND === TOUCH.homeRow) page.classList.add("hm-row1");   // (touch.css: the lower strip, the longer column)
     page.append(bar);
     page.append(black);   // over all but the bar, which has a level of its own and slides
 
@@ -241,6 +276,14 @@ export async function openHome(ui, { started = null } = {}) {
       let file = null;
       try { file = exportSaves(localStorage, hasImported() ? await loadBase() : null, (ui.vm || globalThis.vm)?.gallery?.seen || null); } catch { /* storage refused: nothing to export */ }
       if (!file) { say(SAVE_TEXT.none, true); return; }
+      if (HOST) {
+        // in the app there is no browser to take a download: the app asks where the file is to go and writes it there (apphost.js saveFile)
+        try {
+          const kept = await HOST.call("saveFile", { name: FILE_NAME, data: toBase64(file) });
+          if (kept.saved) say(SAVE_TEXT.exported(kept.name || FILE_NAME));
+        } catch { say(SAVE_TEXT.unsaved, true); }
+        return;
+      }
       const a = el("a"), href = URL.createObjectURL(new Blob([file], { type: "application/octet-stream" }));
       a.href = href; a.download = FILE_NAME;
       document.body.append(a);
@@ -307,7 +350,75 @@ export async function openHome(ui, { started = null } = {}) {
         load(sys, bytes, { label: SAVE_TEXT.full, keepSettings: true, note: SAVE_TEXT.fullLoaded });
       }, (back) => { back(); ui.sel = NONE; }, { startNo: true, three: true });
     };
-    const saveActs = { export: exportNow, import: importPick, remove: removeNow, full: fullNow };
+    // ---- the app's updates (update.js) ----
+    // Looked for once the page is up, where there is a connection. One found is asked about in the game's Yes / No window, with its size; Yes
+    // downloads it under the game's notice window, which counts the download and stops it when pressed, and then the page loads again in the new
+    // version, back on PLAY. PLAY's page says where things stand, and its plate looks again. Nothing is asked once the game has been started.
+    const U = UPDATE_TEXT;
+    let upd = { state: HOST ? "checking" : "none" }, updBusy = false, updLine = null, updVersion = null;
+    const updSay = () => {
+      if (updVersion) updVersion.textContent = upd.version ? U.version(upd) : "";
+      if (!updLine) return;
+      updLine.textContent = upd.state === "update" ? U.found(upd.bytes) : U[upd.state] || "";
+      updLine.classList.toggle("bad", ["offline", "shell", "rejected", "failed", "stopped"].includes(upd.state));
+    };
+    const updLook = async (force = false) => {
+      if (!HOST || updBusy) return;
+      updBusy = true;
+      upd = { ...upd, state: "checking" };
+      updSay();
+      try { upd = await checkUpdate(HOST, { force }); } catch { upd = { ...upd, state: "offline" }; }
+      updBusy = false;
+      updSay();
+    };
+    const updGet = async () => {
+      if (leaving || updBusy || upd.state !== "update") return;
+      updBusy = true;
+      let got = { done: 0, total: upd.bytes }, stopped = false;
+      const note = ui.notify(U.loading(0, upd.bytes), { held: true, live: () => U.loading(got.done, got.total),
+        pressed: () => { if (!stopped) { stopped = true; HOST.call("cancel").catch(() => {}); } } });
+      try {
+        await runUpdate(HOST, upd, (p) => { got = p; });
+      } catch {
+        note.close();
+        updBusy = false;
+        upd = { ...upd, state: stopped ? "stopped" : "failed" };
+        updSay();
+        ui.notify(stopped ? U.stopped : U.failed);
+        return;
+      }
+      // it is in: the page again, in the new version
+      leaving = true;
+      note.close();
+      ui.sound(6);
+      try { sessionStorage.setItem(UPDATED, "1"); } catch { /* it opens on its first page */ }
+      ui.fadeBlack(black, 1, FADE.out * 2, () => location.reload());
+    };
+    // The question, where there is something to ask and nothing else is being asked.
+    const updAsk = () => {
+      if (leaving || updBusy || ui.items !== own) return;
+      const no = (back) => { back(); ui.sel = NONE; };
+      if (upd.state === "update") ui.dialog(U.ask(upd.bytes), (back) => { back(); updGet(); }, no);
+      else if (upd.state === "shell") ui.dialog(U.askShell, (back) => { back(); HOST.call("open", { url: DOWNLOAD_PAGE }).catch(() => {}); }, no);
+    };
+    const updateNow = async () => {
+      if (leaving || updBusy) return;
+      ui.audio.start();
+      ui.sound(1);
+      if (upd.state !== "update") await updLook(true);
+      updAsk();
+    };
+    const updateBlock = () => {
+      const box = el("div", "hm-update"), row = el("div", "hm-save-row");
+      row.append(savePlate(UPDATE_PLATE, 0, updateSheet, P.w + UPDATE_PLATE.wider));
+      updVersion = el("p", "hm-update-version");
+      updLine = el("p", "hm-save-status");
+      updLine.setAttribute("role", "status");
+      box.append(row, updLine, updVersion);
+      updSay();
+      return box;
+    };
+    const saveActs = { export: exportNow, import: importPick, remove: removeNow, full: fullNow, update: updateNow };
     // What the browser holds now (savefile.js loadedData): four figures side by side across the page, as the page's other figures are (welcome.js
     // "facts"), counted as the game's own screens count them, and under them whether an imported file is loaded.
     const dataBlock = () => {
@@ -391,6 +502,7 @@ export async function openHome(ui, { started = null } = {}) {
     };
     const block = (b) => {
       if (b[0] === "lang") return langBlock();
+      if (b[0] === "update") return updateBlock();
       if (b[0] === "saves") return savesBlock();
       if (b[0] === "data") return dataBlock();
       if (b[0] === "press") {
@@ -412,7 +524,11 @@ export async function openHome(ui, { started = null } = {}) {
         a.href = b[2];
         a.rel = "noopener";
         if (b[3]) a.download = b[3]; else a.target = "_blank";
-        a.addEventListener("click", (e) => { e.stopPropagation(); ui.audio.start(); ui.sound(1); });
+        a.addEventListener("click", (e) => {
+          e.stopPropagation(); ui.audio.start(); ui.sound(1);
+          // (in the app a web page opens in the system's browser, not in the game's window)
+          if (HOST && /^https:\/\//.test(a.href)) { e.preventDefault(); HOST.call("open", { url: a.href }).catch(() => {}); }
+        });
         return a;
       }
       const e = blockEl(b);
@@ -425,6 +541,7 @@ export async function openHome(ui, { started = null } = {}) {
       tab = k;
       prompt = null;
       status = null;
+      updLine = updVersion = null;
       pulse = { alpha: 0, up: true };
       if (k === NONE) {
         inner.replaceChildren(el("div", "wl-logo hm-logo"), el("p", "wl-note hm-lead", NONE_LINE));
@@ -438,7 +555,7 @@ export async function openHome(ui, { started = null } = {}) {
         // (on a touch device the PLAY ONLINE page also says, under its prompt, how the game is played by touch: there are no hints to find by resting a
         // pointer)
         const kept = s.blocks.filter((b) => b[0] !== "gpu" || accel !== "on");
-        const blocks = T && k === PLAY ? [...kept, ...TOUCH_INTRO] : kept;
+        const blocks = T && k === PLAY && n === 0 ? [...kept, ...TOUCH_INTRO] : kept;
         part.append(el("h2", "", s.head), ...blocks.map(block));
         return part;
       }));
@@ -464,7 +581,7 @@ export async function openHome(ui, { started = null } = {}) {
       ui.after(10, leave);
     }
     // On PLAY ONLINE a click anywhere on its page is the button too; a drag that scrolls it is not a click.
-    list.addEventListener("click", (e) => { if (tab === PLAY && !e.target.closest("a, .hm-lang")) start(); });
+    list.addEventListener("click", (e) => { if (tab === PLAY && !e.target.closest("a, .hm-lang, .hm-update")) start(); });
     const plates = TABS.map((t, i) => {
       const b = el("button", "qbtn r1", t.plate);   // the word, where the art cannot be made
       b.style.cssText = `left:${spot(i)[0]}px;top:${spot(i)[1]}px;width:${P.w}px;height:${P.h}px;`;
@@ -500,6 +617,21 @@ export async function openHome(ui, { started = null } = {}) {
     } catch { /* its first page */ }
     // (after a change of language the page comes back where it was, on PLAY ONLINE)
     try { if (sessionStorage.getItem(REOPEN)) { sessionStorage.removeItem(REOPEN); show(PLAY); ui.select(PLAY); } } catch { /* its first page */ }
+    // (an address ending in #download opens on DOWNLOAD: where an app that needs a newer download sends its player, update.js DOWNLOAD_PAGE)
+    const downloads = TABS.findIndex((t) => t.plate === "DOWNLOAD");
+    if (downloads >= 0 && globalThis.location?.hash === "#download") { show(downloads); ui.select(downloads); }
+    // In the app: the page is up, so the version it runs is kept (an update that never got this far is taken out again by the app); after an
+    // update it comes back on PLAY, saying so; and the site is asked whether there is a newer one.
+    if (HOST) {
+      HOST.call("confirm").catch(() => {});
+      let updated = false;
+      try { updated = !!sessionStorage.getItem(UPDATED); sessionStorage.removeItem(UPDATED); } catch { /* its first page */ }
+      if (updated) { show(PLAY); ui.select(PLAY); }
+      updLook().then(() => {
+        if (updated && upd.state === "current") { upd = { ...upd, state: "done" }; updSay(); }
+        else if (!updated) updAsk();
+      });
+    }
 
     ui.keyFn = (e) => {
       const k = e.key;
@@ -515,7 +647,7 @@ export async function openHome(ui, { started = null } = {}) {
       }
       else if ((k === "e" || k === "E") && tab === SAVE && !e.ctrlKey && !e.metaKey && !e.altKey) { if (!e.repeat) exportNow(); }
       else if ((k === "i" || k === "I") && tab === SAVE && !e.ctrlKey && !e.metaKey && !e.altKey) { if (!e.repeat) importPick(); }
-      else if ((k === "l" || k === "L") && tab === PLAY && !e.ctrlKey && !e.metaKey && !e.altKey) { if (!e.repeat) setLang(LANG_PLATES[(LANG_PLATES.findIndex((l) => l.lang === LANG) + 1) % LANG_PLATES.length].lang); }
+      else if ((k === "l" || k === "L") && tab === PLAY && !APP && !e.ctrlKey && !e.metaKey && !e.altKey) { if (!e.repeat) setLang(LANG_PLATES[(LANG_PLATES.findIndex((l) => l.lang === LANG) + 1) % LANG_PLATES.length].lang); }
       else if (k === "ArrowUp") list.scrollTop -= 120;
       else if (k === "ArrowDown") list.scrollTop += 120;
       else if (k === "PageUp") list.scrollTop -= 760;

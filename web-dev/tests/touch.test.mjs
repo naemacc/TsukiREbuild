@@ -794,7 +794,7 @@ test("the opening page on a touch device: its five plates three over two in the 
   const h = source("js/home.js"), B = TOUCH.bar, H = TOUCH.home;
   assert.equal(TABS.length, 5);
   assert.equal(H.cols, 3, "three plates over two");
-  assert.match(h, /const blocks = T && k === PLAY \? \[\.\.\.kept, \.\.\.TOUCH_INTRO\] : kept;/);
+  assert.match(h, /const blocks = T && k === PLAY && n === 0 \? \[\.\.\.kept, \.\.\.TOUCH_INTRO\] : kept;/);
   assert.match(h, /const accel = T \? "on" : glAccel\(\);/, "no hardware acceleration notice by touch");
   assert.deepEqual(TABS[PLAY].sections.at(-1).blocks.at(-1), ["press"], "the prompt before the notes");
   assert.equal(TOUCH_INTRO[0][0], "h");

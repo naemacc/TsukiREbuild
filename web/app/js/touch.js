@@ -53,6 +53,9 @@ export const TOUCH = {
   // (SAVE DATA, PLAY ONLINE; the user, 2026-11-12), `pitch` apart, rows `rowPitch` apart, each row centred on the stage `w` wide. The reading
   // column starts under the strip, `height` high.
   home: { w: 1920, cols: 3, pitch: 465, y: 28, rowPitch: 116, height: 266 },
+  // ... and where there are few enough for one row, the Android and desktop apps' four (home.js tabsFor; the user, 2026-11-13: "put all 4 tabs
+  // at the top in a row theres space there"): one row of them, in a strip that much lower, and the reading column longer.
+  homeRow: { w: 1920, cols: 4, pitch: 465, y: 28, rowPitch: 116, height: 150 },
   // ... and held upright (the stage `w` wide and as tall as the window, touch.place): the same two rows, closer together, in a strip
   // `height` high; the reading column `inset` from the sides.
   homeUpright: { w: 1080, cols: 3, pitch: 340, y: 28, rowPitch: 116, height: 262, inset: 40 },

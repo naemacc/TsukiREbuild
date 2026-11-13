@@ -1,7 +1,7 @@
 {
   "name": "tsukihime",
   "productName": "Tsukihime",
-  "version": "2026.11.11",
+  "version": "2026.11.13",
   "description": "An unofficial fan rebuild of the Tsukihime remake, as a desktop app",
   "homepage": "https://arcueid.date",
   "author": "TsukiREbuild",
@@ -20,10 +20,11 @@
     "productName": "Tsukihime",
     "artifactName": "Tsukihime-${os}-${arch}.${ext}",
     "directories": { "output": "out", "buildResources": "build" },
-    "files": ["main.js", "package.json"],
+    "files": ["main.js", "preload.js", "updater.js", "package.json"],
     "extraResources": [
       { "from": "../../web/app", "to": "www", "filter": ["**/*", "!**/.*"] },
-      { "from": "../../web/assets", "to": "www/assets", "filter": ["**/*", "!voice/**", "!se/**", "!**/.*"] }
+      { "from": "../../web/assets", "to": "www/assets", "filter": ["**/*", "!voice/**", "!se/**", "!ja/**", "!**/.*"] },
+      { "from": "out/bundle", "to": "www" }
     ],
     "electronLanguages": ["en-US", "en"],
     "publish": null,
@@ -32,6 +33,7 @@
       "icon": "build/icon-mac.png",
       "category": "public.app-category.games",
       "identity": "-",
+      "sign": "build/sign-mac.js",
       "hardenedRuntime": false,
       "gatekeeperAssess": false
     },
