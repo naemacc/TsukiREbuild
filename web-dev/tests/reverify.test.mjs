@@ -2547,7 +2547,7 @@ test("Item 11 (0x62a40): STCP's depth waits for the next commit on a picture alr
   vm.op_STCP("3", "0");
   assert.equal(l.z, 30);                                   // still drawn: 0x3bba0 sorts the record's table, which only a commit writes (0x32450)
   assert.equal(l.zNext, 0);
-  assert.ok(drawn({ ...l, ready: {} }, { alpha: 1 }));
+  assert.ok(drawn({ ...l, ready: { tex: {} } }, { alpha: 1 }));
   assert.equal(vm.snapshot().layers.find((d) => d.id === 3).z, 0);   // a save holds the state
   // STCH from the number as a source copies the state's depth, as SCH2 keeps it
   vm.op_SCH2("5", "img0001", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "3");
@@ -2588,7 +2588,7 @@ test("Item 11 (0xa0a90, 0x3bba0, 0x391a0): no mipmaps on pictures, the speed lin
   const src = readFileSync(new URL("../../web/app/js/renderer.js", import.meta.url), "utf8");
   const css = readFileSync(new URL("../../web/app/style.css", import.meta.url), "utf8");
   // a picture drawn smaller than stored is sampled bilinearly from the full picture (a native frame of IMG2472 at a quarter size)
-  const load = src.slice(src.indexOf("  load(name) {"), src.indexOf("  evict(keep) {"));
+  const load = src.slice(src.indexOf("  load(name) {"), src.indexOf("  evict(all = false) {"));   // (the texture itself is made in upload, between the two)
   assert.match(load, /TEXTURE_MIN_FILTER, gl\.LINEAR\)/);
   assert.doesNotMatch(load, /generateMipmap|LINEAR_MIPMAP/);
   // the split, then the lines (the window's task draws them: priority 80 against the split's 60)

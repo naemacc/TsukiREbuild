@@ -7,6 +7,7 @@ import { place, clipGeometry, panelRuns, groupModes, plainGroups, groupCoverage,
 import { grainSample, linesSample, splitSample } from "./screenfx.js";
 import { asset } from "./lang.js";
 const F = 1.5;
+const MIN_TEXTURES = 192 * 1024 * 1024;   // the least the picture textures are cut back to when the GPU runs out of room (upload)
 // STBR's number -> the shader that draws the layer, as positions in the engine's shader table (0x264668). The draw
 // (0x89ad0) looks the number up in 0x34dd70 (the identity for 0-39) and maps it with 0xa2790 to a shader; shaders of
 // type 7 (0xa27c0) composite the layer over a copy of the screen. 0 draws normally; 2 and 3 are fixed-function draws.
@@ -62,7 +63,7 @@ export function maskOwner(l, byId) {
 }
 
 export function drawn(l, at) {
-  return l.z >= 1 && !!l.ready && !!at && at.alpha > 0.001;
+  return l.z >= 1 && !!l.ready?.tex && !!at && at.alpha > 0.001;
 }
 
 // STZ4's eighth argument: the layer's matrix (column-major, unit square to screen pixels) stretched by [kx, ky] along
@@ -630,6 +631,12 @@ export class Renderer {
     this.backTex = this.target(1920, 1080);
     this.tex = new Map();     // name -> {tex, w, h, used, promise}
     this.bytes = 0;
+    this.files = new Map();   // name -> { read, done }: the pictures' files kept as they came (file)
+    // What the GPU takes: the longest side of a texture, and how much of them is kept (evict). The machines with the 4096 limit and those that
+    // say they have little memory are the ones with little room for textures, which upload lowers again when the GPU has none left.
+    this.maxSide = gl.getParameter(gl.MAX_TEXTURE_SIZE) || 4096;
+    const memory = globalThis.navigator?.deviceMemory || 8;
+    this.limit = (this.maxSide <= 4096 || memory <= 2 ? 400 : memory <= 4 ? 700 : 1400) * 1024 * 1024;
     this.blurCache = new Map();
     this.fade = null;
     this.shake = null;
@@ -652,6 +659,28 @@ export class Renderer {
     this.gl.deleteFramebuffer(t.fbo);
   }
 
+  // A picture's file as it came. The ones a scene's start has read (preload.js scene: `keep`) stay until keepFiles lets them go, so that the
+  // story does not ask for them again as it comes to them; a file that is not there fails with `missing` set, any other failure may be tried again.
+  file(key, keep = false) {
+    const hit = this.files.get(key);
+    if (hit) return hit.read;
+    const entry = { done: false };
+    entry.read = (async () => {
+      const res = await fetch(asset(`/assets/img/${encodeURIComponent(key)}.avif`));
+      if (!res.ok) throw Object.assign(new Error(`no image ${key}`), { missing: true });
+      const blob = await res.blob();
+      entry.done = true;
+      return blob;
+    })();
+    if (keep) {
+      this.files.set(key, entry);
+      entry.read.catch(() => { if (this.files.get(key) === entry) this.files.delete(key); });
+    }
+    return entry.read;
+  }
+  hasFile(key) { return !!this.files.get(key)?.done; }
+  keepFiles(keys) { for (const k of [...this.files.keys()]) if (!keys.has(k)) this.files.delete(k); }
+
   // A picture of the game, as a texture. Resolves when it can be drawn.
   load(name) {
     const key = name.toUpperCase();
@@ -662,45 +691,85 @@ export class Renderer {
     }
     const e = { used: performance.now(), tex: null, w: 0, h: 0 };
     e.promise = (async () => {
-      const res = await fetch(asset(`/assets/img/${encodeURIComponent(key)}.avif`));
-      if (!res.ok) throw new Error(`no image ${key}`);
-      const bmp = await createImageBitmap(await res.blob(), { premultiplyAlpha: "premultiply", colorSpaceConversion: "none" });
-      const gl = this.gl;
-      e.tex = gl.createTexture();
-      gl.bindTexture(gl.TEXTURE_2D, e.tex);
-      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, bmp);
-      // The game's pictures have no mipmaps: a picture drawn smaller than it is stored is sampled bilinearly from the full
-      // picture, so it stays crisp (IMG2472 at a quarter of its size on a native frame: the same gradient energy as this,
-      // where mipmaps gave 60% of it).
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      await this.upload(e, await this.file(key), key);
       const info = this.images ? this.images[key] : null;
-      e.w = bmp.width;
-      e.h = bmp.height;
-      e.nw = info ? info[0] : bmp.width;
-      e.nh = info ? info[1] : bmp.height;
-      bmp.close();
+      e.nw = info ? info[0] : e.w;
+      e.nh = info ? info[1] : e.h;
       this.bytes += e.w * e.h * 4;
       this.evict();
       return e;
     })();
-    e.promise.catch(() => this.tex.delete(key));
+    e.promise.catch(() => { if (this.tex.get(key) === e) this.tex.delete(key); });
     this.tex.set(key, e);
     return e.promise;
   }
 
-  evict(keep) {
-    const limit = 1400 * 1024 * 1024;
-    if (this.bytes < limit) return;
+  // The picture's pixels into a texture of its own (e.tex, e.w, e.h). A GPU takes no texture larger than its own limit on a side: 4096 on older
+  // phones, tablets and laptops, where the standing sprites are stored 4100 to 4500 tall and the widest pictures 7467 across. It may also have no
+  // room left for one more. Either way the texture stays empty, and an empty texture draws as a black box where the picture should be. So a
+  // picture over the limit is made smaller first (it is drawn at its own size whatever its texture's: nw, nh), and an upload the GPU turns down is
+  // made again with every picture not on screen let go, then at half the size. One that still fails is no picture at all, which is not drawn.
+  async upload(e, blob, key) {
+    const gl = this.gl, opts = { premultiplyAlpha: "premultiply", colorSpaceConversion: "none" };
+    const most = this.maxSide;
+    let bmp = await createImageBitmap(blob, opts);
+    const fw = bmp.width, fh = bmp.height;
+    let by = Math.max(1, fw / most, fh / most);
+    for (let tries = 0; ; tries++) {
+      const w = Math.max(1, Math.floor(fw / by)), h = Math.max(1, Math.floor(fh / by));
+      if (bmp.width !== w || bmp.height !== h) {
+        bmp.close();
+        bmp = await createImageBitmap(blob, { ...opts, resizeWidth: w, resizeHeight: h, resizeQuality: "high" });
+      }
+      let failed = gl.isContextLost() || bmp.width > most || bmp.height > most;
+      let tex = null;
+      if (!failed) {
+        while (gl.getError() !== gl.NO_ERROR) { /* what went wrong before this is not this picture's */ }
+        tex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, bmp);
+        failed = gl.getError() !== gl.NO_ERROR;
+      }
+      if (!failed) {
+        // The game's pictures have no mipmaps: a picture drawn smaller than it is stored is sampled bilinearly from the full
+        // picture, so it stays crisp (IMG2472 at a quarter of its size on a native frame: the same gradient energy as this,
+        // where mipmaps gave 60% of it).
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        e.tex = tex;
+        e.w = bmp.width;
+        e.h = bmp.height;
+        bmp.close();
+        return;
+      }
+      if (tex) gl.deleteTexture(tex);
+      if (tries >= 3 || gl.isContextLost()) { bmp.close(); throw new Error(`no room for image ${key}`); }
+      // no room: the pictures kept from now on are fewer, those not on screen go, and after one more try at this size it is halved
+      this.limit = Math.max(MIN_TEXTURES, Math.min(this.limit, this.bytes) * 0.75);
+      this.evict(true);
+      if (tries) by *= 2;
+    }
+  }
+
+  // The pictures used longest ago go when there are more than the GPU is given (`limit`; all of them with `all`), but none that a layer
+  // holds: on screen, staged for the next commit, or left behind by one (vm.js inUse), nor the rule picture a transition is going through.
+  evict(all = false) {
+    const limit = this.limit;
+    if (!all && this.bytes < limit) return;
     const live = new Set();
-    for (const l of this.liveLayers || []) if (l.image) live.add(l.image.toUpperCase());
-    const all = [...this.tex.entries()].filter(([k, v]) => v.tex && !live.has(k)).sort((a, b) => a[1].used - b[1].used);
-    for (const [k, v] of all) {
-      if (this.bytes < limit * 0.8) break;
+    for (const l of this.inUse?.() || this.liveLayers || []) {
+      if (l.image) live.add(l.image.toUpperCase());
+      if (l.rule?.name) live.add(l.rule.name);
+    }
+    if (this.ruleSlot) live.add(this.ruleSlot);
+    const old = [...this.tex.entries()].filter(([k, v]) => v.tex && !live.has(k)).sort((a, b) => a[1].used - b[1].used);
+    for (const [k, v] of old) {
+      if (!all && this.bytes < limit * 0.8) break;
       this.gl.deleteTexture(v.tex);
+      v.tex = null;   // (a layer still holding it draws nothing, where a deleted texture would draw as whatever was bound last)
       this.bytes -= v.w * v.h * 4;
       this.tex.delete(k);
     }
@@ -855,7 +924,7 @@ export class Renderer {
       const owner = l.link >= 0 && l.link !== l.id ? byId.get(l.link) : null;
       return !!(owner && owner.clip && owner.clip[2] && owner.clip[3] && !owner.image);
     };
-    const order = sorted.filter((l) => l.z >= 1 && l.ready && !groupLost(l));
+    const order = sorted.filter((l) => l.z >= 1 && l.ready?.tex && !groupLost(l));
     const runs = panelRuns(order, byId);
     const modes = groupModes(order, byId);
     const tangled = !plainGroups(order, byId, modes, runs);

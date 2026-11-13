@@ -364,6 +364,21 @@ vm.useFrameTime();         // and the story's clocks with them, a whole frame at
 // What is read before it is asked for (preload.js): the start-up list from the first page on, and what the script is coming to.
 const preload = new Preloader({ vm, gfx, audio });
 vm.ahead = (script, pc) => preload.ahead(script, pc);
+// A scene's pictures are all read before it starts (vm.js sceneReady, preload.js scene). While the story stands still for that, or for any
+// picture, longer than a moment, the game's own "Loading" window says so, with how far along a scene is. It takes no keys: nothing is asked.
+vm.scene = (script, pc) => preload.scene(script, pc);
+const HOLD_NOTE = 400;   // ms a wait may last unannounced: what the machine has already takes less
+let holdTimer = null, holdNote = null;
+vm.onHold = (on) => {
+  clearTimeout(holdTimer);
+  holdTimer = null;
+  if (!on) { holdNote?.close(); holdNote = null; return; }
+  holdTimer = setTimeout(() => {
+    const word = vm.system?.messages?.["184"] || "Loading";
+    const text = () => { const p = preload.sceneProgress(); return p === null ? word : `${word}  ${Math.floor(p * 100)}%`; };
+    holdNote = ui.notify(text(), { held: true, passive: true, live: text });
+  }, HOLD_NOTE);
+};
 
 // XSTP .. XRSM: no skipping, auto mode, menus or rewinding, and the screen kept awake (native 0x40b70 calls
 // nn::oe::SetUserInactivityDetectionTimeExtended(true)). 0x40b70 keeps the skip toggle and auto (0xae0660 / 0xae0650)

@@ -1561,11 +1561,12 @@ export class UI {
   // the callers (0x50fc0 cases 7-9 and 0x13) go on while it fades out.
   // live: a function giving the text afresh each frame (the loading screen's count, main.js).
   // pressed: called for a press that does not close it (a held notice: the opening page's update stops its download so, home.js)
-  notify(text, { hold = NOTICE.hold, held = false, live = null, pressed = null } = {}) {
+  // passive: the port's own "Loading" over a story waiting for its pictures (main.js). It takes no keys or clicks and leaves any other
+  // notice alone, since it can come at any moment, over any screen.
+  notify(text, { hold = NOTICE.hold, held = false, live = null, pressed = null, passive = false } = {}) {
     const fx = new NoticeFx(hold, held);
     // A notice still up goes as this one comes (0x4abe0: the other slot's state is set to 3, the lock cleared)
-    this.noticeFx?.close();
-    this.noticeFx = fx;
+    if (!passive) { this.noticeFx?.close(); this.noticeFx = fx; }
     const done = new Promise((res) => {
       const box = document.createElement("div");
       box.className = "dialog notice";
@@ -1582,8 +1583,11 @@ export class UI {
         if (e.key === "Enter" || e.key === " " || e.key === "Escape" || e.key === "Backspace") { if (!fx.press() && !e.repeat) pressed?.(); }
         return true;
       };
-      this.keyFn = keys;
-      box.addEventListener("click", (e) => { e.stopPropagation(); if (!fx.press()) pressed?.(); });
+      if (passive) box.style.pointerEvents = "none";
+      else {
+        this.keyFn = keys;
+        box.addEventListener("click", (e) => { e.stopPropagation(); if (!fx.press()) pressed?.(); });
+      }
       let released = false;
       const release = () => {
         if (released) return;

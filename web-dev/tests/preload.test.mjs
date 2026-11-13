@@ -277,3 +277,205 @@ test("the first launch reads its own title and cautions; a later boot, or one wi
   assert.ok(!full.asked.includes(`snd /assets/bgm/${tables.bgm[1]}.ogg`), "not the earlier stages' music 2");
   for (const p of ART.firstTitle) assert.ok(!full.asked.includes(`art /assets/ui/${p}.webp`), p);
 });
+
+// ---- a scene's pictures, read before it starts (preload.js scene, vm.js sceneReady) and the textures they become (renderer.js upload) ----
+// A renderer's picture files as preload.js uses them: `fail` says how a name's reads go (a list, one entry a read: "drop" for a connection that fails,
+// "gone" for a file that is not there, anything else comes), `open` holds the reads still under way when `slow` is set.
+function fileWorld({ fail = {}, slow = false } = {}) {
+  const asked = [], open = [], files = new Map();
+  const gfx = { images, tex: new Map(), files,
+    file(key, keep) {
+      const hit = files.get(key);
+      if (hit) return hit.read;
+      asked.push(key);
+      const how = (fail[key] || []).shift(), entry = { done: false };
+      entry.read = new Promise((res, rej) => {
+        const end = () => { if (how === "drop") rej(new TypeError("failed to fetch")); else if (how === "gone") rej(Object.assign(new Error("no image"), { missing: true })); else { entry.done = true; res({}); } };
+        if (slow) open.push(end); else end();
+      });
+      if (keep) { files.set(key, entry); entry.read.catch(() => { if (files.get(key) === entry) files.delete(key); }); }
+      return entry.read;
+    },
+    hasFile: (key) => !!files.get(key)?.done,
+    keepFiles(keys) { for (const k of [...files.keys()]) if (!keys.has(k)) files.delete(k); } };
+  const scripts = new Map();
+  const vm = { index, movies: tables.movies, system, getScript(i) { if (!scripts.has(i)) scripts.set(i, Promise.resolve(json(`scripts/${i}.json`))); return scripts.get(i); } };
+  const pre = new Preloader({ vm, gfx, audio: { table: tables, buffers: new Map(), muted: true }, page: null, Picture: null });
+  pre.wait = () => Promise.resolve();   // (no real seconds between two tries)
+  return { asked, open, files, gfx, vm, pre };
+}
+const turn = () => new Promise((r) => setTimeout(r, 0));
+
+test("a scene's pictures: every picture and rule the script names from a command on, branches and all, and only those the game has", () => {
+  const { pre } = fileWorld();
+  const s = json("scripts/6.json");   // 01_00_ARC01_1_2: the train, Ciel's standing sprite at command 71
+  const all = pre.scenePictures(s, 0);
+  assert.ok(all.has("SIE_A_00_00_N00") && all.has("IMG0773"));
+  for (const k of all) assert.ok(images[k], k);
+  const named = new Set(s.ops.filter((o) => (o[0] === "STCH" || o[0] === "SCH2") && o[2] && images[o[2].toUpperCase()]).map((o) => o[2].toUpperCase()));
+  for (const k of named) assert.ok(all.has(k), k);
+  // from a later command: only what is still to come
+  const last = s.ops.findLastIndex((o) => o[0] === "STCH" && o[2]), tail = pre.scenePictures(s, last);
+  assert.ok(tail.size >= 1 && tail.size < all.size);
+  assert.equal(pre.scenePictures(s, s.ops.length).size, 0);
+  // a transition through a rule picture and a wipe; a name with no picture is none
+  const made = pre.scenePictures({ ops: [["FADS", "2", "500", "7"], ["FADS", "0", "500", "9"], ["STTR", "3", "12"], ["STCH", "1", "no_such_picture"], ["SPFC", "0", "img0773"]] });
+  assert.deepEqual([...made].sort(), ["IMG0773", "RULE_07", "RULE_12"]);
+});
+
+test("a scene does not start until its pictures are in: scene() gives a wait while any is missing, and nothing to wait for once they are kept", async () => {
+  const { pre, open, asked, gfx } = fileWorld({ slow: true });
+  const s = json("scripts/6.json"), names = pre.scenePictures(s, 0);
+  let done = false;
+  const wait = pre.scene(s, 0);
+  assert.ok(wait && typeof wait.then === "function");
+  wait.then(() => { done = true; });
+  await turn();
+  assert.equal(asked.length, 8, "eight files at a time");
+  assert.equal(pre.sceneProgress(), 0);
+  for (let k = 0; k < 4; k++) open.shift()();
+  await turn();
+  assert.equal(pre.sceneProgress(), 4 / names.size);
+  assert.equal(done, false);
+  while (!done) { while (open.length) open.shift()(); await turn(); }
+  assert.equal(pre.sceneProgress(), null, "no scene is being waited for");
+  for (const k of names) assert.ok(gfx.hasFile(k), k);
+  // the scripts it jumps to are read next, without anyone waiting, so that the scene after it has nothing to wait for
+  for (let k = 0; k < 60; k++) { while (open.length) open.shift()(); await turn(); }
+  const next = json(`scripts/${index.jump[s.ops.find((o) => o[0] === "JUMP")[1]]}.json`), after = pre.scenePictures(next, 0);
+  assert.ok(after.size > 0);
+  for (const k of after) assert.ok(gfx.hasFile(k), `next scene: ${k}`);
+  assert.equal(pre.scene(next, 0), null, "everything is in: the next scene starts at once");
+  // ... and what only the scene before used is let go
+  for (const k of names) if (!after.has(k)) assert.ok(!gfx.hasFile(k), `kept from the last scene: ${k}`);
+  // the same scene again (a load back into it) waits for nothing
+  assert.equal(pre.scene(next, 0), null);
+});
+
+test("a picture that does not come is asked for again; one that is not there is not, and neither keeps the scene from starting", async () => {
+  const script = { ops: [["STCH", "1", "img0773"], ["STCH", "2", "img2228"], ["STCH", "3", "img0009"], ["STCH", "4", "img2345"]], labels: {} };
+  const { pre, asked, gfx } = fileWorld({ fail: { IMG0773: ["drop", "drop"], IMG2228: ["gone"], IMG0009: ["drop", "drop", "drop", "drop", "drop"] } });
+  await pre.scene(script, 0);
+  const times = (k) => asked.filter((a) => a === k).length;
+  assert.equal(times("IMG0773"), 3, "dropped twice, then it came");
+  assert.ok(gfx.hasFile("IMG0773"));
+  assert.equal(times("IMG2228"), 1, "not there: asked for once");
+  assert.equal(times("IMG0009"), 4, "given up after three more tries: the story reads it again when it comes to it");
+  assert.ok(!gfx.hasFile("IMG0009") && gfx.hasFile("IMG2345"));
+});
+
+test("the story stands still for a scene's pictures: before a script's first command, after a load, and where a run that draws nothing ends", async () => {
+  const calls = [], holds = [];
+  let release = null;
+  const vm = Object.assign(Object.create(VM.prototype), { loadHold: 0, sceneOf: null, sceneFrom: 0, script: { name: "a" }, pc: 0, _skip: false,
+    holdClocks() {}, onHold: (on) => holds.push(on), scene: (script, pc) => { calls.push([script.name, pc]); return new Promise((res) => { release = res; }); } });
+  assert.equal(vm.sceneDue(), true);
+  let through = false;
+  const ready = vm.sceneReady().then(() => { through = true; });
+  await turn();
+  assert.deepEqual([calls, holds, vm.loadHold, through], [[["a", 0]], [true], 1, false], "held, and main.js told so for its Loading window");
+  release();
+  await ready;
+  assert.deepEqual([holds, vm.loadHold, vm.sceneDue()], [[true, false], 0, false]);
+  // further on in the same script: nothing; back before where it was read from, or in another script: again
+  vm.pc = 40;
+  assert.equal(vm.sceneDue(), false);
+  Object.assign(vm, { sceneFrom: 40, pc: 10 });
+  assert.equal(vm.sceneDue(), true);
+  Object.assign(vm, { pc: 50, script: { name: "b" } });
+  assert.equal(vm.sceneDue(), true);
+  // a run that draws nothing (a read scene passed at once, a test jump) waits for no pictures; where it ends, the scene's are read
+  Object.assign(vm, { _skip: true, instant: true });
+  assert.equal(vm.sceneDue(), false);
+  Object.assign(vm, { _skip: false, instant: false });
+  assert.equal(vm.sceneDue(), true);
+  // nothing to wait for: no hold at all
+  vm.scene = () => null;
+  holds.length = 0;
+  await vm.sceneReady();
+  assert.deepEqual(holds, []);
+  // the loop asks before each command, and a load asks with its own pictures
+  const src = source("js/vm.js");
+  assert.match(src, /if \(this\.sceneDue\(\)\) \{ await this\.sceneReady\(\); if \(gen !== this\.generation\) return; \}/);
+  assert.match(src.slice(src.indexOf("  async restore(s,")), /const read = this\.scene\(script, s\.pc\);\s+if \(read\) waits\.push\(read\);\s+\}\s+await this\.waitImages\(waits\);/);
+  // main.js: the game's own Loading window, which takes no keys, over a hold that lasts
+  const main = source("js/main.js");
+  assert.match(main, /vm\.scene = \(script, pc\) => preload\.scene\(script, pc\);/);
+  assert.match(main, /holdNote = ui\.notify\(text\(\), \{ held: true, passive: true, live: text \}\);/);
+});
+
+// A GPU as renderer.js upload sees it: `most` on a side, and `refuse(w, h, n)` saying whether the n-th upload is turned down (the texture left empty,
+// an error to be read). createImageBitmap is the page's, which makes the picture any size asked.
+const { Renderer } = await import("../../web/app/js/renderer.js");
+function gpu({ most = 16384, refuse = () => false, lost = false } = {}) {
+  const made = [], deleted = [], uploads = [];
+  let error = 0;
+  const gl = { NO_ERROR: 0, TEXTURE_2D: 1, RGBA8: 2, RGBA: 3, UNSIGNED_BYTE: 4, UNPACK_PREMULTIPLY_ALPHA_WEBGL: 5, TEXTURE_MIN_FILTER: 6, TEXTURE_MAG_FILTER: 7, TEXTURE_WRAP_S: 8,
+    TEXTURE_WRAP_T: 9, LINEAR: 10, CLAMP_TO_EDGE: 11, isContextLost: () => lost, getError() { const e = error; error = 0; return e; }, createTexture() { const t = { id: made.length }; made.push(t); return t; },
+    bindTexture() {}, pixelStorei() {}, texParameteri() {}, deleteTexture(t) { deleted.push(t); },
+    texImage2D(_t, _l, _f, _a, _b, bmp) { uploads.push([bmp.width, bmp.height]); if (bmp.width > most || bmp.height > most || refuse(bmp.width, bmp.height, uploads.length)) error = 0x505; } };
+  const evicted = [];
+  const r = Object.assign(Object.create(Renderer.prototype), { gl, maxSide: most, limit: 1400 * 1048576, bytes: 900 * 1048576, tex: new Map(), files: new Map(), evict(all) { evicted.push(all); } });
+  return { r, gl, made, deleted, uploads, evicted };
+}
+const bitmaps = (w, h) => { globalThis.createImageBitmap = async (_blob, o = {}) => ({ width: o.resizeWidth || w, height: o.resizeHeight || h, close() {} }); };
+
+test("a picture larger than the GPU takes on a side is made to fit, so it is a picture and not a black box (Ciel's standing sprite, 841 x 4128, on a 4096 GPU)", async (t) => {
+  t.after(() => { delete globalThis.createImageBitmap; });
+  bitmaps(841, 4128);
+  const big = gpu({ most: 16384 }), e1 = {};
+  await big.r.upload(e1, {}, "SIE_A_00_00_N00");
+  assert.deepEqual([e1.w, e1.h, big.uploads], [841, 4128, [[841, 4128]]], "as stored where the GPU takes it");
+  const small = gpu({ most: 4096 }), e2 = {};
+  await small.r.upload(e2, {}, "SIE_A_00_00_N00");
+  assert.deepEqual(small.uploads, [[834, 4096]], "never offered at a size the GPU refuses");
+  assert.deepEqual([e2.w, e2.h, !!e2.tex], [834, 4096, true]);
+  // the widest picture of all on the same GPU
+  bitmaps(7467, 5000);
+  const wide = gpu({ most: 4096 }), e3 = {};
+  await wide.r.upload(e3, {}, "IMG1481");
+  assert.deepEqual([e3.w, e3.h], [4096, 2742]);
+});
+
+test("an upload the GPU turns down is made again with the other pictures let go, then at half the size; one that never goes in is no picture, and its empty texture is deleted", async (t) => {
+  t.after(() => { delete globalThis.createImageBitmap; });
+  bitmaps(3060, 3053);
+  // no room the first time: the pictures not on screen go, the same size is tried again
+  const once = gpu({ refuse: (w, h, n) => n === 1 }), e1 = {};
+  await once.r.upload(e1, {}, "IMG2228");
+  assert.deepEqual([once.uploads, once.evicted, e1.w, once.deleted.length], [[[3060, 3053], [3060, 3053]], [true], 3060, 1]);
+  assert.ok(once.r.limit < 900 * 1048576, "and fewer pictures are kept from now on");
+  // still none: half the size
+  const twice = gpu({ refuse: (w) => w > 2000 }), e2 = {};
+  await twice.r.upload(e2, {}, "IMG2228");
+  assert.deepEqual([twice.uploads.at(-1), e2.w, e2.h, !!e2.tex], [[1530, 1526], 1530, 1526, true]);
+  // never: the picture fails to load, so the layer is not drawn at all (renderer.js drawn: no texture, no quad)
+  const never = gpu({ refuse: () => true }), e3 = {};
+  await assert.rejects(never.r.upload(e3, {}, "IMG2228"), /no room for image IMG2228/);
+  assert.equal(e3.tex, undefined);
+  assert.equal(never.deleted.length, never.made.length, "no empty texture is left behind");
+  const { drawn } = await import("../../web/app/js/renderer.js");
+  assert.equal(drawn({ z: 5, ready: null }, { alpha: 1 }), false);
+  assert.equal(drawn({ z: 5, ready: { tex: null } }, { alpha: 1 }), false, "nor one whose texture was let go");
+  // a lost context takes no upload
+  const lost = gpu({ lost: true });
+  await assert.rejects(lost.r.upload({}, {}, "IMG2228"), /no room/);
+  assert.equal(lost.uploads.length, 0);
+});
+
+test("the textures let go are never ones a layer holds: on screen, staged for the next commit, or the rule a transition goes through", () => {
+  const deleted = [];
+  const mb = 1048576, entry = (used) => ({ tex: { used }, w: 1024, h: 1024, used });   // 4 MB each
+  const r = Object.assign(Object.create(Renderer.prototype), { gl: { deleteTexture: (t) => deleted.push(t) }, limit: 16 * mb, bytes: 24 * mb, ruleSlot: "RULE_07",
+    tex: new Map([["SHOWN", entry(1)], ["STAGED", entry(2)], ["RULE_07", entry(3)], ["WIPE", entry(4)], ["OLD", entry(5)], ["OLDER", entry(0)]]),
+    liveLayers: [{ image: "shown" }], inUse: () => [{ image: "shown" }, { image: "staged" }, { image: null, rule: { name: "WIPE" } }] });
+  const held = { shown: r.tex.get("SHOWN"), old: r.tex.get("OLD") };
+  r.evict(true);
+  assert.deepEqual([...r.tex.keys()], ["SHOWN", "STAGED", "RULE_07", "WIPE"]);
+  assert.equal(deleted.length, 2);
+  assert.equal(held.old.tex, null, "what still points at a texture let go draws nothing");
+  assert.ok(held.shown.tex);
+  assert.equal(r.bytes, 16 * mb);
+  // the VM names its layers: on screen, staged and left behind
+  assert.match(source("js/vm.js"), /gfx\.inUse = \(\) => \[\.\.\.this\.layers\.values\(\), \.\.\.this\.pending\.values\(\), \.\.\.this\.ghosts\.values\(\)\];/);
+});

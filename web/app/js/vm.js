@@ -168,6 +168,7 @@ export class VM {
       const images = this.gfx?.images, name = blurName(image, bx, by);
       return !images || !name || name === image || !!images[String(name).toUpperCase()];
     });
+    if (gfx) gfx.inUse = () => [...this.layers.values(), ...this.pending.values(), ...this.ghosts.values()];   // the pictures its textures must keep (renderer.js evict)
     this.gfx = gfx; this.audio = audio; this.text = text; this.onChoice = onChoice; this.onConfirm = onConfirm; this.onWait = onWait; this.playMovie = playMovie; this.toast = toast;
     this.onChoiceCancel = onChoiceCancel; this.onSkipEnd = onSkipEnd;
     this.onAskSave = onAskSave; this.onSceneSkip = onSceneSkip; this.onLock = onLock; this.onCountdown = onCountdown; this.popup = popup;
@@ -220,6 +221,8 @@ export class VM {
     this.frameHooks = new Set(); // what moves a step each game frame on the story's screen (everyFrame)
     this.opCount = 0;            // commands run (settleScript)
     this.loadHold = 0;        // pictures loading: the game's time stands still (waitImages)
+    this.sceneOf = null;      // the script whose pictures have all been read, from command sceneFrom on (sceneReady)
+    this.sceneFrom = 0;
     // The delay slots' clock (0x65e50, run by the mixer 0x9b7f0 from the app's loop every frame in any state): it goes on while a menu or
     // another page is open, where the story's clock stands still; only the port's own holds stop it (pictures loading, a hidden tab).
     this.soundClock = new AnimationClock();
@@ -815,10 +818,22 @@ export class VM {
     if (!waits.length) return;
     // First-use conversion can take longer than a short motion. Hold game time
     // until the pictures are ready, so its animation is visible from the start.
+    // onHold: main.js says "Loading" over a hold that lasts.
     const reason = {};
     this.holdClocks(reason, true);
-    this.loadHold++;
-    try { await Promise.all(waits); } finally { this.loadHold--; this.holdClocks(reason, false); }
+    if (!this.loadHold++) this.onHold?.(true);
+    try { await Promise.all(waits); } finally { if (!--this.loadHold) this.onHold?.(false); this.holdClocks(reason, false); }
+  }
+
+  // A scene does not start until all its pictures are in. Before the first command of a script (and the next one where the story comes
+  // into a script some other way: a save, a jump back, the end of a run that draws nothing), every picture the script names from there on is
+  // read (main.js `scene`: preload.js), the story's time standing still as for any picture. sceneOf, sceneFrom: what has been read for.
+  sceneDue() { return !!this.scene && !this.fast && (this.sceneOf !== this.script || this.pc < this.sceneFrom); }
+  async sceneReady() {
+    this.sceneOf = this.script;
+    this.sceneFrom = this.pc;
+    const read = this.scene(this.script, this.pc);
+    if (read) await this.waitImages([read]);
   }
 
   // ---- running --------------------------------------------------------------------------------------------
@@ -905,6 +920,7 @@ export class VM {
       if (this.paused) await new Promise((r) => { this.resumeFn = r; });
       if (gen !== this.generation) return;
       if (this.skipUntil && this.pc >= this.skipUntil) { this.skip = false; this.skipUntil = 0; }
+      if (this.sceneDue()) { await this.sceneReady(); if (gen !== this.generation) return; }
       // The label Z commands just before this op run first: all of them when the script comes to them, from the
       // label a jump named when it jumps there (the interpreter starts at that label's command).
       const zl = this.script.zl?.[this.pc];
@@ -2482,15 +2498,23 @@ export class VM {
     // Saves from before the haze was drawn kept STRA's number on the layer (`spin`).
     this.hazes.forEach((h, i) => Object.assign(h, newHaze(), s.hazes?.[i] ? rebaseHaze(s.hazes[i], 0, now) : {}));
     if (!s.hazes) for (const d of s.layers) if (d.spin?.n >= 1 && this.hazes[d.id]) Object.assign(this.hazes[d.id], { n: d.spin.n, next: d.spin.n, start: now });
-    await this.waitImages([...this.layers.values(), ...this.pending.values()].map((l) => l.promise));
+    // With the pictures on screen, the rest of the scene's from this point on (sceneReady), so that it does not wait at the player's first press.
+    const script = await this.getScript(s.script);
+    if (gen !== this.generation) return;
+    const waits = [...this.layers.values(), ...this.pending.values()].map((l) => l.promise).filter(Boolean);
+    if (this.scene && (this.sceneOf !== script || s.pc < this.sceneFrom)) {
+      this.sceneOf = script;
+      this.sceneFrom = s.pc;
+      const read = this.scene(script, s.pc);
+      if (read) waits.push(read);
+    }
+    await this.waitImages(waits);
     if (gen !== this.generation) return;
     this.audio.restore(s.audio, { restartMusic });
     this.restoreDelayed(s.delayed);
     // A rewind starts no voice (0x5baf0 with param 2 = 1 clears the pending one, S38); a Quick Jump and a load run the message again, which plays it.
     this.ownVoice = !!(voice && s.voice && this.voiceOn !== false && !s.msgStart);
     if (this.ownVoice) this.audio.playVoice(s.voice);
-    const script = await this.getScript(s.script);
-    if (gen !== this.generation) return;
     this.script = script;
     this.scriptIndex = s.script;
     this.pc = s.pc;

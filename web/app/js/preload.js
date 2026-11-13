@@ -1,7 +1,8 @@
 // preload.js - what is read before it is asked for. A port addition: the game reads from its own archives, where a browser fetches each file and the
 // first use of one would wait for it. Three parts: a queue that reads the most pressing first; the start-up list, begun while the first page (or the logo)
 // is up; and the look-ahead, which reads what the script is coming to and gets its movies ready.
-// Nothing here is waited for by the game: what has not arrived when it is wanted is read then, as before.
+// The game waits for none of these: what has not arrived when it is wanted is read then, as before. The one thing it does wait for is the last part,
+// a scene's pictures: every picture a script shows is read before the script starts, the story standing still under the game's "Loading" meanwhile.
 import { streamOf } from "./audio.js";
 import { grainSample } from "./screenfx.js";
 import { titleMusic, titleVariant } from "./uifx.js";
@@ -16,6 +17,9 @@ const MOVIES = 2;         // movies kept ready at once
 const NEAR = 300, FAR = 2500;
 const STRIDE = 24;        // commands the script has to move on before it is read ahead again
 const AHEAD = { pictures: 8, voices: 6, sounds: 6, music: 1, movies: MOVIES, jumps: 6 };   // new reads one pass may start
+// A scene's pictures (scene): how many files are read at once, the scripts after this one whose pictures are read once this one's are, and the
+// waits before a file that did not come is asked for again (one that is not there at all is not asked for twice).
+const SCENE = { lanes: 8, next: 3, again: [1000, 2000, 4000] };
 
 const pack = (name, list) => list.split(" ").map((n) => `${name}/${n}`);
 // The interface's pictures (assets/ui), in the order a player can come to them. The CG grid's sheet is gallery.js's own (preloadGallery).
@@ -81,6 +85,8 @@ export class Preloader {
     this.asked = [0, 0, 0, 0]; // jobs taken on so far, by the rank they came with
     this.read = [0, 0, 0, 0];  // ... and of them, those that have ended
     this.scans = 0;            // scripts being fetched to be read ahead: their jobs are still to come
+    this.sceneRun = 0;         // counts the scenes started: an earlier one's reads of what follows it stop
+    this.sceneWait = null;     // the scene being waited for: { all, read } (sceneProgress)
   }
 
   // ---- the queue ----------------------------------------------------------------------------------------------
@@ -305,4 +311,79 @@ export class Preloader {
       default:
     }
   }
+
+  // ---- a scene's pictures ---------------------------------------------------------------------------------------
+  // The pictures a script's commands name from `pc` to its end, branches and all: the layers' pictures and the rule pictures of its
+  // transitions and wipes. Only those the game has (a name with no picture is no picture: vm.js setPicture).
+  scenePictures(script, pc = 0) {
+    const out = new Set(), images = this.gfx.images || {}, ops = script.ops;
+    const add = (name) => { const key = String(name).toUpperCase(); if (images[key]) out.add(key); };
+    for (let i = pc; i < ops.length; i++) {
+      const o = ops[i];
+      if (o[0] === "STCH" || o[0] === "SCH2" || o[0] === "SPFC" || o[0] === "SPRD") { if (o[2]) add(o[2]); }
+      else if (o[0] === "FADS") { if (o[1] === "2" && Number(o[3]) > 0) add(ruleName(Number(o[3]))); }
+      else if (o[0] === "STTR") { if (Number(o[2]) >= 1 && Number(o[2]) <= 49) add(ruleName(Number(o[2]))); }
+    }
+    return out;
+  }
+
+  // A few files at a time, each tried again if it did not come. Resolves when every one has come or been given up; `each` is called as each ends.
+  readFiles(keys, alive = () => true, each = () => {}) {
+    const list = [...keys].filter((k) => !this.gfx.hasFile(k)), wait = this.wait || ((ms) => new Promise((res) => setTimeout(res, ms)));
+    let at = 0;
+    const lane = async () => {
+      while (at < list.length && alive()) {
+        const key = list[at++];
+        for (let tries = 0; alive(); tries++) {
+          try { await this.gfx.file(key, true); break; } catch (e) {
+            if (e?.missing || tries >= SCENE.again.length) break;   // its user reports it (vm.js setImage)
+            await wait(SCENE.again[tries]);
+          }
+        }
+        each(key);
+      }
+    };
+    return Promise.all(Array.from({ length: Math.min(SCENE.lanes, list.length) }, lane));
+  }
+
+  // Called before a script's first command runs (vm.js sceneReady), and where a run that draws nothing ends inside one. Returns null when
+  // every picture from there on has been read, else a promise for that. The files are kept as they came (renderer.js file) until the next
+  // scene's are asked for, so the story has them whatever becomes of the browser's own copy; its textures are still made as it comes to them
+  // (the look-ahead, and vm.js commit), a scene's pictures being far more than a GPU holds at once.
+  // Once they are in, the scripts this one jumps to are read the same way, so that the scene after it starts without a wait.
+  scene(script, pc = 0) {
+    const run = ++this.sceneRun, gfx = this.gfx;
+    if (!gfx.file) return null;
+    const names = this.scenePictures(script, pc), keep = new Set(names);
+    gfx.keepFiles(keep);
+    const alive = () => run === this.sceneRun;
+    const state = { all: names.size, read: 0 };
+    for (const k of names) if (gfx.hasFile(k)) state.read++;
+    const after = () => { if (alive()) this.sceneNext(script, pc, keep, alive); };
+    if (state.read === state.all) { after(); return null; }
+    this.sceneWait = state;
+    return this.readFiles(names, alive, () => { state.read++; }).then(() => { if (this.sceneWait === state) this.sceneWait = null; after(); });
+  }
+  // How far along the scene being waited for is (0 - 1), for the "Loading" window; null when none is.
+  sceneProgress() {
+    const s = this.sceneWait;
+    return s ? (s.all ? Math.min(1, s.read / s.all) : 1) : null;
+  }
+
+  // The scripts the scene can go on to (its JUMPs from `pc` on, in their order, the first few), one after another.
+  async sceneNext(script, pc, keep, alive) {
+    const vm = this.vm, seen = new Set(), ops = script.ops;
+    for (let i = pc; i < ops.length && seen.size < SCENE.next && alive(); i++) {
+      const o = ops[i], t = o[0] === "JUMP" ? vm.index.jump[o[1]] : undefined, key = `${t} ${o[2] || ""}`;
+      if (t === undefined || seen.has(key)) continue;
+      seen.add(key);
+      let next = null;
+      try { next = await vm.getScript(t); } catch { continue; }
+      if (!alive()) return;
+      const names = this.scenePictures(next, (o[2] && next.labels?.[o[2]]) || 0);
+      for (const k of names) keep.add(k);   // (the set keepFiles was given: only a later scene lets these go)
+      await this.readFiles(names, alive);
+    }
+  }
 }
+
