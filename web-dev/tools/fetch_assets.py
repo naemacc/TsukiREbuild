@@ -5,7 +5,7 @@ The game's own files (pictures, music, voices, movies, scripts, tables: about 2.
 this brings them from there, so that web/server.py, the tests and the app builds have them:
 
     python3 web-dev/tools/fetch_assets.py            everything
-    python3 web-dev/tools/fetch_assets.py --tables   only the scripts and tables (about 42 MB): what the tests read
+    python3 web-dev/tools/fetch_assets.py --tables   only the scripts and tables (about 66 MB, Japanese's own included): what the tests read
     python3 web-dev/tools/fetch_assets.py --check    downloads nothing; says what is missing or different
 
 web-dev/assets-manifest.txt lists every file: its MD5, its size, its path under web/assets. A file already there with that size and MD5 is
@@ -26,7 +26,11 @@ MANIFEST = ROOT / "web-dev/assets-manifest.txt"
 ASSETS = ROOT / "web/assets"
 SITE = "https://arcueid.date/assets/"
 # The media, by their folder: everything else is a script or a table.
-MEDIA = ("img/", "ui/", "bgm/", "movie/", "pack/", "sys/", "fonts/")
+MEDIA = ("img/", "ui/", "bgm/", "movie/", "pack/", "sys/", "fonts/")   # (and the same under ja/, the original game's own: is_media)
+
+
+def is_media(path):
+    return path.removeprefix("ja/").startswith(MEDIA)
 
 
 def manifest(path=MANIFEST):
@@ -86,7 +90,7 @@ def main(argv):
     tables, check = "--tables" in args, "--check" in args
     if set(args) - {"--tables", "--check"}:
         raise SystemExit(__doc__)
-    entries = [e for e in manifest() if not (tables and e[2].startswith(MEDIA))]
+    entries = [e for e in manifest() if not (tables and is_media(e[2]))]
     with ThreadPoolExecutor(max_workers=jobs) as pool:
         wanted = [e for e, there in zip(entries, pool.map(have, entries)) if not there]
         size = sum(e[1] for e in wanted)
