@@ -1,6 +1,10 @@
 // Motion keyframes exported from the original engine. Times are milliseconds;
 // coordinates, zoom (1000 = 1x), and rotation (100 = one degree) stay in script units.
 export const PROPERTIES = ["x", "y", "alpha", "rot", "zx", "zy", "blurX", "blurY"];
+// Whether the game has the picture a layer's blur numbers name, `<name>_XX_YY`: (image, blurX, blurY) -> true / false.
+// The script machine sets it once it has the picture table (vm.js); with none set every pair counts as there.
+let blurHasPicture = null;
+export function setBlurLookup(fn) { blurHasPicture = fn; }
 const FRAME_MS = 1000 / 60;
 const clamp = (x) => Math.max(0, Math.min(1, x));
 const bounce = (x) => {
@@ -345,6 +349,16 @@ export class Motion {
     if (w.alpha) put("alpha", 5, (v) => Math.max(0, Math.min(255, v)));
     if (w.blurX) put("blurX", 22);
     if (w.blurY) put("blurY", 23);
+    // The blur pair names a picture and the track switches the layer to it only when the game has that file: a pair
+    // with none leaves the layer on the picture it had. Native frames against the port's, same commands, 2026-11-13:
+    // img2473 put up at blur 20,0 and track 3443 writing 4,4 (no `_04_04` of it) goes on showing the 20,0 picture
+    // (2.1 levels of 255 from that, 5.1 from a 4,4 blur, 29.5 from nothing), while track 23377's 0 -> 20, every step
+    // of which has a file, is followed (5.4 against 18.6 for a picture left sharp). QA_13's shadow is the case in
+    // the story: img2450 at 99,99 with track 23384 writing 255.
+    if ((out.blurX !== undefined || out.blurY !== undefined) && layer && blurHasPicture) {
+      const own = (k) => (layer[k] instanceof Value ? layer[k].at(now) : layer[k] ?? 0);
+      if (!blurHasPicture(layer.image, out.blurX ?? own("blurX"), out.blurY ?? own("blurY"))) { delete out.blurX; delete out.blurY; }
+    }
     // the pivot, in STPV's units (0x639a0 and 0x97b80 convert both alike)
     if (w.pivotX || w.pivotY) {
       const px = w.pivotX ? at(6) : undefined, py = w.pivotY ? at(7) : undefined;

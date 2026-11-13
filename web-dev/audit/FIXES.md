@@ -1364,3 +1364,75 @@ No window has items of its own, No 0 and Yes 1, and the opening page lit its pla
 GITHUB with Yes. The page now lights a plate only while its own items are the current ones (`home.js` cursor). Held upright the window
 also covers the plates above it, so they cannot be tapped while it is up. In Chrome: moving between No and Yes by pointer and by arrows
 leaves the strip as it was; after No the page's own cursor lights its plates again.
+
+## A panel whose own picture is missing, 2026-11-13
+
+Found while looking for more of GitHub issue 7's kind (a shipped file holding something the port cannot regenerate).
+A layer's blur numbers name a pre-blurred `<name>_XX_YY`, which STCH looks up with no fallback, so a blur the game has
+no file for leaves the layer with no picture (0x60840 at 0x61e08 -> -1, N2-11). The port did that for the layer itself
+but went on drawing the members linked to it, so a panel whose backing had gone kept showing its contents over
+whatever lay behind. `renderer.js` now leaves a group out of the draw order when its owner has a panel rectangle and
+no picture.
+
+Checks, both builds given the same commands (a background, a panel whose backing is `img5007` with a valid blur, and a
+second panel whose backing is `img5007` at blur 4,4, which the game does not ship): the game draws nothing for the
+second panel, the port used to draw its member. Native frame against the port's: 4.4 levels of 255 before, 0.39 after,
+with the valid panel unchanged. It changes nothing in the game as shipped: replaying all 549 scripts (63,431 sampled
+moments) gives not one moment where a panel owner ends up with no picture.
+
+## A blur the game has no file for, 2026-11-13
+
+From a user's eye on a comparison frame ("look at the shadow of neko arc"): in QA_13 the port drew a hard dark ellipse
+under Neco-Arc where the game has a faint soft shadow. The whole-frame mean had passed it (1.0 of 255).
+
+**How often a blur changes after the picture was chosen.** A layer's blur numbers name the picture it shows,
+`<name>_XX_YY`, and they can change after the STCH that resolved it, when a motion track writes them. Replaying all 549
+scripts and recording every drawn layer whose blur differs from the one it was committed with: 3,557 samples, 97
+cases, 57 scripts (Arcueid days 2 to 13, Ciel days 5 to 15). In 3,300 the new name is a file the game has, in 257
+it is not: `img5007` at 4,4 (05_00_ARC05_9_1) and at 1,0 (14_01_CIEL14_1), `sie_a_49_00_a02` at 7,7
+(05_01_CIEL05_2_2B) and `img2450` at 255 (QA_13). The port regenerated a blur for the new numbers in all of them.
+
+**What the game does, measured.** One scene on both builds, the same commands: `img2473` put up sharp with track 23377
+taking its blur 0 -> 20 (the game ships `_01_00` to `_20_00` for it, one file a step), and `img2473` put up at 20,0
+with track 3443 writing 4,4, of which there is no file. The port was drawn four ways and each set against the native
+frame, over the pixels where the ways differ:
+
+| | where the files exist | where there is no file |
+|---|---|---|
+| the track's blur followed (the port as it was) | **5.4** | 5.1 |
+| the picture left as committed | 18.6 | **2.1** |
+| the layer not drawn | - | 29.5 |
+
+So a track switches the picture when the game has the file, and where it has none the layer goes on showing the picture
+it had. And STCH with such numbers shows nothing at all: `img2450` at 255, 99 and 55 side by side, only the 99 one is
+drawn (the game ships `_30_30`, `_64_64`, `_99_99`), so nothing clamps, falls back, or reads 255 as 55.
+
+**Fix.** `Motion.sample` (animation.js) leaves a blur pair out when the layer's picture has no file for it
+(`setBlurLookup`, which the machine sets from the picture table), so the layer's own blur stays in force for the
+draw, the placement, what the track leaves on the layer, and saves alike. The 3,300 samples with a file are untouched;
+the replay changes in 41 moments of those four scripts and nowhere else. The test scene's second layer went from 5.1
+to 2.0 against the game.
+
+**Two files softer than the rule.** `blurSigma` is 0.65 x n x the size class, fitted in 2026-11-09 from blur 1 to 64.
+Blurs above 64 are drawn in eleven scripts (about 790 samples at 66, 70, 80, 92 and 99). Fitted again per axis against
+the game's own files, the rule's number comes back for eight of the ten pictures involved (`aru_l_60_00_n00` at 99:
+31.3 for 32.2; `img0668`: 64.7 for 64.4; `img2314`: 63.1 for 64.4). Two are off, and only in their `_99` files, their
+30 and 64 being the rule's to a tenth: `img2450_99_99` measures 157.7 for the rule's 64.4, and `aru_?_84_10_n00_99_00`
+1.31 times the rule at all three of its sizes (84.3, 42.2, 21.2). `transform.js` keeps those four as measured
+(`BLUR_MEASURED`). Against native frames: QA_13's shadow, 3.7 levels of 255 over its area as it was, 3.1 with the
+picture kept, 1.6 with the measured strength too, and by eye the game's; `aru_l_84_10_n00` at 99, 6.5 with the rule
+and 5.1 with the measured value, its 64 file beside it 3.2.
+
+Not settled, and not to be closed by a number: that last picture's files are a streak with hard ends, a motion blur
+and not a Gaussian (the ghosted edges show in the native frame at 64 as at 99), so a regenerated blur can only come
+near them. Shipping the game's own files for such pictures would be exact; it is QA_21's Neco-Arc.
+
+Wrong turns, so they are not taken again. A first fit used one round blur for pictures blurred on one axis and made
+the rule look broken everywhere above 64; it is not. "The game draws no shadow" was read off a difference picture and
+was false: a ring in the difference is two blobs of different softness, a filled shape is one missing. A control
+picture that was black on black, a test picture scaled to nothing by its track, and a sprite left at a third opacity
+each "agreed" for being invisible: draw the port's own outcomes first and check they differ before running the game.
+
+Not a fault, recorded so it is not chased again: `?script=NAME&pc=N` fast-forwards from the script's first command, so a
+native scene cut to start at the moment's own `PGST` is not the same state and will differ for want of the earlier
+staging. Comparisons of a real scene have to run the native build from the script's start too.

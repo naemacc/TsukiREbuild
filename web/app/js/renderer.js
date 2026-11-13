@@ -3,7 +3,7 @@
 // The game's logical screen is 1280 wide: a stored image is drawn at 1.5 screen pixels per stored pixel, times its zoom.
 import { layerState } from "./animation.js";
 import { clipShift, hazeConstants, impactPixels, layerShiftPixels } from "./effects.js";
-import { place, clipGeometry, panelRuns, groupModes, plainGroups, groupCoverage, groupNeedsBuffer, groupOpacity, groupRelative, blurSigma } from "./transform.js";
+import { place, clipGeometry, panelRuns, groupModes, plainGroups, groupCoverage, groupNeedsBuffer, groupOpacity, groupRelative, blurSigma, blurName } from "./transform.js";
 import { grainSample, linesSample, splitSample } from "./screenfx.js";
 import { asset } from "./lang.js";
 const F = 1.5;
@@ -845,7 +845,17 @@ export class Renderer {
     // Hidden layers still serve as parents and links (place() above). A panel's frame (style 1-6) goes over the last
     // of its pictures to be drawn.
     const visible = new Set(sorted.filter((l) => drawn(l, placed.get(l))));
-    const order = sorted.filter((l) => l.z >= 1 && l.ready);
+    // A panel's members are drawn only while the panel's own picture is: STCH looks the blurred `<name>_XX_YY` up with
+    // no fallback and leaves the layer with no picture when the game has no such file (0x60840 at 0x61e08 -> -1,
+    // N2-11), and the game then draws nothing for that group at all. The port used to drop the owner alone and go on
+    // drawing its members over whatever lay behind. Measured on both builds with the same commands (a panel whose
+    // backing is img5007 at blur 4,4, which the game does not ship): the game's panel keeps the picture behind it,
+    // the port's showed the member; with this, the two frames agree to 0.4 of 255 (2026-11-13).
+    const groupLost = (l) => {
+      const owner = l.link >= 0 && l.link !== l.id ? byId.get(l.link) : null;
+      return !!(owner && owner.clip && owner.clip[2] && owner.clip[3] && !owner.image);
+    };
+    const order = sorted.filter((l) => l.z >= 1 && l.ready && !groupLost(l));
     const runs = panelRuns(order, byId);
     const modes = groupModes(order, byId);
     const tangled = !plainGroups(order, byId, modes, runs);

@@ -190,3 +190,42 @@ test("a blurred layer is placed by the pre-blurred picture's table entry, `<name
   assert.deepEqual(at(0).pivot, [0, 0]);
   assert.ok(at(4).pivot[1] > 0, "the variant's pivot, below its middle");
 });
+
+test("a track's blur takes hold only where the game has the picture it names; a pair with no file leaves the layer's own", async () => {
+  const { setBlurLookup } = await import("../../web/app/js/animation.js");
+  const { blurName, blurSigma } = await import("../../web/app/js/transform.js");
+  // the game's files for one picture: a ladder along x, as the scripts' tweened blurs have (`img2473_01_00` .. `_20_00`)
+  const files = new Set(["PIC", ...Array.from({ length: 20 }, (_, i) => `PIC_${String(i + 1).padStart(2, "0")}_00`)]);
+  setBlurLookup((image, bx, by) => { const n = blurName(image, bx, by); return !n || n === image || files.has(n.toUpperCase()); });
+  try {
+    const layer = { image: "pic", blurX: 20, blurY: 0, x: new Value(0), y: new Value(0) };
+    // a blur every step of which has a file is followed (native: 5.4 levels of 255 from the port's, 18.6 from a sharp picture)
+    const tween = new Motion(1, track([key(0, { 22: 0 }), key(250, { 22: 20 })], ALL), {}, 0);
+    assert.equal(tween.sample(125, { ...layer, blurX: 0 }).blurX, 0);
+    assert.equal(tween.sample(250, { ...layer, blurX: 0 }).blurX, 20);
+    assert.equal(layerState({ ...layer, blurX: 0, motion: tween }, 250).blurX, 20);
+    // 4,4 has no file: the layer goes on showing its 20,0 (native: 2.1 from that, 5.1 from a 4,4 blur, 29.5 from nothing)
+    const lost = new Motion(2, track([key(0, { 22: 4, 23: 4 }), key(1000, { 5: 255 })], ALL), {}, 0);
+    const s = lost.sample(0, layer);
+    assert.ok(!("blurX" in s) && !("blurY" in s), "the pair is not written");
+    assert.deepEqual([layerState({ ...layer, motion: lost }, 0).blurX, layerState({ ...layer, motion: lost }, 0).blurY], [20, 0]);
+    // one axis given, the other the layer's own: 3 with the layer's 0 is `_03_00`, which is there; with its 5 it is not
+    const x3 = new Motion(3, track([key(0, { 22: 3 }), key(100, { 5: 255 })], ALL), {}, 0);
+    assert.equal(x3.sample(0, { ...layer, blurX: 0, blurY: 0 }).blurX, 3);
+    assert.ok(!("blurX" in x3.sample(0, { ...layer, blurX: 0, blurY: 5 })));
+    // with no layer there is nothing to ask about, and a layer with no picture has none to lose
+    assert.equal(lost.sample(0).blurX, 4);
+    assert.equal(lost.sample(0, { ...layer, image: null }).blurX, 4);
+  } finally { setBlurLookup(null); }
+  // with no table set every pair counts as there (the tests above this one, a machine whose table has not come)
+  const free = new Motion(4, track([key(0, { 22: 4, 23: 4 }), key(1000, { 5: 255 })], ALL), {}, 0);
+  assert.equal(free.sample(0, { image: "pic", blurX: 20, blurY: 0 }).blurX, 4);
+
+  // the two pictures whose `_99` files are softer than the rule, as measured on the files; their other steps are the rule's
+  assert.equal(blurSigma("IMG2450", 99), 157.7);
+  assert.equal(blurSigma("img2450", 99), 157.7);
+  near(blurSigma("IMG2450", 64), Math.hypot(41.6, Math.sqrt(0.3)));
+  assert.deepEqual(["A", "L", "M"].map((c) => blurSigma(`ARU_${c}_84_10_N00`, 99)), [84.3, 42.2, 21.2]);
+  near(blurSigma("ARU_L_84_10_N00", 64), Math.hypot(20.8, Math.sqrt(0.3)));
+  near(blurSigma("ARU_L_60_00_N00", 99), Math.hypot(32.175, Math.sqrt(0.3)));
+});

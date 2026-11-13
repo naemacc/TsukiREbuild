@@ -1,6 +1,6 @@
 // vm.js - runs the game's scripts. Each command changes layers, audio, text or variables; a few wait for something.
 import { parseOpts } from "./audio.js";
-import { AnimationClock, Motion, START_ONLY, Value, layerState } from "./animation.js";
+import { AnimationClock, Motion, START_ONLY, Value, layerState, setBlurLookup } from "./animation.js";
 import { carrySway, makeEffect, rebaseEffect, settleHaze } from "./effects.js";
 import { FlowProgress } from "./flowchart-model.js";
 import { Unlocks } from "./unlocks.js";
@@ -162,6 +162,12 @@ const FRAME_MS = 1000 / 60;
 
 export class VM {
   constructor({ gfx, audio, text, onChoice, onConfirm, onChoiceCancel, onSkipEnd, onWait, playMovie, toast, onAskSave, onSceneSkip, onLock, onCountdown, popup }) {
+    // a motion's blur takes hold only where the game has the picture it names (animation.js, Motion.sample); the table
+    // is read when asked, so it may arrive after this
+    setBlurLookup((image, bx, by) => {
+      const images = this.gfx?.images, name = blurName(image, bx, by);
+      return !images || !name || name === image || !!images[String(name).toUpperCase()];
+    });
     this.gfx = gfx; this.audio = audio; this.text = text; this.onChoice = onChoice; this.onConfirm = onConfirm; this.onWait = onWait; this.playMovie = playMovie; this.toast = toast;
     this.onChoiceCancel = onChoiceCancel; this.onSkipEnd = onSkipEnd;
     this.onAskSave = onAskSave; this.onSceneSkip = onSceneSkip; this.onLock = onLock; this.onCountdown = onCountdown; this.popup = popup;

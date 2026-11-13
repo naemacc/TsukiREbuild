@@ -166,8 +166,21 @@ export function panelRuns(order, all) {
 export function blurSigma(name, n) {
   const v = (Math.trunc(n) || 0) % 100;   // the two digits of the file name
   if (v <= 0) return 0;
+  const own = BLUR_MEASURED[String(name).toUpperCase()]?.[v];
+  if (own) return own;
   return Math.sqrt((0.65 * v * sizeClass(name)) ** 2 + 0.3);
 }
+// Files that are not the rule's. The rule holds to the top of the range (fitted again per axis on every picture the
+// scripts blur above 64: `aru_l_60_00_n00` at 99 gives 31.3 for the rule's 32.2, `img0668` 64.7 for 64.4, `img2314`
+// 63.1 for 64.4), but the `_99` files of two pictures are softer than it says, each measured the same way against
+// its own sharp picture (2026-11-13). Their 30 and 64 files are the rule's to a tenth, and the second picture is off
+// by the same 1.31 at all three of its sizes, so these are the files and not the fit. Both are in the Q&A corners:
+// `img2450` is Neco-Arc's shadow in QA_13 (against a native frame, 3.1 levels of 255 over the shadow with the rule
+// and 1.6 with this), `aru_?_84_10_n00` is QA_21's.
+const BLUR_MEASURED = {
+  IMG2450: { 99: 157.7 },
+  ARU_A_84_10_N00: { 99: 84.3 }, ARU_L_84_10_N00: { 99: 42.2 }, ARU_M_84_10_N00: { 99: 21.2 },
+};
 
 // A blurred layer shows the engine's pre-blurred picture `<name>_XX_YY`: STCH (0x60840) appends the suffix from args
 // 9-10 before it looks the picture up, and a track's blur fields switch to it the same way (0x97b80), so the layer
