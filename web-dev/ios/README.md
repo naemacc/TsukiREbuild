@@ -6,10 +6,10 @@ The web port as one unsigned IPA, to be sideloaded: `web/app`, and `web/assets` 
 
 `.github/workflows/build-ios.yml`, started by hand from the Actions tab (**Build iOS IPA**, `workflow_dispatch`) on a `macos-15` runner (timeout 120 minutes). Two options:
 
-| Option             | Default | What it does                                                                                                                                                                                                                                                                         |
-| ------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `bundle_assets`    | on      | Fetches the game's files (`web-dev/tools/fetch_assets.py`, 2.8 GB) and puts them inside the IPA. Off makes a lite IPA without them; the files then go into the app's `Documents/assets` through the Files app (the app has `UIFileSharingEnabled`, and `SchemeHandler` looks there). |
-| `transcode_movies` | on      | Re-encodes the movies from AV1 to H.264 (`libx264`, CRF 22, `yuv420p`, sound copied, `faststart`), because iPhones decode AV1 in hardware only on the newest models. It is meant for iPhone 14 and older, and only runs together with `bundle_assets`.                               |
+| Option             | Default | What it does                                                                                                                                                                                                                                                                  |
+| ------------------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bundle_assets`    | on      | Fetches the game's files (`web-dev/tools/fetch_assets.py`, 2.8 GB) and puts them inside the IPA. Off makes a lite IPA without them: the app then fetches each file from `https://arcueid.date/` as the page asks for it, as the website does (see "Online game files" below). |
+| `transcode_movies` | on      | Re-encodes the movies from AV1 to H.264 (`libx264`, CRF 22, `yuv420p`, sound copied, `faststart`), because iPhones decode AV1 in hardware only on the newest models. It is meant for iPhone 14 and older, and only runs together with `bundle_assets`.                        |
 
 The steps, in order:
 
@@ -37,12 +37,22 @@ The steps, in order:
 ## How it works
 
 - **The page.** A `WKWebView` opens `tsuki://tsukihime.desktop/index.html?play`. A custom scheme handler (`SchemeHandler`) answers every request to it, so nothing reaches the network. The host name `tsukihime.desktop` is one that `web/app/js/apphost.js` knows as an app, so the page takes its app path: four plates, English only, no language choice. (Its first page is skipped, see below.)
-- **Where a file comes from.** First the active update (`Updates.activeRoot`), then `Documents/assets` for anything under `assets/`, then the app's own `www`. Files are read in 1 MiB pieces and handed over one at a time, so a movie never sits whole in memory. `Range` requests are answered (movies need them), `HEAD` too, and a range past the end gets a 416.
+- **Where a file comes from.** First the active update (`Updates.activeRoot`), then `Documents/assets` for anything under `assets/` (reachable through the Files app, which is also a way to add the game's files by hand), then the app's own `www`, then the files fetched earlier (Caches). A file under `assets/` found in none of them is fetched from the site (below). Files are read in 1 MiB pieces and handed over one at a time, so a movie never sits whole in memory. `Range` requests are answered (movies need them), `HEAD` too, and a range past the end gets a 416.
 - **The bridge.** `apphost.js` asks the app for what a browser would do through `window.desktopHost`, an object the app injects before the page's scripts (`bootScript` in `ViewController`). Its `invoke` goes to a message handler named `host`, answered by `ViewController.host`; progress comes back through `window.__hostEvent`. The app reports itself as `kind: "desktop"`. The commands are the ones `apphost.js` lists: `info`, `open` (an http or https page, in Safari), `saveFile` (the iOS share sheet), `fetchText`, `stage`, `cancel`, `apply`, `confirm`. A link in the page opens in Safari, and a download from the page (`Export`) goes to the share sheet.
 - **The screen.** Landscape only, full screen under the notch and home bar (`contentInsetAdjustmentBehavior = .never`), status bar and home indicator hidden, the edge swipes deferred so a swipe from the screen's edge does not leave the app at once, and the idle timer off.
 - **Leaving the app.** `willResignActive` calls `appSuspend()` in `main.js`, which makes the automatic save, as on Android.
 - **Memory.** iOS ends a web view's process when memory is short. The app loads the page again after 1.5 s, 3 s and 4.5 s for the first three times within a minute. After that it stops, says so on screen, and loads again at a tap, so it never turns into an endless black flicker.
 - **Saves** stay in the web view's own storage (`localStorage`), inside the app's data. They survive an app installed over the old one and go when the app is deleted. The bundle id is part of that: a sideloading tool that gives the app another one is installing another app.
+
+## Online game files (lite IPA)
+
+A lite IPA (`bundle_assets` off) carries only the page. `SchemeHandler.proxy` answers any request under `assets/` that no local file can, by asking `https://arcueid.date/` for the same path and handing the answer over as it arrives (status, type, `Content-Range`, body; a `Range` request is passed on as it is). Nothing else is ever fetched this way: the address is built from the site's host and the request's path and query only.
+
+- **Kept.** A complete answer (status 200, no `Range`, no query) for the media the site stores for 30 days (`assets/voice`, `img`, `se`, `bgm`, `movie`, `sys`, `fonts` and the packs in `assets/pack`, but not `assets/pack/index.json`) is also written to `Library/Caches/www/assets/...`, to a `.part-` file first and moved into place only when every byte has come, so a cut-off download is never kept. Each such file is downloaded once. iOS may clear Caches when storage is short; the files are then fetched again. A request with a query (`?v=`, a corrected picture) always goes to the site.
+- **Not kept.** Movies, which the player asks for in ranges, and the tables and interface art (the site stores those for 5 minutes), which follow their headers in a small URL cache.
+- **Updates.** A lite IPA has no `bundled-assets.txt`, since the game's files are the site's own. `ViewController.updateScript` therefore answers that one request with the site's current list, so that an update is worked out from the page's files alone.
+- **Movies.** They are the site's AV1 files. They play where the web view can decode AV1, which is the newest iPhones; `transcode_movies` only reaches IPAs that carry the files.
+- **A full IPA** uses the same path for any file it happens to lack, and is otherwise offline.
 
 ## The opening page is skipped
 
@@ -63,6 +73,6 @@ An update for a newer app shell (`state: "shell"`) is ignored: there is no downl
 ## Not the same as Android
 
 - Nothing is signed, and the build has no key to keep: signing is done by whoever sideloads it.
-- The IPA is built from the repository by the workflow and is not hosted on the site.
+- The IPA is built from the repository by the workflow and is not hosted on the site. A lite IPA (a few megabytes) fetches the game's files from the site as it plays, which the Android app does not do.
 - The movies are re-encoded to H.264 by default; the Android app carries the AV1 files as they are.
 - The opening page is skipped (above), so there is no SAVE DATA page, and updates are asked at the title screen instead of on PLAY's page.

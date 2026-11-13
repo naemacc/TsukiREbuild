@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       bundle_assets:
-        description: Put the 2.8 GB of game assets inside the IPA (off = lite IPA)
+        description: Put the 2.8 GB of game assets inside the IPA (off = lite IPA that fetches them from arcueid.date as it plays)
         type: boolean
         default: true
       transcode_movies:
-        description: Re-encode movies AV1 -> H.264 (needed for iPhone 14 and older)
+        description: Re-encode movies AV1 -> H.264 (needed for iPhone 14 and older; only with the assets bundled)
         type: boolean
         default: true
 

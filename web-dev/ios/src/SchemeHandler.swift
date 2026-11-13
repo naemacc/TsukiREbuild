@@ -48,6 +48,8 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         if rel.hasPrefix("assets/") { candidates.append(docs.appendingPathComponent(rel)) }
         // 3. what the app was built with
         candidates.append(www.appendingPathComponent(rel))
+        // 4. what was fetched from the site earlier (lite IPA)
+        if rel.hasPrefix("assets/") { candidates.append(cacheRoot.appendingPathComponent(rel)) }
         var isDir: ObjCBool = false
         return candidates.first { FileManager.default.fileExists(atPath: $0.path, isDirectory: &isDir) && !isDir.boolValue }
     }
@@ -71,6 +73,126 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         return s <= e ? (s, e) : nil
     }
 
+    // MARK: online game files (lite IPA)
+    // A file under assets/ that is neither in an update, nor in Documents, nor in the app is asked of the site, as the web
+    // version does. The media the site keeps for 30 days are also kept here (in Caches, which iOS may clear: they are
+    // fetched again then), so each is downloaded once. Ranged requests (movies) are passed through and not kept.
+    private static let site = URL(string: "https://arcueid.date/")!
+    private static let keepable = ["assets/voice/", "assets/img/", "assets/se/", "assets/bgm/", "assets/movie/",
+                                   "assets/sys/", "assets/fonts/", "assets/pack/"]
+    private static func isKeepable(_ rel: String) -> Bool {
+        rel != "assets/pack/index.json" && keepable.contains { rel.hasPrefix($0) }
+    }
+    private let cacheRoot = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("www", isDirectory: true)
+    private lazy var remote = Remote(owner: self)
+
+    private func proxy(_ task: WKURLSchemeTask, id: ObjectIdentifier, request: URLRequest, rel: String) {
+        guard !rel.split(separator: "/").contains(".."), let src = request.url,
+              var comps = URLComponents(url: Self.site.appendingPathComponent(rel), resolvingAgainstBaseURL: false)
+        else { return send(task, id, 400, [:], nil) }
+        comps.percentEncodedQuery = URLComponents(url: src, resolvingAgainstBaseURL: false)?.percentEncodedQuery
+        guard let url = comps.url, url.host == Self.site.host else { return send(task, id, 400, [:], nil) }
+        var req = URLRequest(url: url)
+        req.httpMethod = request.httpMethod == "HEAD" ? "HEAD" : "GET"
+        let range = request.value(forHTTPHeaderField: "Range")
+        if let range { req.setValue(range, forHTTPHeaderField: "Range") }
+        let keepAs = (range == nil && req.httpMethod == "GET" && src.query == nil && Self.isKeepable(rel))
+            ? cacheRoot.appendingPathComponent(rel) : nil
+        remote.start(req, task: task, id: id, keepAs: keepAs)
+    }
+
+    private final class Remote: NSObject, URLSessionDataDelegate {
+        private struct Job {
+            let task: WKURLSchemeTask
+            let id: ObjectIdentifier
+            let keepAs: URL?
+            var part: URL?
+            var handle: FileHandle?
+            var length: Int64 = -1
+            var written: Int64 = 0
+            var broken = false
+        }
+        private unowned let owner: SchemeHandler
+        private let lock = NSLock()
+        private var jobs: [Int: Job] = [:]
+        private lazy var session: URLSession = {
+            let cfg = URLSessionConfiguration.default
+            cfg.urlCache = URLCache(memoryCapacity: 16 << 20, diskCapacity: 256 << 20)   // short-lived files follow their headers
+            let q = OperationQueue(); q.maxConcurrentOperationCount = 1
+            return URLSession(configuration: cfg, delegate: self, delegateQueue: q)
+        }()
+
+        init(owner: SchemeHandler) { self.owner = owner }
+
+        func start(_ req: URLRequest, task: WKURLSchemeTask, id: ObjectIdentifier, keepAs: URL?) {
+            let t = session.dataTask(with: req)
+            lock.lock(); jobs[t.taskIdentifier] = Job(task: task, id: id, keepAs: keepAs); lock.unlock()
+            t.resume()
+        }
+
+        private func job(_ t: URLSessionTask) -> Job? { lock.lock(); defer { lock.unlock() }; return jobs[t.taskIdentifier] }
+        private func take(_ t: URLSessionTask) -> Job? { lock.lock(); defer { lock.unlock() }; return jobs.removeValue(forKey: t.taskIdentifier) }
+        private func update(_ t: URLSessionTask, _ f: (inout Job) -> Void) {
+            lock.lock(); defer { lock.unlock() }
+            if var j = jobs[t.taskIdentifier] { f(&j); jobs[t.taskIdentifier] = j }
+        }
+
+        func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
+                        completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+            guard let job = job(dataTask), let http = response as? HTTPURLResponse else { completionHandler(.cancel); return }
+            var headers = ["Access-Control-Allow-Origin": "*", "Accept-Ranges": "bytes"]
+            for k in ["Content-Type", "Content-Range", "Cache-Control", "ETag", "Last-Modified"] {
+                if let v = http.value(forHTTPHeaderField: k) { headers[k] = v }
+            }
+            if http.value(forHTTPHeaderField: "Content-Encoding") == nil,
+               let v = http.value(forHTTPHeaderField: "Content-Length") { headers["Content-Length"] = v }
+            guard owner.respond(job.task, job.id, http.statusCode, headers) else { completionHandler(.cancel); return }
+            if http.statusCode == 200, let dest = job.keepAs {
+                let dir = dest.deletingLastPathComponent()
+                try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                let part = dir.appendingPathComponent(".part-" + UUID().uuidString)
+                if FileManager.default.createFile(atPath: part.path, contents: nil),
+                   let h = try? FileHandle(forWritingTo: part) {
+                    update(dataTask) { $0.part = part; $0.handle = h; $0.length = http.expectedContentLength }
+                }
+            }
+            completionHandler(.allow)
+        }
+
+        func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+            guard let job = job(dataTask) else { dataTask.cancel(); return }
+            var alive = true
+            DispatchQueue.main.sync {                       // sync = backpressure, as in serve()
+                if self.owner.isActive(job.id) { job.task.didReceive(data) } else { alive = false }
+            }
+            guard alive else { dataTask.cancel(); return }  // the page stopped asking: didComplete cleans up
+            if let h = job.handle, !job.broken {
+                do { try h.write(contentsOf: data); update(dataTask) { $0.written += Int64(data.count) } }
+                catch { update(dataTask) { $0.broken = true } }
+            }
+        }
+
+        func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+            guard let job = take(task) else { return }
+            try? job.handle?.close()
+            if let part = job.part {
+                if error == nil, !job.broken, let dest = job.keepAs, job.length < 0 || job.written == job.length {
+                    try? FileManager.default.removeItem(at: dest)
+                    do { try FileManager.default.moveItem(at: part, to: dest) }
+                    catch { try? FileManager.default.removeItem(at: part) }
+                } else {
+                    try? FileManager.default.removeItem(at: part)   // cut off: nothing half done is kept
+                }
+            }
+            DispatchQueue.main.sync {
+                guard self.owner.isActive(job.id) else { return }
+                if let error { job.task.didFailWithError(error) } else { job.task.didFinish() }
+                self.owner.remove(job.id)
+            }
+        }
+    }
+
     // MARK: serving (background queue)
     private func serve(_ task: WKURLSchemeTask, id: ObjectIdentifier, request: URLRequest) {
         guard let url = request.url else { return send(task, id, 400, [:], nil) }
@@ -82,6 +204,8 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
 
         guard let file = resolve(rel),
               let size = (try? file.resourceValues(forKeys: [.fileSizeKey]))?.fileSize.map({ UInt64($0) }) else {
+            // a game file the IPA does not carry (a lite IPA): fetched from the site, as the web version does
+            if rel.hasPrefix("assets/") { return proxy(task, id: id, request: request, rel: rel) }
             return send(task, id, 404, ["Content-Type": "text/plain"], Data("Not found: \(rel)".utf8))
         }
 

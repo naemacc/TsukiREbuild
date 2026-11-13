@@ -43,7 +43,7 @@ It needs Android 8 or newer and plays in landscape, by touch, as the site does o
 There is no download for iOS: an app has to be signed, and a 2.8 GB IPA is too large to host. Instead this repository builds an **unsigned IPA** that you sideload yourself. It is the same web port as the Android app (in a `WKWebView`), in English, landscape only, and it needs iOS 16 or newer.
 
 1. Fork this repository on GitHub, open its **Actions** tab, choose **Build iOS IPA** and press **Run workflow**. It has two options:
-   - **Put the game's assets inside the IPA** (on by default): the whole game, about 2.8 GB, is packed in so it plays with no connection. Off makes a lite IPA without the game's files, which then have to be copied into the app's folder through the Files app.
+   - **Put the game's assets inside the IPA** (on by default): the whole game, about 2.8 GB, is packed in so it plays with no connection. Off makes a lite IPA, a few megabytes, that fetches the game's files from arcueid.date as you play, as the website does, so it needs a connection (and the AV1 movies play only where the browser's would: on the newest iPhones).
    - **Re-encode movies AV1 -> H.264** (on by default): the movies are AV1, which iPhones play in hardware only on the newest models; this is needed for iPhone 14 and older.
 2. When it finishes (it can take a while), download the **Tsukihime-ipa** artifact from the run's page and unzip it to get `Tsukihime.ipa`. Artifacts are kept for 14 days.
 3. Install the IPA with a sideloading tool and follow that tool's own guide: [AltStore](https://altstore.io/), [SideStore](https://sidestore.io/), [Sideloadly](https://sideloadly.io/) or [LiveContainer](https://github.com/LiveContainer/LiveContainer).

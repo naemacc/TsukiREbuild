@@ -41,7 +41,17 @@ final class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate
         if (!window.preload) return;   // the page never came up: not confirmed, so the app takes a bad update out again
         await HOST.call("confirm").catch(() => {});
         const U = await import("/js/update.js");
-        const plan = await U.checkUpdate(HOST);
+        // a lite IPA has no list of the game's files: it fetches them from the site as it plays, so it has them all
+        const local = async (p) => {
+          const r = await fetch(p, { cache: "no-store" });
+          if (r.ok) return r.text();
+          if (p === "/bundled-assets.txt") {
+            const m = JSON.parse(await HOST.call("fetchText", { path: "update/app.json" }));
+            return HOST.call("fetchText", { path: m.assets.path + "?h=" + m.assets.md5.slice(0, 12), hash: m.assets.md5 });
+          }
+          throw Error(p + ": " + r.status);
+        };
+        const plan = await U.checkUpdate(HOST, { local });
         if (plan.state !== "update") return;
         if (!confirm("An update is available (" + U.sizeText(plan.bytes) + ").\\nDownload it now?")) return;
         const box = document.createElement("div");
