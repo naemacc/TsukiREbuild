@@ -58,6 +58,9 @@ jobs:
       - name: Stage the web app (Bun)
         run: bun web-dev/ios/ios.ts
 
+      - name: Describe what is bundled (for in-app updates)
+        run: python3 web-dev/ios/make_bundled.py web-dev/ios/build/www ${{ inputs.bundle_assets && '1' || '0' }}
+
       - name: Generate the Xcode project
         run: cd web-dev/ios && xcodegen generate
 
@@ -71,7 +74,6 @@ jobs:
       - name: Add the app icon
         run: |
           APP=build/Build/Products/Release-iphoneos/Tsukihime.app
-          SRC=web/app/apple-touch-icon.png
           pip install pillow
           python - <<'EOF'
           from PIL import Image

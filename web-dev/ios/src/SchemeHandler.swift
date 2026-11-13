@@ -42,7 +42,11 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
     private func resolve(_ rel: String) -> URL? {
         if rel.split(separator: "/").contains("..") { return nil }
         var candidates: [URL] = []
-        if rel.hasPrefix("assets/") { candidates.append(docs.appendingPathComponent(rel)) } // downloaded or copied-in assets win
+        // 1. the active update (downloaded by Updates.swift) wins over everything
+        if let root = Updates.shared.activeRoot { candidates.append(root.appendingPathComponent(rel)) }
+        // 2. assets copied into Documents through Files
+        if rel.hasPrefix("assets/") { candidates.append(docs.appendingPathComponent(rel)) }
+        // 3. what the app was built with
         candidates.append(www.appendingPathComponent(rel))
         var isDir: ObjCBool = false
         return candidates.first { FileManager.default.fileExists(atPath: $0.path, isDirectory: &isDir) && !isDir.boolValue }
@@ -72,6 +76,9 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         guard let url = request.url else { return send(task, id, 400, [:], nil) }
         var rel = String(url.path.dropFirst())
         if rel.isEmpty { rel = "index.html" }
+
+        // an update that never comes up is taken out again here, before the page is served
+        if rel == "index.html" { Updates.shared.willServeIndex() }
 
         guard let file = resolve(rel),
               let size = (try? file.resourceValues(forKeys: [.fileSizeKey]))?.fileSize.map({ UInt64($0) }) else {

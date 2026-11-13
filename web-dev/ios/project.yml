@@ -8,7 +8,7 @@ targets:
     type: application
     platform: iOS
     sources:
-      - path: Sources
+      - path: src
       - path: build/www
         type: folder
         buildPhase: resources

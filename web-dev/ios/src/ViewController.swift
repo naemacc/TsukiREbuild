@@ -1,7 +1,8 @@
 import UIKit
 import WebKit
 
-final class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
+final class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate,
+                            WKScriptMessageHandlerWithReply {
     private var webView: WKWebView!
     private var downloadDestination: URL?
 
@@ -13,10 +14,18 @@ final class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate
 
     private static let appURL = URL(string: "tsuki://tsukihime.desktop/index.html")!
 
-    // Set whatever flag your Android/desktop apps use to skip the opening page.
-    // Check web-dev/android/README.md and grep web/app/js/home.js for it.
+    // The page treats tsukihime.desktop as an app and looks for window.desktopHost
+    // (web/app/js/apphost.js). This is that object, backed by the "host" message handler below.
     private static let bootScript = """
     window.__TSUKI_IOS__ = true;
+    (function () {
+      let listener = null;
+      window.desktopHost = {
+        invoke: (name, args) => window.webkit.messageHandlers.host.postMessage({ name: name, args: args || {} }),
+        onEvent: (f) => { listener = f; },
+      };
+      window.__hostEvent = (v) => { if (listener) listener(v); };
+    })();
     """
 
     override var prefersStatusBarHidden: Bool { true }
@@ -35,6 +44,7 @@ final class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate
         config.mediaTypesRequiringUserActionForPlayback = []
         config.userContentController.addUserScript(
             WKUserScript(source: Self.bootScript, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        config.userContentController.addScriptMessageHandler(self, contentWorld: .page, name: "host")
 
         webView = WKWebView(frame: .zero, configuration: config)
         webView.translatesAutoresizingMaskIntoConstraints = false
@@ -112,6 +122,105 @@ final class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate
         let delay = 1.5 * Double(terminations.count)
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             self?.loadApp()
+        }
+    }
+
+    // MARK: host bridge (the commands apphost.js lists)
+    private final class Throttle: @unchecked Sendable {
+        private let lock = NSLock()
+        private var last = Date.distantPast
+        func allow(force: Bool) -> Bool {
+            lock.lock(); defer { lock.unlock() }
+            let now = Date()
+            if force || now.timeIntervalSince(last) > 0.1 { last = now; return true }
+            return false
+        }
+    }
+
+    func userContentController(_ userContentController: WKUserContentController,
+                               didReceive message: WKScriptMessage) async -> (Any?, String?) {
+        guard let body = message.body as? [String: Any], let name = body["name"] as? String else {
+            return (nil, "bad call")
+        }
+        let args = body["args"] as? [String: Any] ?? [:]
+        do { return (try await host(name, args), nil) }
+        catch { return (nil, error.localizedDescription) }
+    }
+
+    private func host(_ name: String, _ args: [String: Any]) async throws -> Any? {
+        switch name {
+        case "info":
+            return Updates.shared.info()
+
+        case "open":
+            if let s = args["url"] as? String, let url = URL(string: s),
+               ["http", "https"].contains(url.scheme ?? "") {
+                UIApplication.shared.open(url)
+            }
+            return nil
+
+        case "saveFile":
+            guard let rawName = args["name"] as? String, let b64 = args["data"] as? String,
+                  let data = Data(base64Encoded: b64) else { throw UpdateError.badPath("saveFile") }
+            let safe = (rawName as NSString).lastPathComponent
+            let dir = FileManager.default.temporaryDirectory.appendingPathComponent("exports", isDirectory: true)
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            let dest = dir.appendingPathComponent(safe)
+            try? FileManager.default.removeItem(at: dest)
+            try data.write(to: dest)
+            return await withCheckedContinuation { (cont: CheckedContinuation<[String: Any], Never>) in
+                let sheet = UIActivityViewController(activityItems: [dest], applicationActivities: nil)
+                sheet.popoverPresentationController?.sourceView = view
+                sheet.popoverPresentationController?.sourceRect =
+                    CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1)
+                sheet.completionWithItemsHandler = { _, completed, _, _ in
+                    cont.resume(returning: ["saved": completed, "name": safe])
+                }
+                present(sheet, animated: true)
+            }
+
+        case "fetchText":
+            guard let path = args["path"] as? String else { throw UpdateError.badPath("fetchText") }
+            return try await Updates.shared.fetchText(path: path, hash: args["hash"] as? String)
+
+        case "stage":
+            guard let id = args["id"] as? String, let list = args["files"] as? [[String: Any]] else {
+                throw UpdateError.badID
+            }
+            let files: [UpdateFile] = try list.map { f in
+                guard let p = f["path"] as? String, let h = f["hash"] as? String, let from = f["from"] as? String,
+                      let size = (f["size"] as? NSNumber)?.int64Value else { throw UpdateError.badPath("file entry") }
+                return UpdateFile(path: p, size: size, hash: h, from: from)
+            }
+            let throttle = Throttle()
+            try await Updates.shared.stage(id: id, files: files) { [weak self] done, total in
+                guard throttle.allow(force: done == total) else { return }
+                DispatchQueue.main.async {
+                    self?.webView.evaluateJavaScript(
+                        "window.__hostEvent && window.__hostEvent({done:\(done),total:\(total)})",
+                        completionHandler: nil)
+                }
+            }
+            return nil
+
+        case "cancel":
+            Updates.shared.cancel()
+            return nil
+
+        case "apply":
+            guard let id = args["id"] as? String, let meta = args["meta"],
+                  JSONSerialization.isValidJSONObject(meta),
+                  let d = try? JSONSerialization.data(withJSONObject: meta),
+                  let text = String(data: d, encoding: .utf8) else { throw UpdateError.badID }
+            try Updates.shared.apply(id: id, meta: text)
+            return nil
+
+        case "confirm":
+            Updates.shared.confirm()
+            return nil
+
+        default:
+            throw UpdateError.badPath("unknown command \(name)")
         }
     }
 
