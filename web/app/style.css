@@ -404,7 +404,7 @@ div.fc-node { pointer-events: none; cursor: default; }
 .wl-text .hm-lang h3 { margin: 0 0 16px; }
 .hm-lang-row { display: flex; justify-content: center; gap: 28px; }
 .hm-lang-row .qbtn { position: relative; flex: none; }
-.wl-text .hm-lang-note { margin: 16px 0 0; font-size: 24px; line-height: 32px; color: #c9d8e6; }
+.wl-text .hm-lang-note { margin: 16px 0 0; font-size: 24px; line-height: 32px; color: #c9d8e6; white-space: pre-line; }   /* (its two sentences on rows of their own) */
 /* Export and Import on SAVE DATA (home.js savesBlock): two of the panel's own plates side by side under the page's words, their keys, and a line
    that says what was done. */
 .hm-saves { margin: 40px 0 44px; text-align: center; }

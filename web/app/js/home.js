@@ -138,7 +138,7 @@ export const ABOUT = 0, PLAY = TABS.length - 1, SAVE = PLAY - 1, NONE = -1;
 // The language, chosen on PLAY ONLINE above its prompt (lang.js): two of the panel's plates, the one in use lit as a chosen tab is. English is the translation
 // the port was made from; Japanese is the original game's own text, set as its engine sets it. Saves and progress are the same ones in both.
 export const LANG_PLATES = [{ lang: "en", plate: "ENGLISH" }, { lang: "ja", plate: "日本語" }];
-export const LANG_LINE = { head: "Language", note: "English is the fan translation. 日本語 is the original game's text. Your saves and progress carry over between them. (L changes it.)" };
+export const LANG_LINE = { head: "Language", note: "English is the fan translation. 日本語 is the original game's text.\nYour saves and progress carry over between them. (L changes it.)" };
 const REOPEN = "tsuki.home.tab";   // (kept for one reload: the page a change of language comes back to)
 // Export, Import and Remove, on SAVE DATA's page (savefile.js): three of the panel's plates under the list of what the browser holds now. The file is the
 // Nintendo Switch game's own save, savedata000 (gamesave.js), so a save goes between the game and this page both ways. Import loads such a file's settings
