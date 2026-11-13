@@ -12,7 +12,7 @@ final class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate
     private let terminationWindow: TimeInterval = 60
     private var failureLabel: UILabel!
 
-    private static let appURL = URL(string: "tsuki://tsukihime.desktop/index.html")!
+    private static let appURL = URL(string: "tsuki://tsukihime.desktop/index.html?play")!
 
     // The page treats tsukihime.desktop as an app and looks for window.desktopHost
     // (web/app/js/apphost.js). This is that object, backed by the "host" message handler below.
