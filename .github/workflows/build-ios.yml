@@ -43,7 +43,7 @@ jobs:
       - name: Restore the game files saved by an earlier run
         id: assets-cache
         if: ${{ inputs.bundle_assets && !inputs.ignore_cache }}
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: web/assets
           key: tsuki-assets-v1-${{ github.run_id }}
@@ -70,7 +70,7 @@ jobs:
       # saved before the movies are converted, so the saved copy keeps the originals
       - name: Save the game files for the next run
         if: ${{ always() && inputs.bundle_assets && steps.assets-changed.outputs.changed == 'true' }}
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: web/assets
           key: tsuki-assets-v1-${{ github.run_id }}
@@ -78,7 +78,7 @@ jobs:
       # ---- The movies: each converted once, and converted again only when its source changes ----
       - name: Restore the converted movies saved by an earlier run
         if: ${{ inputs.bundle_assets && inputs.transcode_movies && !inputs.ignore_cache }}
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: movie-h264-cache
           key: tsuki-movies-h264-v1-${{ github.run_id }}
@@ -125,7 +125,7 @@ jobs:
 
       - name: Save the converted movies for the next run
         if: ${{ always() && inputs.bundle_assets && inputs.transcode_movies && steps.movies.outputs.converted == 'true' }}
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: movie-h264-cache
           key: tsuki-movies-h264-v1-${{ github.run_id }}
@@ -205,7 +205,7 @@ jobs:
           cd dist && zip -0 -qry Tsukihime.ipa Payload && rm -rf Payload
           ls -lh Tsukihime.ipa
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: Tsukihime-ipa
           path: dist/Tsukihime.ipa
